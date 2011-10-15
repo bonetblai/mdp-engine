@@ -44,18 +44,18 @@ template<typename T> class problem_t;
 // The hash class implements a hash table that stores information related
 // to the states of the problem which is used by different algorithms.
 
-template<typename T> class hash_t : public hashing::hash_map_t<T> {
+template<typename T> class hash_t : public Hash::hash_map_t<T> {
 
   public:
-    typedef hashing::hash_map_t<T> base_type;
+    typedef Hash::hash_map_t<T> base_type;
 
   protected:
     const problem_t<T> &problem_;
     unsigned updates_;
 
   public:
-    hash_t(const problem_t<T> &problem, typename hashing::hash_map_t<T>::evaluation_function_t heuristic = 0)
-      : hashing::hash_map_t<T>(heuristic),
+    hash_t(const problem_t<T> &problem, typename base_type::eval_function_t *heuristic = 0)
+      : Hash::hash_map_t<T>(heuristic),
         problem_(problem), updates_(0) {
     }
     virtual ~hash_t() { }
@@ -63,7 +63,7 @@ template<typename T> class hash_t : public hashing::hash_map_t<T> {
     unsigned updates() const { return updates_; }
     void inc_updates() { ++updates_; }
     void update(const T &s, float value) {
-        hashing::hash_map_t<T>::update(s, value);
+        Hash::hash_map_t<T>::update(s, value);
         inc_updates();
     }
 
@@ -83,8 +83,11 @@ template<typename T> class hash_t : public hashing::hash_map_t<T> {
 };
 
 template<typename T> class min_hash_t : public hash_t<T> {
+    typedef Hash::hash_map_t<T> hash_base_type;
+
   public:
-    min_hash_t(const problem_t<T> &problem, typename hashing::hash_map_t<T>::evaluation_function_t heuristic = 0)
+    min_hash_t(const problem_t<T> &problem,
+               typename hash_base_type::eval_function_t *heuristic = 0)
       : hash_t<T>(problem, heuristic) {
     }
     virtual ~min_hash_t() { }

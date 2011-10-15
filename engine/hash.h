@@ -27,8 +27,8 @@
 #include <limits.h>
 #include <vector>
 
-#include <ext/hash_map>
-#include <ext/hash_set>
+#include <tr1/unordered_map>
+#include <tr1/unordered_set>
 
 //#define DEBUG
 
@@ -108,32 +108,33 @@ template<typename T> class hash_function_t {
     size_t operator()(const T &s) const { return s.hash(); }
 };
 
-}; // namespace Hash
-
-namespace hashing = ::__gnu_cxx;
-namespace __gnu_cxx {
-
-template<typename T, typename F=Hash::hash_function_t<T> > class hash_set_t : public hash_set<T, F> {
+template<typename T, typename F=Hash::hash_function_t<T> > class hash_set_t : public std::tr1::unordered_set<T, F> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : public hash_map<T, Hash::data_t*, F> {
+template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : public std::tr1::unordered_map<T, Hash::data_t*, F> {
 
-    typedef hashing::hash_map<T, Hash::data_t*, F> base_type;
+    typedef std::tr1::unordered_map<T, Hash::data_t*, F> base_type;
 
   public:
     // iterators
-    typedef typename hash_map<T, Hash::data_t*, F>::iterator iterator;
-    typedef typename hash_map<T, Hash::data_t*, F>::const_iterator const_iterator;
+    typedef typename base_type::iterator iterator;
+    typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
     const_iterator end() const { return base_type::end(); }
     iterator begin() { return base_type::begin(); }
     iterator end() { return base_type::end(); }
 
-    // evaluation function
-    typedef float (*evaluation_function_t)(const T &s);
+    // evaluation functions
+    struct eval_function_t {
+        virtual float operator()(const T &s) const = 0;
+    };
+
+    struct default_eval_function_t : public eval_function_t {
+        float operator()(const T &s) const { return 0; }
+    };
 
   protected:
-    const evaluation_function_t evaluation_function_;
+    const eval_function_t *eval_function_;
 
     Hash::data_t* push(const T &s, Hash::data_t *d) {
         std::pair<iterator, bool> p = insert(std::make_pair(s, d));
@@ -144,17 +145,15 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
     const_iterator lookup(const T &s) const { return find(s); }
 
   public:
-    hash_map_t(evaluation_function_t evaluation_function = 0)
-      : evaluation_function_(evaluation_function) {
+    hash_map_t(eval_function_t *eval_function = 0)
+      : eval_function_(eval_function) {
     }
     virtual ~hash_map_t() {
         for( iterator hi = begin(); hi != end(); ++hi )
             delete (*hi).second;
     }
 
-    float default_value(const T &s) const {
-        return evaluation_function_ == 0 ? 0 : evaluation_function_(s);
-    }
+    float default_value(const T &s) const { return eval_function_ == 0 ? 0 : (*eval_function_)(s); }
 
     Hash::data_t* data_ptr(const T &s) {
         iterator di = lookup(s);
@@ -261,7 +260,7 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
 
 };
 
-}; // namespace hashing
+}; // namespace Hash
 
 inline std::ostream& operator<<(std::ostream &os, const Hash::data_t &data) {
     data.print(os);

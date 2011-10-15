@@ -26,6 +26,8 @@
 #include <vector>
 #include <math.h>
 
+//#define DEBUG
+
 namespace Algorithm {
 
 template<typename T> class policy_graph_t {

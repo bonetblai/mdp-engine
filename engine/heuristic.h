@@ -19,6 +19,7 @@
 #ifndef HEURISTIC_H
 #define HEURISTIC_H
 
+#include "hash.h"
 #include "problem.h"
 #include "utils.h"
 
@@ -125,6 +126,14 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return hash_.size(); }
     virtual void dump(std::ostream &os) const { hash_.dump(os); }
+};
+
+template<typename T> struct wrapper_t : public Hash::hash_map_t<T>::eval_function_t {
+    const heuristic_t<T> *heuristic_;
+    wrapper_t(const heuristic_t<T> *heuristic = 0) : heuristic_(heuristic) { }
+    float operator()(const T &s) const {
+        return heuristic_ == 0 ? 0 : heuristic_->value(s);
+    }
 };
 
 }; // namespace Heuristic
