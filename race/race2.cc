@@ -14,6 +14,7 @@
 #include "algorithm.h"
 #include "parameters.h"
 #include "heuristic.h"
+#include "evaluation.h"
 
 using namespace std;
 

@@ -121,7 +121,7 @@ template<typename T> class problem_t {
     virtual void next(const T &s, action_t a, std::vector<std::pair<T, float> > &outcomes) const = 0;
 
     // sample next state given action using problem's dynamics
-    std::pair<T, bool> sample(const hash_t<T> &hash, const T &s, action_t a) const {
+    std::pair<T, bool> sample(const T &s, action_t a) const {
         size_t osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
@@ -135,7 +135,7 @@ template<typename T> class problem_t {
     }
 
     // sample next state given action uniformly among all possible next states
-    std::pair<T, bool> usample(const hash_t<T> &hash, const T &s, action_t a) const {
+    std::pair<T, bool> usample(const T &s, action_t a) const {
         size_t osize = 0;
         std::pair<T,float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
@@ -143,7 +143,7 @@ template<typename T> class problem_t {
     }
 
     // sample next (unlabeled) state given action; probabilities are re-weighted
-    std::pair<T, bool> nsample(const hash_t<T> &hash, const T &s, action_t a) const {
+    std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
         size_t osize = 0;
         bool label[MAXOUTCOMES];
         std::pair<T, float> outcomes[MAXOUTCOMES];

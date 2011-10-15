@@ -291,9 +291,6 @@ bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash
 
 template<typename T, int V>
 size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, const parameters_t &parameters) {
-    typedef std::pair<T, bool> (Problem::problem_t<T>::*sample_t)(const Problem::hash_t<T>&, const T&, Problem::action_t) const;
-    sample_t sample = V == 0 ? &Problem::problem_t<T>::sample : (V == 1 ? &Problem::problem_t<T>::usample : &Problem::problem_t<T>::nsample);
-
     std::list<T> states;
     std::pair<T, bool> n;
 
@@ -318,9 +315,15 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
         hash.inc_updates();
 
         if( Random::real() < parameters.rtdp.epsilon_greedy_ ) {
-            n = problem.usample(hash, t, p.first);
+            n = problem.usample(t, p.first);
         } else {
-            n = (problem.*sample)(hash, t, p.first);
+            if( V == 0 ) {
+                n = problem.sample(t, p.first);
+            } else if( V == 1 ) {
+                n = problem.usample(t, p.first);
+            } else if( V == 2 ) {
+                n = problem.nsample(t, p.first, hash);
+            }
         }
         if( !n.second ) break;
 

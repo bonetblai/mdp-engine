@@ -11,9 +11,9 @@ clean:
 		$(G++) $(CCFLAGS) -c $<
 
 race2.o:	race2.cc parsing.h
-race2.o:	../engine/algorithm.h ../engine/hash.h ../engine/heuristic.h
-race2.o:	../engine/parameters.h ../engine/problem.h ../engine/random.h
-race2.o:	../engine/utils.h
+race2.o:	../engine/algorithm.h ../engine/evaluation.h ../engine/hash.h
+race2.o:	../engine/heuristic.h ../engine/parameters.h ../engine/problem.h
+race2.o:	../engine/random.h ../engine/utils.h
 
 parsing.o:	parsing.h
 
