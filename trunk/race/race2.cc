@@ -16,13 +16,6 @@
 
 using namespace std;
 
-#ifndef USHORT_MAX
-#define USHORT_MAX    65535
-#endif
-#ifndef SHORT_MAX
-#define SHORT_MAX     32767
-#endif
-
 namespace Utils {
     int verbosity = 0;
     float kappa_log = log(2.0);
@@ -98,7 +91,8 @@ class problem_t : public Problem::problem_t<state_t> {
   public:
     problem_t(grid_t &grid, float p = 1.0)
       : grid_(grid), p_(p), rows_(grid.rows()), cols_(grid.cols()),
-        init_(SHORT_MAX,SHORT_MAX,SHORT_MAX,SHORT_MAX) {
+        init_(numeric_limits<short>::max(), numeric_limits<short>::max(),
+              numeric_limits<short>::max(), numeric_limits<short>::max()) {
         for( size_t i = 0; i < grid_.starts().size(); ++i ) {
             size_t s = grid_.start(i);
             inits_.push_back(state_t(s / cols_, s % cols_));
@@ -307,8 +301,8 @@ int main(int argc, const char **argv) {
     fclose(is);
 
     // solve problem with algorithms
-    size_t first = UINT_MAX;
-    for( size_t i = 0; (i < 12) && (table[i] != 0); ++i ) {
+    unsigned first = numeric_limits<unsigned>::max();
+    for( unsigned i = 0; (i < 12) && (table[i] != 0); ++i ) {
         if( (alg>>i) % 2 ) {
             srand48( seed );
             first = Utils::min(first, i);
@@ -322,7 +316,7 @@ int main(int argc, const char **argv) {
             float start_time = Utils::read_time_in_seconds();
             Problem::hash_t<state_t> hash(problem, new Heuristic::wrapper_t<state_t>(heuristic));
             problem.clear_expansions();
-            size_t t = (*table[i])(problem, hash, eps, i == 3 ? bound : (i == 7 ? kappa : UINT_MAX), i == 5 ? g : 0.0);
+            size_t t = (*table[i])(problem, hash, eps, i == 3 ? bound : (i == 7 ? kappa : numeric_limits<unsigned>::max()), i == 5 ? g : 0.0);
             float end_time = Utils::read_time_in_seconds();
             float htime = !heuristic ? 0 : heuristic->total_time();
             float dtime = !heuristic ? 0 : heuristic->eval_time();
