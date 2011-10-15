@@ -125,7 +125,7 @@ template<typename T> class problem_t {
         size_t osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
-        float d = Random::real_zero_one();
+        float d = Random::real();
         for( size_t i = 0; i < osize; ++i ) {
             if( d < outcomes[i].second )
                 return std::make_pair(outcomes[i].first, true);
@@ -162,7 +162,7 @@ template<typename T> class problem_t {
         n = osize - n;
         if( n == 0 ) return std::make_pair(s, false);
 
-        float d = Random::real_zero_one();
+        float d = Random::real();
         for( size_t i = 0; i < osize; ++i ) {
             if( !label[i] && ((n == 1) || (d <= outcomes[i].second / mass)) ) {
                 return std::make_pair(outcomes[i].first, true);

@@ -12,14 +12,10 @@
 
 #include "parsing.h"
 #include "algorithm.h"
+#include "parameters.h"
 #include "heuristic.h"
 
 using namespace std;
-
-namespace Utils {
-    int verbosity = 0;
-    float kappa_log = log(2.0);
-};
 
 class state_t {
     short x_;
@@ -174,10 +170,12 @@ void usage(ostream &os) {
        << endl
        << "  -h <n>    Heuristics: 0=zero, 1=minmin, 2=hdp(0). Default: 0."
        << endl
+#if 0
        << "  -k <n>    Kappa consistency level. Default: 0."
        << endl
        << "  -K <f>    Used to define kappa measures. Default: 2."
        << endl
+#endif
        << "  -p <f>    Parameter p in [0,1]. Default: 1."
        << endl
        << "  -s <n>    Random seed. Default: 0."
@@ -192,7 +190,7 @@ const char *name[] = {
     "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "elrtdp", "check", "hdp-i", "hdp", "ldfs+", "ldfs"
 };
 
-size_t (*table[])(const Problem::problem_t<state_t>&, Problem::hash_t<state_t>&, float, size_t, float) = {
+size_t (*table[])(const Problem::problem_t<state_t>&, Problem::hash_t<state_t>&, const Algorithm::parameters_t&) = {
     Algorithm::value_iteration<state_t>,
     Algorithm::standard_lrtdp<state_t>,
     Algorithm::uniform_lrtdp<state_t>,
@@ -211,13 +209,11 @@ int main(int argc, const char **argv) {
     FILE *is = 0;
     float p = 1.0;
     unsigned alg = 0;
-    float eps = 0.0;
-    float g = 0.0;
     int h = 0;
     unsigned long seed = 0;
-    size_t bound = 0;
-    size_t kappa = 0;
     bool formatted = false;
+
+    Algorithm::parameters_t parameters;
 
     // parse arguments
     ++argv;
@@ -231,12 +227,12 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 'b':
-                bound = strtol(argv[1], 0, 0);
+                parameters.rtdp.bound_ = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
             case 'e':
-                eps = strtod(argv[1], 0);
+                parameters.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -246,22 +242,12 @@ int main(int argc, const char **argv) {
                 --argc;
                 break;
             case 'g':
-                g = strtod(argv[1], 0);
+                parameters.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
             case 'h':
                 h = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'k':
-                kappa = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'K':
-                Utils::kappa_log = log(strtod(argv[1], 0));
                 argv += 2;
                 argc -= 2;
                 break;
@@ -272,11 +258,6 @@ int main(int argc, const char **argv) {
                 break;
             case 's':
                 seed = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'v':
-                Utils::verbosity = strtoul(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -294,7 +275,7 @@ int main(int argc, const char **argv) {
     }
 
     // build problem instances
-    srand48(seed);
+    Random::seeds(seed);
     grid_t grid;
     grid.parse(cout, is);
     problem_t problem(grid, p);
@@ -304,7 +285,7 @@ int main(int argc, const char **argv) {
     unsigned first = numeric_limits<unsigned>::max();
     for( unsigned i = 0; (i < 12) && (table[i] != 0); ++i ) {
         if( (alg>>i) % 2 ) {
-            srand48( seed );
+            Random::seeds(seed);
             first = Utils::min(first, i);
             Heuristic::heuristic_t<state_t> *heuristic = 0;
 
@@ -316,7 +297,7 @@ int main(int argc, const char **argv) {
             float start_time = Utils::read_time_in_seconds();
             Problem::hash_t<state_t> hash(problem, new Heuristic::wrapper_t<state_t>(heuristic));
             problem.clear_expansions();
-            size_t t = (*table[i])(problem, hash, eps, i == 3 ? bound : (i == 7 ? kappa : numeric_limits<unsigned>::max()), i == 5 ? g : 0.0);
+            size_t t = (*table[i])(problem, hash, parameters);
             float end_time = Utils::read_time_in_seconds();
             float htime = !heuristic ? 0 : heuristic->total_time();
             float dtime = !heuristic ? 0 : heuristic->eval_time();

@@ -20,6 +20,7 @@
 #define ALGORITHM_H
 
 #include "problem.h"
+#include "parameters.h"
 
 #include <cassert>
 #include <list>
@@ -198,7 +199,7 @@ void generate_space(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
 }
 
 template<typename T>
-size_t value_iteration(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t bound, float) {
+size_t value_iteration(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     typedef typename Problem::hash_t<T>::iterator hash_iterator;
     generate_space(problem, hash);
 
@@ -207,9 +208,9 @@ size_t value_iteration(const Problem::problem_t<T> &problem, Problem::hash_t<T> 
 #endif
 
     size_t iters = 0;
-    float residual = 1 + epsilon;
-    while( residual > epsilon ) {
-        if( iters >= bound ) break;
+    float residual = 1 + parameters.epsilon_;
+    while( residual > parameters.epsilon_ ) {
+        if( iters > parameters.vi.max_number_iterations_ ) break;
         residual = 0;
         for( hash_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
             float hv = (*hi).second->value();
@@ -220,7 +221,7 @@ size_t value_iteration(const Problem::problem_t<T> &problem, Problem::hash_t<T> 
             hash.inc_updates();
 
 #ifdef DEBUG
-            if( res > epsilon ) {
+            if( res > parameters.epsilon_ ) {
                 std::cout << "value for " << (*hi).first
                           << " changed from " << hv << " to "
                           << p.second << std::endl;
@@ -289,7 +290,7 @@ bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash
 }
 
 template<typename T, int V>
-size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, float epsilon, size_t bound, float greedy) {
+size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, const parameters_t &parameters) {
     typedef std::pair<T, bool> (Problem::problem_t<T>::*sample_t)(const Problem::hash_t<T>&, const T&, Problem::action_t) const;
     sample_t sample = V == 0 ? &Problem::problem_t<T>::sample : (V == 1 ? &Problem::problem_t<T>::usample : &Problem::problem_t<T>::nsample);
 
@@ -306,7 +307,7 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
 #endif
 
     size_t steps = 1;
-    while( !problem.terminal(t) && !dptr->solved() && (dptr->count() <= bound) ) {
+    while( !problem.terminal(t) && !dptr->solved() && (dptr->count() <= parameters.rtdp.bound_) ) {
 
 #ifdef DEBUG
         std::cout << "  " << t << " = " << dptr->value() << ":" << hash.heuristic(t) << std::endl;
@@ -316,7 +317,7 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
         dptr->update(p.second);
         hash.inc_updates();
 
-        if( drand48() < greedy ) {
+        if( Random::real() < parameters.rtdp.epsilon_greedy_ ) {
             n = problem.usample(hash, t, p.first);
         } else {
             n = (problem.*sample)(hash, t, p.first);
@@ -336,7 +337,7 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
 
     while( !states.empty() ) {
         hash.clear_count(states.back());
-        bool solved = check_solved(problem, hash, states.back(), epsilon);
+        bool solved = check_solved(problem, hash, states.back(), parameters.epsilon_);
         states.pop_back();
         if( !solved ) break;
     }
@@ -349,11 +350,11 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
 }
 
 template<typename T, int V>
-size_t lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t bound, float greedy) {
+size_t lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     size_t steps = 0, trials = 0;
     const T &init = problem.init();
     while( !hash.solved(init) ) {
-        size_t s = lrtdp_trial<T, V>(problem, hash, init, epsilon, bound, greedy);
+        size_t s = lrtdp_trial<T, V>(problem, hash, init, parameters);
         steps = Utils::max(steps, s);
         ++trials;
     }
@@ -361,22 +362,22 @@ size_t lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, flo
 }
 
 template<typename T>
-size_t standard_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t bound, float greedy) {
-    return lrtdp<T,0>(problem, hash, epsilon, bound, greedy);
+size_t standard_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 0>(problem, hash, parameters);
 }
 
 template<typename T>
-size_t uniform_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t bound, float greedy) {
-    return lrtdp<T,1>(problem, hash, epsilon, bound, greedy);
+size_t uniform_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 1>(problem, hash, parameters);
 }
 
 template<typename T>
-size_t bounded_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t bound, float greedy) {
-    return lrtdp<T,2>(problem, hash, epsilon, bound, greedy);
+size_t bounded_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 2>(problem, hash, parameters);
 }
 
 template<typename T>
-size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t, float) {
+size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     typedef typename std::list<std::pair<T, Hash::data_t*> >::const_iterator list_const_iterator;
     std::list<std::pair<T, Hash::data_t*> > visited;
 
@@ -396,8 +397,8 @@ size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
     }
 
     // convergence test
-    float residual = 1.0 + epsilon;
-    while( residual > epsilon ) {
+    float residual = 1.0 + parameters.epsilon_;
+    while( residual > parameters.epsilon_ ) {
         residual = 0.0;
         for( list_const_iterator si = graph.nodes().begin(); si != graph.nodes().end(); ++si ) {
             float hv = (*si).second->value();
@@ -413,11 +414,11 @@ size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
 }
 
 template<typename T>
-size_t plain_check(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t, float) {
+size_t plain_check(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     size_t trials = 0;
     const T &init = problem.init();
     while( !hash.solved(init) ) {
-        check_solved(problem, hash, init, epsilon);
+        check_solved(problem, hash, init, parameters.epsilon_);
         ++trials;
     }
     return trials;
@@ -571,7 +572,7 @@ size_t hdp_i(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, flo
 #endif
 
 template<typename T>
-bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t* dptr, float epsilon, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, size_t depth) {
+bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t* dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
     size_t osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
@@ -585,7 +586,7 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
 
     // if residual > epsilon, update and return
     std::pair<Problem::action_t, float> p = hash.bestQValue(s);
-    if( fabs(p.second - dptr->value()) > epsilon ) {
+    if( fabs(p.second - dptr->value()) > parameters.epsilon_ ) {
         dptr->update(p.second);
         hash.inc_updates();
         return false;
@@ -605,7 +606,7 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
     for( size_t i = 0; i < osize; ++i ) {
         Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
         if( ptr->scc_idx() == std::numeric_limits<unsigned>::max() ) {
-            bool rv = hdp(problem, hash, outcomes[i].first, ptr, epsilon, index, stack, visited, 2+depth);
+            bool rv = hdp(problem, hash, outcomes[i].first, ptr, index, stack, visited, parameters);
             flag = flag && rv;
             dptr->set_scc_low(Utils::min(dptr->scc_low(), hash.scc_low(outcomes[i].first)));
         } else if( ptr->marked() ) {
@@ -635,14 +636,14 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
 }
 
 template<typename T>
-size_t hdp_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t, float) {
+size_t hdp_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
     const T &init = problem.init();
     Hash::data_t *dptr = hash.data_ptr(init);
     size_t trials = 0;
     while( !dptr->solved() ) {
         size_t index = 0;
-        hdp(problem, hash, init, dptr, epsilon, index, stack, visited, 0);
+        hdp(problem, hash, init, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();
@@ -656,7 +657,7 @@ size_t hdp_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash
 }
 
 template<typename T, int V>
-bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, float epsilon, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, size_t depth) {
+bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
     std::pair<T, float> outcomes[MAXOUTCOMES];
     size_t osize = 0;
 
@@ -692,20 +693,20 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
             qv += outcomes[i].second * hash.value(outcomes[i].first);
         qv += 1.0;
         bqv = Utils::min(bqv, qv);
-        if( fabs(qv - dptr->value()) > epsilon ) continue;
+        if( fabs(qv - dptr->value()) > parameters.epsilon_ ) continue;
         dptr->mark();
         flag = true;
         for( size_t i = 0; i < osize; ++i ) {
             Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
             if( ptr->scc_idx() == std::numeric_limits<unsigned>::max() ) {
-                bool rv = ldfs<T, V>(problem, hash, outcomes[i].first, ptr, epsilon, index, stack, visited, 2+depth);
+                bool rv = ldfs<T, V>(problem, hash, outcomes[i].first, ptr, index, stack, visited, parameters);
                 flag = flag && rv;
                 dptr->set_scc_low(Utils::min(dptr->scc_low(), ptr->scc_low()));
             } else if( ptr->marked() ) {
                 dptr->set_scc_low(Utils::min(dptr->scc_low(), ptr->scc_idx()));
             }
         }
-        if( (V == 1) && flag && (hash.QValue(s, a) - dptr->value() > epsilon) ) flag = false;
+        if( (V == 1) && flag && (hash.QValue(s, a) - dptr->value() > parameters.epsilon_) ) flag = false;
         if( flag ) break;
         while( stack.front()->scc_idx() > idx ) {
             stack.front()->set_scc_low(std::numeric_limits<unsigned>::max());
@@ -738,14 +739,14 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
 }
 
 template<typename T>
-size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t, float) {
+size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
     size_t trials = 0;
     const T &init = problem.init();
     Hash::data_t *dptr = hash.data_ptr(init);
     while( !dptr->solved() ) {
         size_t index = 0;
-        ldfs<T, 1>(problem, hash, init, dptr, epsilon, index, stack, visited, 0);
+        ldfs<T, 1>(problem, hash, init, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();
@@ -757,14 +758,14 @@ size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T>
 }
 
 template<typename T>
-size_t ldfs_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t, float) {
+size_t ldfs_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
     size_t trials = 0;
     const T &init = problem.init();
     Hash::data_t *dptr = hash.data_ptr(init);
     while( !dptr->solved() ) {
         size_t index = 0;
-        ldfs<T, 0>(problem, hash, init, dptr, epsilon, index, stack, visited, 0);
+        ldfs<T, 0>(problem, hash, init, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();

@@ -21,6 +21,7 @@
 
 #include "hash.h"
 #include "problem.h"
+#include "parameters.h"
 #include "utils.h"
 
 #include <iostream>
@@ -32,7 +33,7 @@
 
 // forward reference
 namespace Algorithm {
-  template<typename T> size_t value_iteration(const Problem::problem_t<T>&, Problem::hash_t<T>&, float, size_t, float);
+  template<typename T> size_t value_iteration(const Problem::problem_t<T>&, Problem::hash_t<T>&, const parameters_t&);
 };
 
 namespace Heuristic {
@@ -58,8 +59,12 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
   public:
     min_min_heuristic_t(const Problem::problem_t<T> &problem)
       : problem_(problem), hash_(problem), time_(0) {
+
+      Algorithm::parameters_t parameters;
+      parameters.vi.max_number_iterations_ = std::numeric_limits<unsigned>::max();
+
       float start_time = Utils::read_time_in_seconds();
-      Algorithm::value_iteration<T>(problem_, hash_, 0, std::numeric_limits<unsigned>::max(), 0);
+      Algorithm::value_iteration<T>(problem_, hash_, parameters);
       float end_time = Utils::read_time_in_seconds();
       time_ = end_time - start_time;
     } 

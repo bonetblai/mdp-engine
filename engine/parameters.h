@@ -13,38 +13,35 @@
  *  ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
  *  
  *  Blai Bonet, bonet@ldc.usb.ve
- *
+ *  
  */
 
-#ifndef RANDOM_H
-#define RANDOM_H
+#ifndef PARAMETERS_H
+#define PARAMETERS_H
 
-#include <iostream>
-#include <cassert>
-#include <stdlib.h>
+namespace Algorithm {
 
-//#define DEBUG
+struct parameters_t {
+    float epsilon_;
 
-namespace Random {
+    struct vi_parameters_t {
+        unsigned max_number_iterations_;
+        vi_parameters_t() : max_number_iterations_(0) { }
+    };
+    vi_parameters_t vi;
 
-inline void seeds(int seed) {
-    unsigned short useed[3];
-    useed[0] = useed[1] = useed[2];
-    srand48((long int)seed);
-    seed48(useed);
-}
+    struct rtdp_parameters_t {
+        unsigned bound_;
+        unsigned max_number_steps_;
+        float epsilon_greedy_;
+        rtdp_parameters_t() : bound_(0), max_number_steps_(0), epsilon_greedy_(0) { }
+    };
+    rtdp_parameters_t rtdp;
 
-inline float real() {
-    return drand48();
-}
-
-inline unsigned uniform(unsigned max) {
-    return lrand48() % max;
-}
-
+    parameters_t() : epsilon_(0) { }
 };
 
-#undef DEBUG
+}; // end of namespace Algorithm
 
 #endif
 
