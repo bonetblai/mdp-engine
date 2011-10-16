@@ -181,7 +181,7 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual ~problem_t() { }
 
-    virtual ::Problem::action_t last_action() const { return 4; }
+    virtual ::Problem::action_t number_actions() const { return 4; }
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.applicable(rows_, cols_, a);
     }

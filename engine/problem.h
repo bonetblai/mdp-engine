@@ -71,7 +71,7 @@ template<typename T> class hash_t : public Hash::hash_map_t<T> {
     std::pair<action_t, float> bestQValue(const T &s) const {
         action_t best_action = noop;
         float best_value = std::numeric_limits<float>::max();
-        for( action_t a = 0; a < problem_.last_action(); ++a ) {
+        for( action_t a = 0; a < problem_.number_actions(); ++a ) {
             float value = QValue(s, a);
             if( value < best_value ) {
                 best_value = value;
@@ -114,7 +114,7 @@ template<typename T> class problem_t {
         expansions_ = 0;
     }
 
-    virtual action_t last_action() const = 0;
+    virtual action_t number_actions() const = 0;
     virtual const T& init() const = 0;
     virtual bool terminal(const T &s) const = 0;
     virtual void next(const T &s, action_t a, std::pair<T, float> *outcomes, size_t &osize) const = 0;

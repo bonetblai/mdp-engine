@@ -11,7 +11,7 @@ clean:
 		$(G++) $(CCFLAGS) -c $<
 
 puzzle2.o:	puzzle2.cc
-puzzle2.o:	../engine/algorithm.h ../engine/evaluation.h ../engine/hash.h
-puzzle2.o:	../engine/heuristic.h ../engine/parameters.h ../engine/problem.h
+puzzle2.o:	../engine/algorithm.h ../engine/hash.h ../engine/heuristic.h
+puzzle2.o:	../engine/parameters.h ../engine/problem.h ../engine/policy.h
 puzzle2.o:	../engine/random.h ../engine/utils.h
 
