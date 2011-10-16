@@ -180,7 +180,7 @@ void generate_space(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
         open.pop_front();
         if( problem.terminal(n.first) ) continue;
 
-        for( Problem::action_t a = 0; a < problem.last_action(); ++a ) {
+        for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
             problem.next(n.first, a, outcomes, osize);
             for( size_t i = 0; i < osize; ++i ) {
                 Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
@@ -689,7 +689,7 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
     // expansion
     bool flag = false;
     float bqv = std::numeric_limits<float>::max();
-    for( Problem::action_t a = 0; a < problem.last_action(); ++a ) {
+    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
         float qv = 0.0;
         problem.next(s, a, outcomes, osize);
         for( size_t i = 0; i < osize; ++i )
