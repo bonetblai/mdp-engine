@@ -16,43 +16,34 @@
  *
  */
 
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef UCT_H
+#define UCT_H
+
+#include "policy.h"
 
 #include <iostream>
 #include <cassert>
-
-#include <sys/resource.h>
-#include <sys/time.h>
+#include <limits>
+#include <vector>
 
 //#define DEBUG
 
-namespace Utils {
+namespace Policy {
 
-#if 0
-extern float kappa_log;
+template<typename T> class uct_t : public improvement_t<T> {
+  protected:
 
-inline size_t kappa_value(float p, float kl = kappa_log) {
-    return (size_t)floor(-log(p) / kl);
-}
-#endif
-
-inline float read_time_in_seconds() {
-    struct rusage r_usage;
-    getrusage(RUSAGE_SELF, &r_usage);
-    return (float)r_usage.ru_utime.tv_sec +
-           (float)r_usage.ru_utime.tv_usec / (float)1000000;
-}
-
-template<typename T> inline T min(const T a, const T b) {
-    return a <= b ? a : b;
-}
-
-template<typename T> inline T max(const T a, const T b) {
-    return a >= b ? a : b;
-}
-
+  public:
+    uct_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy)
+      : improvement_t<T>(problem, base_policy) {
+    }
+    virtual ~uct_t() { }
+    virtual Problem::action_t operator()(const T &s) const {
+        return 0;
+    }
 };
+
+}; // namespace Policy
 
 #undef DEBUG
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2006 Universidad Simon Bolivar
+ *  Copyright (C) 2011 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -162,17 +162,17 @@ template<typename T> class policy_graph_t {
 };
 
 template<typename T>
-void generate_space(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash) {
+void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash) {
     size_t osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
     std::list<std::pair<T, Hash::data_t*> > open;
 
-    Hash::data_t *dptr = hash.data_ptr(problem.init());
-    open.push_back(std::make_pair(problem.init(), dptr));
+    Hash::data_t *dptr = hash.data_ptr(s);
+    open.push_back(std::make_pair(s, dptr));
     dptr->mark();
 
 #ifdef DEBUG
-    std::cout << "marking " << problem.init() << std::endl;
+    std::cout << "marking " << s << std::endl;
 #endif
 
     while( !open.empty() ) {
@@ -199,9 +199,9 @@ void generate_space(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
 }
 
 template<typename T>
-size_t value_iteration(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     typedef typename Problem::hash_t<T>::iterator hash_iterator;
-    generate_space(problem, hash);
+    generate_space(problem, s, hash);
 
 #ifdef DEBUG
     std::cout << "state space = " << hash.size() << std::endl;
@@ -353,39 +353,38 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
 }
 
 template<typename T, int V>
-size_t lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
-    size_t steps = 0, trials = 0;
-    const T &init = problem.init();
-    while( !hash.solved(init) ) {
-        size_t s = lrtdp_trial<T, V>(problem, hash, init, parameters);
-        steps = Utils::max(steps, s);
+size_t lrtdp(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    size_t trials = 0, max_steps = 0;
+    while( !hash.solved(s) ) {
+        size_t steps = lrtdp_trial<T, V>(problem, hash, s, parameters);
+        max_steps = Utils::max(max_steps, steps);
         ++trials;
     }
     return trials;
 }
 
 template<typename T>
-size_t standard_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
-    return lrtdp<T, 0>(problem, hash, parameters);
+size_t standard_lrtdp(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 0>(problem, s, hash, parameters);
 }
 
 template<typename T>
-size_t uniform_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
-    return lrtdp<T, 1>(problem, hash, parameters);
+size_t uniform_lrtdp(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 1>(problem, s, hash, parameters);
 }
 
 template<typename T>
-size_t bounded_lrtdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
-    return lrtdp<T, 2>(problem, hash, parameters);
+size_t bounded_lrtdp(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    return lrtdp<T, 2>(problem, s, hash, parameters);
 }
 
 template<typename T>
-size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t improved_lao(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     typedef typename std::list<std::pair<T, Hash::data_t*> >::const_iterator list_const_iterator;
     std::list<std::pair<T, Hash::data_t*> > visited;
 
     policy_graph_t<T> graph(problem, hash);
-    graph.add_root(problem.init());
+    graph.add_root(s);
     graph.recompute();
 
     size_t iterations = 0;
@@ -394,7 +393,7 @@ size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
     ++iterations;
     while( !graph.tips().empty() ) {
         visited.clear();
-        graph.postorder_dfs(problem.init(), visited);
+        graph.postorder_dfs(s, visited);
         graph.update(visited);
         graph.recompute();
     }
@@ -417,11 +416,10 @@ size_t improved_lao(const Problem::problem_t<T> &problem, Problem::hash_t<T> &ha
 }
 
 template<typename T>
-size_t plain_check(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t plain_check(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     size_t trials = 0;
-    const T &init = problem.init();
-    while( !hash.solved(init) ) {
-        check_solved(problem, hash, init, parameters.epsilon_);
+    while( !hash.solved(s) ) {
+        check_solved(problem, hash, s, parameters.epsilon_);
         ++trials;
     }
     return trials;
@@ -557,13 +555,12 @@ bool enforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, con
 
 #if 0
 template<typename T>
-size_t hdp_i(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, float epsilon, size_t kappa, float) {
+size_t hdp_i(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, float epsilon, size_t kappa, float) {
     std::list<Hash::data_t*> visited;
-    const T &init = problem.init();
     bool status = false;
     size_t trials = 0;
     while( !status ) {
-        status = enforce(problem, hash, init, hash.data_ptr( init ), epsilon, kappa, visited);
+        status = enforce(problem, hash, s, hash.data_ptr(s), epsilon, kappa, visited);
         while( !visited.empty() ) {
             visited.front()->unmark();
             visited.pop_front();
@@ -639,14 +636,13 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
 }
 
 template<typename T>
-size_t hdp_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t hdp_driver(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
-    const T &init = problem.init();
-    Hash::data_t *dptr = hash.data_ptr(init);
+    Hash::data_t *dptr = hash.data_ptr(s);
     size_t trials = 0;
     while( !dptr->solved() ) {
         size_t index = 0;
-        hdp(problem, hash, init, dptr, index, stack, visited, parameters);
+        hdp(problem, hash, s, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();
@@ -742,14 +738,13 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
 }
 
 template<typename T>
-size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
     size_t trials = 0;
-    const T &init = problem.init();
-    Hash::data_t *dptr = hash.data_ptr(init);
+    Hash::data_t *dptr = hash.data_ptr(s);
     while( !dptr->solved() ) {
         size_t index = 0;
-        ldfs<T, 1>(problem, hash, init, dptr, index, stack, visited, parameters);
+        ldfs<T, 1>(problem, hash, s, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();
@@ -761,14 +756,13 @@ size_t ldfs_plus_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T>
 }
 
 template<typename T>
-size_t ldfs_driver(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+size_t ldfs_driver(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
     std::list<Hash::data_t*> stack, visited;
     size_t trials = 0;
-    const T &init = problem.init();
-    Hash::data_t *dptr = hash.data_ptr(init);
+    Hash::data_t *dptr = hash.data_ptr(s);
     while( !dptr->solved() ) {
         size_t index = 0;
-        ldfs<T, 0>(problem, hash, init, dptr, index, stack, visited, parameters);
+        ldfs<T, 0>(problem, hash, s, dptr, index, stack, visited, parameters);
         assert(stack.empty());
         while( !visited.empty() ) {
             visited.front()->unmark();

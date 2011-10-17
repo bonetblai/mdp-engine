@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2006 Universidad Simon Bolivar
+ *  Copyright (C) 2011 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright

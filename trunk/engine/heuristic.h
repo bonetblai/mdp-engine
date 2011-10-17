@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2006 Universidad Simon Bolivar
+ *  Copyright (C) 2011 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -33,7 +33,7 @@
 
 // forward reference
 namespace Algorithm {
-  template<typename T> size_t value_iteration(const Problem::problem_t<T>&, Problem::hash_t<T>&, const parameters_t&);
+  template<typename T> size_t value_iteration(const Problem::problem_t<T>&, const T &s, Problem::hash_t<T>&, const parameters_t&);
 };
 
 namespace Heuristic {
@@ -64,7 +64,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
       parameters.vi.max_number_iterations_ = std::numeric_limits<unsigned>::max();
 
       float start_time = Utils::read_time_in_seconds();
-      Algorithm::value_iteration<T>(problem_, hash_, parameters);
+      Algorithm::value_iteration<T>(problem_, problem.init(), hash_, parameters);
       float end_time = Utils::read_time_in_seconds();
       time_ = end_time - start_time;
     } 

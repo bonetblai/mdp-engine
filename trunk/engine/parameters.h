@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2006 Universidad Simon Bolivar
+ *  Copyright (C) 2011 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -19,6 +19,8 @@
 #ifndef PARAMETERS_H
 #define PARAMETERS_H
 
+#include <limits>
+
 namespace Algorithm {
 
 struct parameters_t {
@@ -26,18 +28,24 @@ struct parameters_t {
 
     struct vi_parameters_t {
         unsigned max_number_iterations_;
-        vi_parameters_t() : max_number_iterations_(0) { }
+        vi_parameters_t() : max_number_iterations_(std::numeric_limits<unsigned>::max()) { }
     } vi;
 
     struct rtdp_parameters_t {
         unsigned bound_;
         unsigned max_number_steps_;
         float epsilon_greedy_;
-        rtdp_parameters_t() : bound_(0), max_number_steps_(0), epsilon_greedy_(0) { }
+        rtdp_parameters_t()
+          : bound_(std::numeric_limits<unsigned>::max()),
+            max_number_steps_(std::numeric_limits<unsigned>::max()),
+            epsilon_greedy_(0) {
+        }
     } rtdp;
 
     struct eval_parameters_t {
+        unsigned number_trials_;
         unsigned max_number_steps_;
+        eval_parameters_t() : number_trials_(0), max_number_steps_(0) { }
     } eval;
 
     parameters_t() : epsilon_(0) { }
