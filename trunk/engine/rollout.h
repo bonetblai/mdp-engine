@@ -62,7 +62,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
     }
 
     float evaluate(const T &s) const {
-        return evaluation(policy_t<T>::problem_, improvement_t<T>::base_policy_, s, width_, depth_);
+        return evaluation(improvement_t<T>::base_policy_, s, width_, depth_);
     }
 };
 

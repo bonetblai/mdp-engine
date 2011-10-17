@@ -41,6 +41,7 @@ template<typename T> class policy_t {
       : problem_(problem) {
     }
     virtual ~policy_t() { }
+    const Problem::problem_t<T>& problem() const { return problem_; }
     virtual Problem::action_t operator()(const T &s) const = 0;
 };
 
@@ -112,14 +113,14 @@ template<typename T> class greedy_t : public policy_t<T> {
 // Policy evaluation
 
 template<typename T>
-float evaluation_trial(const Problem::problem_t<T> &problem, const Policy::policy_t<T> &policy, const T &s, unsigned max_depth) {
+float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned max_depth) {
     T state = s;
-    size_t steps = 1;
+    size_t steps = 0;
     float cost = 0;
-    while( !problem.terminal(state) && (steps <= max_depth) ) {
+    while( !policy.problem().terminal(state) && (steps <= max_depth) ) {
         Problem::action_t action = policy(state);
-        std::pair<T, bool> p = problem.sample(state, action);
-        cost += policy_t<T>::problem.cost(state, action);
+        std::pair<T, bool> p = policy.problem().sample(state, action);
+        cost += powf(.95, steps) * policy.problem().cost(state, action);
         state = p.first;
         ++steps;
     }
@@ -127,10 +128,10 @@ float evaluation_trial(const Problem::problem_t<T> &problem, const Policy::polic
 }
 
 template<typename T>
-float evaluation(const Problem::problem_t<T> &problem, const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth) {
+float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth) {
     float value = 0;
     for( unsigned i = 0; i < number_trials; ++i ) {
-        value += evaluation_trial(problem, policy, s, max_depth);
+        value += evaluation_trial(policy, s, max_depth);
     }
     return value / number_trials;
 }

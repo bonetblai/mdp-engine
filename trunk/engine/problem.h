@@ -218,7 +218,7 @@ inline float hash_t<T>::QValue(const T &s, action_t a) const {
     for( unsigned i = 0; i < osize; ++i ) {
         qv += outcomes[i].second * value(outcomes[i].first);
     }
-    return cost(s, a) + qv;
+    return problem_.cost(s, a) + .95 * qv;
 }
 
 template<typename T>
@@ -233,7 +233,7 @@ inline float min_hash_t<T>::QValue(const T &s, action_t a) const {
     for( unsigned i = 0; i < osize; ++i ) {
         qv = Utils::min(qv, value(outcomes[i].first));
     }
-    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : cost(s, a) + qv;
+    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : hash_t<T>::problem_.cost(s, a) + qv;
 }
 
 }; // namespace Problem

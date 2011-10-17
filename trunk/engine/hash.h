@@ -69,7 +69,8 @@ class data_t {
     float value() const { return value_; }
     void update(float value) {
         //assert(value_ <= value);
-        value_ = Utils::max(value, value_);
+        //value_ = Utils::max(value, value_);
+        value_ = value; // TODO: restore!
     }
 
     bool solved() const { return solved_; }
@@ -108,15 +109,12 @@ template<typename T> class hash_function_t {
     size_t operator()(const T &s) const { return s.hash(); }
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> > class hash_set_t : public std::tr1::unordered_set<T, F> {
+template<typename T, typename D, typename F=Hash::hash_function_t<T> > class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : public std::tr1::unordered_map<T, Hash::data_t*, F> {
-
-    typedef std::tr1::unordered_map<T, Hash::data_t*, F> base_type;
-
-  public:
-    // iterators
+template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : public generic_hash_map_t<T, Hash::data_t*, F> {
+  public: // iterators
+    typedef generic_hash_map_t<T, Hash::data_t*, F> base_type;
     typedef typename base_type::iterator iterator;
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
@@ -124,7 +122,7 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
     iterator begin() { return base_type::begin(); }
     iterator end() { return base_type::end(); }
 
-    // evaluation functions
+  public: // evaluation functions
     struct eval_function_t {
         virtual float operator()(const T &s) const = 0;
     };

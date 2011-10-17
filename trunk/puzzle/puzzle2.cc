@@ -10,6 +10,7 @@
 
 #include "algorithm.h"
 #include "heuristic.h"
+#include "policy.h"
 
 using namespace std;
 
