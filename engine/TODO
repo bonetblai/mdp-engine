@@ -1,2 +1,4 @@
 - remove MAXOUTCOMES
-- implement rollouts, uct, etc
+- implement mcts
+- implement uct
+- remove virtual methods replacing them by direct calls to methods (as in STL)

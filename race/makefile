@@ -12,8 +12,8 @@ clean:
 
 race2.o:	race2.cc parsing.h
 race2.o:	../engine/algorithm.h ../engine/hash.h ../engine/heuristic.h
-race2.o:	../engine/parameters.h ../engine/problem.h ../engine/policy.h
-race2.o:	../engine/random.h ../engine/utils.h
+race2.o:	../engine/mcts.h ../engine/parameters.h ../engine/problem.h ../engine/policy.h
+race2.o:	../engine/random.h ../engine/rollout.h ../engine/uct.h ../engine/utils.h
 
 parsing.o:	parsing.h
 

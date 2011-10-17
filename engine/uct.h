@@ -30,6 +30,62 @@
 
 namespace Policy {
 
+#if 0
+
+template<typename T> struct node_t {
+    const T &state_;
+    float value_;
+    const node_t *parent_;
+    int visits_;
+    std::vector<node_t*> children_;
+    std::vector<int> counts_;
+    node_t(const T &s, int num_actions)
+      : state_(s), value_(0), parent_(0), visits_(0),
+        children_(num_actions, 0),
+        counts_(num_actions, 0) {
+    } 
+    ~node_t() { }
+
+    float uct_trial(const Problem::problem_t<T> &problem, float C) {
+        float best_qvalue = std::numeric_limits<float>::max();
+        Problem::action_t best_action = Problem::noop;
+
+        // calculate best child
+        float log_n_s = logf(visits_);
+        for( int a = 0; a < problem.number_actions(); ++a ) {
+            float qv = 0;
+            if( children_[a] != 0 ) {
+                float bonus = C * sqrtf(log_ns / counts_[a]);
+                qv = children_[a]->value_ / visits_ + bonus;
+            } else {
+                qv = problem.cost(state_, a);
+            }
+
+            // select best child
+            if( qv < qbest_value ) {
+                best_action = a;
+                best_qvalue = value;
+            }
+        }
+
+        // recurse on best child
+        if( children_[best_action] != 0 ) {
+            float leaf_value = children_[best_action]->uct_trial(problem, C);
+            leaf_value += problem.cost(state_, best_action);
+            value_ += leaf_value; // update stored value
+            ++counts_[best_action]; // increase number of times action is pulled
+        } else {
+            // create a new node initilizing its value to a single sample
+            node_t<T> *node = new node_t<T>(problem.num_actions());
+            
+        }
+
+        // increase number of visits
+        ++visits_;
+    }
+};
+#endif
+
 template<typename T> class uct_t : public improvement_t<T> {
   protected:
 
