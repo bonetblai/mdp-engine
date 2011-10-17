@@ -114,7 +114,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return (s != init_) && grid_.goal_pos(s.x(), s.y());
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
-        return 1;
+        return terminal(s) ? 0 : 1;
     }
     virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const {
         ++expansions_;
@@ -398,15 +398,23 @@ int main(int argc, const char **argv) {
                 cout << " " << Utils::read_time_in_seconds() - start_time << endl;
             }
 
-            Policy::mcts_t<state_t> uct(problem, random, 100, 75); 
-            for( int i = 0; i < 10000000; ++i ) {
+            Policy::mcts_t<state_t> uct(problem, random, 100, 100); 
+            for( int i = 0; i < 3e6; ++i ) {
                 uct.search_tree(problem.init(), 0);
             }
+            //uct.print_table(cout);
             cout << "size=" << uct.size() << endl;
+            unsigned count_sum = 0;
             for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
-                cout << "uct-value(" << a << ")=" << uct.value(problem.init(), a) << endl
-                     << "  optimal(" << a << ")=" << hash.QValue(problem.init(), a) << endl;
+                count_sum += uct.count(problem.init(), a);
+                cout << "  optimal(" << a << ")=" << setprecision(5)
+                     << hash.QValue(problem.init(), a) << endl
+                     << "uct-value(" << a << ")=" << setprecision(5)
+                     << uct.value(problem.init(), a)
+                     << ", count=" << uct.count(problem.init(), a)
+                     << endl;
             }
+            cout << "count-sum=" << count_sum << endl;
 #if 0
             start_time = Utils::read_time_in_seconds();
             cout << "  mcts(random)=" << setprecision(5)
