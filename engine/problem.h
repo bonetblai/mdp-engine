@@ -117,16 +117,17 @@ template<typename T> class problem_t {
     virtual action_t number_actions() const = 0;
     virtual const T& init() const = 0;
     virtual bool terminal(const T &s) const = 0;
-    virtual void next(const T &s, action_t a, std::pair<T, float> *outcomes, size_t &osize) const = 0;
+    virtual float cost(const T &s, action_t a) const = 0;
+    virtual void next(const T &s, action_t a, std::pair<T, float> *outcomes, unsigned &osize) const = 0;
     virtual void next(const T &s, action_t a, std::vector<std::pair<T, float> > &outcomes) const = 0;
 
     // sample next state given action using problem's dynamics
     std::pair<T, bool> sample(const T &s, action_t a) const {
-        size_t osize = 0;
+        unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
         float d = Random::real();
-        for( size_t i = 0; i < osize; ++i ) {
+        for( unsigned i = 0; i < osize; ++i ) {
             if( d < outcomes[i].second )
                 return std::make_pair(outcomes[i].first, true);
             d -= outcomes[i].second;
@@ -136,7 +137,7 @@ template<typename T> class problem_t {
 
     // sample next state given action uniformly among all possible next states
     std::pair<T, bool> usample(const T &s, action_t a) const {
-        size_t osize = 0;
+        unsigned osize = 0;
         std::pair<T,float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
         return std::make_pair(outcomes[Random::uniform(osize)].first, true);
@@ -144,14 +145,14 @@ template<typename T> class problem_t {
 
     // sample next (unlabeled) state given action; probabilities are re-weighted
     std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
-        size_t osize = 0;
+        unsigned osize = 0;
         bool label[MAXOUTCOMES];
         std::pair<T, float> outcomes[MAXOUTCOMES];
         next(s, a, outcomes, osize);
 
         size_t n = 0;
         float mass = 0;
-        for( size_t i = 0; i < osize; ++i ) {
+        for( unsigned i = 0; i < osize; ++i ) {
             if( (label[i] = hash.solved(outcomes[i].first)) ) {
                 mass += outcomes[i].second;
                 ++n;
@@ -163,7 +164,7 @@ template<typename T> class problem_t {
         if( n == 0 ) return std::make_pair(s, false);
 
         float d = Random::real();
-        for( size_t i = 0; i < osize; ++i ) {
+        for( unsigned i = 0; i < osize; ++i ) {
             if( !label[i] && ((n == 1) || (d <= outcomes[i].second / mass)) ) {
                 return std::make_pair(outcomes[i].first, true);
             } else if( !label[i] ) {
@@ -186,14 +187,14 @@ template<typename T> class problem_t {
     }
 
     size_t policy_size_aux(hash_t<T> &hash, const T &s) const {
-        size_t osize = 0;
+        unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
         size_t size = 0;
         if( !terminal(s) && !hash.marked(s) ) {
             hash.mark(s);
             std::pair<action_t, float> p = hash.bestQValue(s);
             next(s, p.first, outcomes, osize);
-            for( size_t i = 0; i < osize; ++i ) {
+            for( unsigned i = 0; i < osize; ++i ) {
                 size += policy_size_aux(hash, outcomes[i].first);
             }
             ++size;
@@ -210,14 +211,14 @@ inline float hash_t<T>::QValue(const T &s, action_t a) const {
     if( problem_.terminal(s) ) return 0;
 
     float qv = 0.0;
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
     problem_.next(s, a, outcomes, osize);
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         qv += outcomes[i].second * value(outcomes[i].first);
     }
-    return 1.0 + qv;
+    return cost(s, a) + qv;
 }
 
 template<typename T>
@@ -225,14 +226,14 @@ inline float min_hash_t<T>::QValue(const T &s, action_t a) const {
     if( hash_t<T>::problem_.terminal(s) ) return 0;
 
     float qv = std::numeric_limits<float>::max();
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
     hash_t<T>::problem_.next(s, a, outcomes, osize);
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         qv = Utils::min(qv, value(outcomes[i].first));
     }
-    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : 1.0 + qv;
+    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : cost(s, a) + qv;
 }
 
 }; // namespace Problem

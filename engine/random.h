@@ -29,7 +29,7 @@ namespace Random {
 
 inline void seeds(int seed) {
     unsigned short useed[3];
-    useed[0] = useed[1] = useed[2];
+    useed[0] = useed[1] = useed[2] = seed;
     srand48((long int)seed);
     seed48(useed);
 }
