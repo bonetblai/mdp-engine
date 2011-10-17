@@ -54,7 +54,7 @@ template<typename T> class policy_graph_t {
     const std::list<std::pair<T, Hash::data_t*> >& nodes() const { return nodes_; }
 
     void recompute() {
-        size_t osize = 0;
+        unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
 
         size_ = 0;
@@ -83,7 +83,7 @@ template<typename T> class policy_graph_t {
                 assert(p.first != Problem::noop);
                 n.second->set_action(p.first);
                 problem_.next(n.first, p.first, outcomes, osize);
-                for( size_t i = 0; i < osize; ++i ) {
+                for( unsigned i = 0; i < osize; ++i ) {
                     if( !hash_.solved(outcomes[i].first) ) {
                         unsolved = true;
                         break;
@@ -92,7 +92,7 @@ template<typename T> class policy_graph_t {
 
                 ++size_;
                 if( !unsolved ) {
-                    for( size_t i = 0; i < osize; ++i ) {
+                    for( unsigned i = 0; i < osize; ++i ) {
                         Hash::data_t *dptr = hash_.data_ptr(outcomes[i].first);
                         if( !dptr->marked() ) {
                             open.push_back(std::make_pair(outcomes[i].first, dptr));
@@ -116,7 +116,7 @@ template<typename T> class policy_graph_t {
     }
 
     void postorder_dfs(const T &s, std::list<std::pair<T, Hash::data_t*> > &visited) {
-        size_t osize = 0;
+        unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
 
         std::list<std::pair<T, Hash::data_t*> > open;
@@ -132,7 +132,7 @@ template<typename T> class policy_graph_t {
 
             if( n.second->action() != Problem::noop ) {
                 problem_.next(n.first, n.second->action(), outcomes, osize);
-                for( size_t i = 0; i < osize; ++i ) {
+                for( unsigned i = 0; i < osize; ++i ) {
                     Hash::data_t *dptr = hash_.data_ptr(outcomes[i].first);
                     if( !dptr->marked() ) {
                         open.push_back(std::make_pair(outcomes[i].first, dptr));
@@ -142,7 +142,7 @@ template<typename T> class policy_graph_t {
             } else {
                 std::pair<Problem::action_t, float> p = hash_.bestQValue(n.first);
                 problem_.next(n.first, p.first, outcomes, osize);
-                for( size_t i = 0; i < osize; ++i )
+                for( unsigned i = 0; i < osize; ++i )
                     hash_.solve(outcomes[i].first);
             }
         }
@@ -163,7 +163,7 @@ template<typename T> class policy_graph_t {
 
 template<typename T>
 void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash) {
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
     std::list<std::pair<T, Hash::data_t*> > open;
 
@@ -182,7 +182,7 @@ void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::h
 
         for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
             problem.next(n.first, a, outcomes, osize);
-            for( size_t i = 0; i < osize; ++i ) {
+            for( unsigned i = 0; i < osize; ++i ) {
                 Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
                 if( !ptr->marked() ) {
                     open.push_back(std::make_pair(outcomes[i].first, ptr));
@@ -241,7 +241,7 @@ template<typename T>
 bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, float epsilon) {
     std::list<std::pair<T, Hash::data_t*> > open, closed;
     std::pair<T, float> outcomes[MAXOUTCOMES];
-    size_t osize = 0;
+    unsigned osize = 0;
 
     Hash::data_t *dptr = hash.data_ptr(s);
     if( !dptr->solved() ) {
@@ -263,7 +263,7 @@ bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash
         }
 
         problem.next(n.first, p.first, outcomes, osize);
-        for( size_t i = 0; i < osize; ++ i ) {
+        for( unsigned i = 0; i < osize; ++ i ) {
             Hash::data_t *dptr = hash.data_ptr(outcomes[i].first);
             if( !dptr->solved() && !dptr->marked() ) {
                 open.push_back(std::make_pair(outcomes[i].first, dptr));
@@ -428,7 +428,7 @@ size_t plain_check(const Problem::problem_t<T> &problem, const T &s, Problem::ha
 #if 0
 template<typename T>
 bool lenforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, float epsilon, size_t &index, size_t kappa, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited) {
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
     // base cases
@@ -457,14 +457,14 @@ bool lenforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, co
     // compute normalization constant
     size_t normalization = std::numeric_limits<unsigned>::max();
     problem.next(s, p.first, outcomes, osize);
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         size_t kv = Utils::kappa_value(outcomes[i].second);
         normalization = Utils::min(normalization, kv);
     }
 
     // recursive call
     bool flag = true;
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         size_t normalized_kappa = Utils::kappa_value(outcomes[i].second) - normalization;
         if( normalized_kappa <= kappa ) {
             size_t nkappa = kappa - normalized_kappa;
@@ -505,7 +505,7 @@ bool lenforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, co
 #if 0
 template<typename T>
 bool enforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, float epsilon, size_t kappa, std::list<Hash::data_t*> &visited) {
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
     // base cases
@@ -528,14 +528,14 @@ bool enforce(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, con
     // compute normalization constant
     size_t normalization = std::numeric_limits<unsigned>::max();
     problem.next(s, p.first, outcomes, osize);
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         size_t kv = Utils::kappa_value(outcomes[i].second);
         normalization = Utils::min(normalization, kv);
     }
 
     // recursive call
     bool flag = true;
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         size_t normalized_kappa = Utils::kappa_value(outcomes[i].second) - normalization;
         if( normalized_kappa <= kappa ) {
             size_t nkappa = kappa - normalized_kappa;
@@ -573,7 +573,7 @@ size_t hdp_i(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T
 
 template<typename T>
 bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t* dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
-    size_t osize = 0;
+    unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
 
     // base cases
@@ -603,7 +603,7 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
     // expansion
     bool flag = true;
     problem.next(s, p.first, outcomes, osize);
-    for( size_t i = 0; i < osize; ++i ) {
+    for( unsigned i = 0; i < osize; ++i ) {
         Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
         if( ptr->scc_idx() == std::numeric_limits<unsigned>::max() ) {
             bool rv = hdp(problem, hash, outcomes[i].first, ptr, index, stack, visited, parameters);
@@ -658,7 +658,7 @@ size_t hdp_driver(const Problem::problem_t<T> &problem, const T &s, Problem::has
 template<typename T, int V>
 bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
     std::pair<T, float> outcomes[MAXOUTCOMES];
-    size_t osize = 0;
+    unsigned osize = 0;
 
     // base cases
     if( dptr->solved() || problem.terminal(s) ) {
@@ -688,14 +688,14 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
     for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
         float qv = 0.0;
         problem.next(s, a, outcomes, osize);
-        for( size_t i = 0; i < osize; ++i )
+        for( unsigned i = 0; i < osize; ++i )
             qv += outcomes[i].second * hash.value(outcomes[i].first);
-        qv += 1.0;
+        qv += problem.cost(s, a);
         bqv = Utils::min(bqv, qv);
         if( fabs(qv - dptr->value()) > parameters.epsilon_ ) continue;
         dptr->mark();
         flag = true;
-        for( size_t i = 0; i < osize; ++i ) {
+        for( unsigned i = 0; i < osize; ++i ) {
             Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
             if( ptr->scc_idx() == std::numeric_limits<unsigned>::max() ) {
                 bool rv = ldfs<T, V>(problem, hash, outcomes[i].first, ptr, index, stack, visited, parameters);

@@ -20,6 +20,7 @@
 #define POLICY_H
 
 #include "problem.h"
+#include "heuristic.h"
 #include "random.h"
 
 #include <iostream>
@@ -41,6 +42,17 @@ template<typename T> class policy_t {
     }
     virtual ~policy_t() { }
     virtual Problem::action_t operator()(const T &s) const = 0;
+};
+
+template<typename T> class improvement_t : public policy_t<T> {
+  protected:
+    const policy_t<T> &base_policy_;
+
+  public:
+    improvement_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy)
+      : policy_t<T>(problem), base_policy_(base_policy) {
+    }
+    virtual ~improvement_t() { }
 };
 
 template<typename T> class random_t : public policy_t<T> {
@@ -67,15 +79,34 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     }
 };
 
-template<typename T> class improvement_t : public policy_t<T> {
+template<typename T> class greedy_t : public policy_t<T> {
   protected:
-    const policy_t<T> &base_policy_;
+    const Heuristic::heuristic_t<T> &heuristic_;
 
   public:
-    improvement_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy)
-      : policy_t<T>(problem), base_policy_(base_policy) {
+    greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
+      : policy_t<T>(problem), heuristic_(heuristic) {
     }
-    virtual ~improvement_t() { }
+    virtual ~greedy_t() { }
+    virtual Problem::action_t operator()(const T &s) const {
+        std::vector<std::pair<T, float> > outcomes;
+        Problem::action_t best_action = Problem::noop;
+        float best_value = std::numeric_limits<float>::max();
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+            float value = 0;
+            policy_t<T>::problem_.next(s, a, outcomes);
+            for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
+                value += outcomes[i].second * heuristic_.value(outcomes[i].first);
+            }
+            value += policy_t<T>::problem_.cost(s, a);
+
+            if( value < best_value ) {
+                best_value = value;
+                best_action = a;
+            }
+        }
+        return best_action;
+    }
 };
 
 // Policy evaluation
@@ -88,7 +119,7 @@ float evaluation_trial(const Problem::problem_t<T> &problem, const Policy::polic
     while( !problem.terminal(state) && (steps <= max_depth) ) {
         Problem::action_t action = policy(state);
         std::pair<T, bool> p = problem.sample(state, action);
-        cost += 1;//problem.cost(state, action);
+        cost += policy_t<T>::problem.cost(state, action);
         state = p.first;
         ++steps;
     }
