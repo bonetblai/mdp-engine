@@ -1,0 +1,3 @@
+- remove MAXOUTCOMES
+- implement rollouts, uct, etc
+- add general costs
