@@ -1,5 +1,5 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -DNDEBUG -I../engine
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine
 
 race2:		race2.o parsing.o
 		$(G++) $(CCFLAGS) -o race2 race2.o parsing.o

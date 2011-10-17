@@ -94,10 +94,28 @@ struct data_t {
       : values_(values), counts_(counts) { }
 };
 
-template<typename T> class mcts_table_t : public Hash::generic_hash_map_t<T, data_t> {
+
+template<typename T> class hash_function_t {
+  public:
+    size_t operator()(const std::pair<unsigned, T> &p) const { return p.second.hash(); }
+};
+
+
+template<typename T> class mcts_table_t : public Hash::generic_hash_map_t<std::pair<unsigned, T>, data_t, hash_function_t<T> > {
+  public:
+    typedef typename Hash::generic_hash_map_t<std::pair<unsigned, T>, data_t, hash_function_t<T> > base_type;
+    typedef typename base_type::const_iterator const_iterator;
+    const_iterator begin() const { return base_type::begin(); }
+    const_iterator end() const { return base_type::end(); }
+
   public:
     mcts_table_t() { }
     virtual ~mcts_table_t() { }
+    void print(std::ostream &os) const {
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            os << "(" << it->first.first << "," << it->first.second << ")" << std::endl;
+        }
+    }
 };
 
 template<typename T> class mcts_t : public improvement_t<T> {
@@ -110,7 +128,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
   public:
     mcts_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth)
       : improvement_t<T>(problem, base_policy), width_(width), depth_(depth) {
-      uct_parameter_ = -1;
+      uct_parameter_ = -3;
     }
     virtual ~mcts_t() { }
 
@@ -119,17 +137,25 @@ template<typename T> class mcts_t : public improvement_t<T> {
         for( unsigned i = 0; i < width_; ++i ) {
             search_tree(s, 0);
         }
-        typename mcts_table_t<T>::iterator it = table_.find(s);
+        typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
         return select_action(it->second, false);
     }
 
     float value(const T &s, Problem::action_t a) const {
-        typename mcts_table_t<T>::iterator it = table_.find(s);
+        typename mcts_table_t<T>::const_iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
         return it->second.values_[1+a];
     }
+    unsigned count(const T &s, Problem::action_t a) const {
+        typename mcts_table_t<T>::const_iterator it = table_.find(std::make_pair(0, s));
+        assert(it != table_.end());
+        return it->second.counts_[1+a];
+    }
     size_t size() const { return table_.size(); }
+    void print_table(std::ostream &os) const {
+        table_.print(os);
+    }
 
     float search_tree(const T &s, unsigned depth) const {
 #ifdef DEBUG
@@ -142,17 +168,18 @@ template<typename T> class mcts_t : public improvement_t<T> {
             return 0;
         }
 
-        typename mcts_table_t<T>::iterator it = table_.find(s);
+        typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
         if( it == table_.end() ) {
             std::vector<float> values(1 + policy_t<T>::problem().number_actions(), 0);
             std::vector<int> counts(1 + policy_t<T>::problem().number_actions(), 0);
-            values[0] = evaluate(s);
-            counts[0] = 1;
-            table_.insert(std::make_pair(s, data_t(values, counts)));
+            float value = evaluate(s);
+            //values[0] = value;
+            //counts[0] = 1;
+            table_.insert(std::make_pair(std::make_pair(depth, s), data_t(values, counts)));
 #ifdef DEBUG
-            std::cout << " insert " << values[0] << std::endl;
+            std::cout << " insert " << value << std::endl;
 #endif
-            return values[0];
+            return value;
         } else if( depth == depth_ ) {
 #ifdef DEBUG
             std::cout << " count=" << it->second.counts_[0]
@@ -162,7 +189,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
             //++it->second.counts_[0];
             return it->second.values_[0];
         } else {
-            Problem::action_t a = select_action(it->second);
+            Problem::action_t a = select_action(it->second, depth);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
             std::pair<const T&, bool> p = policy_t<T>::problem().sample(s, a);
@@ -176,8 +203,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
             float new_value = cost + .95 * search_tree(p.first, 1 + depth);
             float &old_value = it->second.values_[1+a];
-            //old_value += (new_value - old_value) / it->second.counts_[1+a];
-            old_value += (new_value - old_value) / it->second.counts_[1+a];
+            old_value += (new_value - old_value) / (float)it->second.counts_[1+a];
             // CHECK: learning rate is 0.5, it could be 1/n(s,a)
             return old_value;
         }
@@ -212,7 +238,8 @@ def search(self, state, depth = 0):
     return q
 #endif
 
-    Problem::action_t select_action(const data_t &data, bool add_bonus = true) const {
+    Problem::action_t select_action(const data_t &data, int depth, bool add_bonus = true) const {
+        //if( Random::real() < .1 ) return Random::uniform(policy_t<T>::problem().number_actions());
         float log_ns = logf(data.counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
@@ -223,6 +250,7 @@ def search(self, state, depth = 0):
 #endif
                 return a;
             }
+            assert(data.counts_[0] > 0);
             float bonus = add_bonus ? uct_parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
             float value = data.values_[1+a] + bonus;
             if( value < best_value ) {
@@ -230,6 +258,7 @@ def search(self, state, depth = 0):
                 best_action = a;
             }
         }
+        assert(best_action != Problem::noop);
         return best_action;
     }
 
