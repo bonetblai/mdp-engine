@@ -43,6 +43,7 @@ template<typename T> class heuristic_t {
     heuristic_t() { }
     virtual ~heuristic_t() { }
     virtual float value(const T &s) const = 0;
+    virtual void reset_stats() const = 0;
     virtual float setup_time() const = 0;
     virtual float eval_time() const = 0;
     virtual size_t size() const = 0;
@@ -71,6 +72,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
     virtual ~min_min_heuristic_t() { }
 
     virtual float value(const T &s) const { return hash_.value(s); }
+    virtual void reset_stats() const { }
     virtual float setup_time() const { return time_; }
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return hash_.size(); }
