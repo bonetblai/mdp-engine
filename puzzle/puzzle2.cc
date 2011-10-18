@@ -1,16 +1,17 @@
+#include <cassert>
 #include <iostream>
 #include <iomanip>
-#include <math.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <float.h>
-#include <assert.h>
 
 #define MAXOUTCOMES   10
 
 #include "algorithm.h"
+#include "parameters.h"
 #include "heuristic.h"
+
 #include "policy.h"
+#include "rollout.h"
+#include "mcts.h"
+#include "dispatcher.h"
 
 using namespace std;
 
@@ -148,10 +149,16 @@ class state_t {
         d2_ = s.d2_;
         return *this;
     }
-    bool operator==(const state_t &s) const { return (d0_ == s.d0_) && (d1_ == s.d1_) && (d2_ == s.d2_); }
-    bool operator!=(const state_t &s) const { return (d0_ != s.d0_) || (d1_ != s.d1_) || (d2_ != s.d2_); }
+    bool operator==(const state_t &s) const {
+        return (d0_ == s.d0_) && (d1_ == s.d1_) && (d2_ == s.d2_);
+    }
+    bool operator!=(const state_t &s) const {
+        return (d0_ != s.d0_) || (d1_ != s.d1_) || (d2_ != s.d2_);
+    }
     bool operator<(const state_t &s) const {
-        return (d0_ < s.d0_) || ((d0_ == s.d0_) && (d1_ < s.d1_)) || ((d0_ == s.d0_) && (d1_ == s.d1_) && (d2_ < s.d2_));
+        return (d0_ < s.d0_) ||
+               ((d0_ == s.d0_) && (d1_ < s.d1_)) ||
+               ((d0_ == s.d0_) && (d1_ == s.d1_) && (d2_ < s.d2_));
     }
     void print(ostream &os) const {
         os << "|" << setw(2) << blank() << "|";
@@ -187,11 +194,15 @@ class problem_t : public Problem::problem_t<state_t> {
         return s.applicable(rows_, cols_, a);
     }
     virtual const state_t& init() const { return init_; }
-    virtual bool terminal(const state_t &s) const { return s == goal_; }
-
-    virtual void next(const state_t &s, ::Problem::action_t a, pair<state_t,float> *outcomes, size_t &osize) const {
+    virtual bool terminal(const state_t &s) const {
+        return s == goal_;
+    }
+    virtual float cost(const state_t &s, Problem::action_t a) const {
+        return terminal(s) ? 0 : 1;
+    }
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const {
         ++expansions_;
-        size_t i = 0;
+        unsigned i = 0;
         if( p_ > 0 ) {
             outcomes[i++] = make_pair(s, p_);
             if( a == ::up )
@@ -226,7 +237,15 @@ class problem_t : public Problem::problem_t<state_t> {
         }
         osize = i;
     }
-    virtual void next(const state_t &s, ::Problem::action_t a, vector<pair<state_t,float> > &outcomes) const { }
+    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
+        pair<state_t, float> tmp[MAXOUTCOMES];
+        unsigned osize = 0;
+        next(s, a, &tmp[0], osize);
+        outcomes.clear();
+        outcomes.reserve(MAXOUTCOMES);
+        for( unsigned i = 0; i < osize; ++i )
+            outcomes.push_back(tmp[i]);
+    }
     virtual void print(ostream &os) const { }
 };
 
@@ -240,6 +259,7 @@ class manhattan_t : public Heuristic::heuristic_t<state_t> {
     manhattan_t() { }
     virtual ~manhattan_t() { }
     virtual float value(const state_t &s) const { return (float)s.manhattan(); }
+    virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return 0; }
@@ -251,7 +271,7 @@ void usage(ostream &os) {
     os << endl
        << "usage: puzzle [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-k <n>] [-K <f>] [-p <f>] [-s <n>] [-v <n>] <rows> <cols>"
        << endl << endl
-       << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp, 256=ldfs."
+       << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
        << "  -b <n>    Visits bound for blrtdp. Default: 0."
        << endl
@@ -281,34 +301,16 @@ void usage(ostream &os) {
        << endl << endl;
 }
 
-const char *name[] = {
-    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "elrtdp", "check", "hdp-i", "hdp", "ldfs+", "ldfs"
-};
-
-size_t (*table[])(const Problem::problem_t<state_t>&, Problem::hash_t<state_t>&, const Algorithm::parameters_t&) = {
-    Algorithm::value_iteration<state_t>,
-    Algorithm::standard_lrtdp<state_t>,
-    Algorithm::uniform_lrtdp<state_t>,
-    Algorithm::bounded_lrtdp<state_t>,
-    Algorithm::improved_lao<state_t>,
-    Algorithm::standard_lrtdp<state_t>,
-    Algorithm::plain_check<state_t>,
-    0, //Algorithm::hdp_i<state_t>,
-    Algorithm::hdp_driver<state_t>,
-    Algorithm::ldfs_plus_driver<state_t>,
-    Algorithm::ldfs_driver<state_t>,
-    0
-};
-
 int main(int argc, const char **argv) {
     size_t rows = 0;
     size_t cols = 0;
+
     float p = 1.0;
-    unsigned alg = 0;
+    unsigned bitmap = 0;
     int h = 0;
-    unsigned long seed = 0;
     bool formatted = false;
 
+    cout << fixed;
     Algorithm::parameters_t parameters;
 
     // parse arguments
@@ -318,7 +320,7 @@ int main(int argc, const char **argv) {
         if( **argv != '-' ) break;
         switch( (*argv)[1] ) {
             case 'a':
-                alg = strtoul(argv[1], 0, 0);
+                bitmap = strtoul(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -353,7 +355,7 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 's':
-                seed = strtoul(argv[1], 0, 0);
+                parameters.seed_ = strtoul(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -371,88 +373,111 @@ int main(int argc, const char **argv) {
         exit(-1);
     }
 
-      // build problem instances
-    Random::seeds(seed);
+    // build problem instances
+    Random::seeds(parameters.seed_);
     state_t init;
     init.set_goal(rows, cols);
     init.random_moves(rows, cols, 500);
     problem_t problem(rows, cols, init, p);
 
+    // create heuristic
+    Heuristic::heuristic_t<state_t> *heuristic = 0;
+    if( h == 1 ) {
+        heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
+    } else if( h == 2 ) {
+        //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
+    } else if( h == 3 ) {
+        heuristic = new manhattan_t;
+    } 
+
     // solve problem with algorithms
-    size_t first = numeric_limits<unsigned>::max();
-    for( size_t i = 0; (i < 12) && (table[i] != 0); ++i ) {
-        if( (alg >> i) % 2 ) {
-            Random::seeds(seed);
-            first = Utils::min(first, i);
-            Heuristic::heuristic_t<state_t> *heuristic = 0;
+    vector<Dispatcher::result_t<state_t> > results;
+    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, parameters, results);
 
-            if( h == 1 )
-                heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
-#if 0
-            else if( h == 2 )
-                heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
-#endif
-            else if( h == 3 )
-                heuristic = new manhattan_t;
-
-            if( i == first ) {
-                cout << "init: " << init << ", h=" << (!heuristic ? 0 : heuristic->value(init)) << endl;
-            }
-
-            float start_time = Utils::read_time_in_seconds();
-            Problem::hash_t<state_t> hash(problem, new Heuristic::wrapper_t<state_t>(heuristic));
-            problem.clear_expansions();
-            size_t t = (*table[i])(problem, hash, parameters);
-            float end_time = Utils::read_time_in_seconds();
-            float htime = !heuristic ? 0 : heuristic->total_time();
-            float dtime = !heuristic ? 0 : heuristic->eval_time();
-            float atime = end_time - start_time -dtime;
-
-            if( formatted ) {
-                if( i == first ) {
-                    cout << setw(4) << "#" << " "
-                         << setw(7) << "alg" << " "
-                         << setw(12) << "V*(s0)" << " "
-                         << setw(7) << "seed" << " "
-                         << setw(12) << "trials" << " "
-                         << setw(12) << "updates" << " "
-                         << setw(12) << "expansions" << " "
-                         << setw(12) << "h(s0)" << " "
-                         << setw(12) << "hsize" << " "
-                         << setw(12) << "psize" << " "
-                         << setw(12) << "atime" << " "
-                         << setw(12) << "htime" << endl;
-                }
-                cout << setw(4) << (1<<i) << " "
-                     << setw(7) << name[i] << " "
-                     << setw(12) << setprecision(9) << hash.value(problem.init()) << " "
-                     << setw(7) << seed << " "
-                     << setw(12) << t << " "
-                     << setw(12) << hash.updates() << " "
-                     << setw(12) << problem.expansions() << " "
-                     << setw(12) << setprecision(9) << (!heuristic ? 0 : heuristic->value(problem.init())) << " "
-                     << setw(12) << hash.size() << " "
-                     << setw(12) << (i == 7 ? 0 : problem.policy_size(hash,problem.init())) << " "
-                     << setw(12) << setprecision(9) << atime << " "
-                     << setw(12) << setprecision(9) << htime << endl;
-            } else {
-                cout << (1<<i) << " "
-                     << name[i] << " "
-                     << setprecision(9) << hash.value(problem.init()) << " "
-                     << seed << " "
-                     << t << " "
-                     << hash.updates() << " "
-                     << problem.expansions() << " "
-                     << setprecision(9) << (!heuristic ? 0 : heuristic->value(problem.init())) << " "
-                     << hash.size() << " "
-                     << (i == 7 ? 0 : problem.policy_size(hash, problem.init())) << " "
-                     << setprecision(9) << atime << " "
-                     << setprecision(9) << htime << endl;
-            }
-
-            delete heuristic;
+    // print results
+    if( !results.empty() ) {
+        cout << "seed=" << parameters.seed_ << endl;
+        if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
+        for( unsigned i = 0; i < results.size(); ++i ) {
+            Dispatcher::print_result(cout, &results[i]);
         }
     }
+
+#if 0
+    // evaluate policy
+    unsigned ntrials = 500;
+    unsigned depth = 100;
+    unsigned width = 10;
+    unsigned rdepth = 10;
+
+    cout << "evaluation of policies:" << endl;
+
+    start_time = Utils::read_time_in_seconds();
+    cout << "  optimal=" << setprecision(5)
+         << Policy::evaluation(Policy::hash_policy_t<state_t>(problem, hash),
+                               problem.init(), ntrials, depth)
+         << setprecision(2);
+    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        for( int nesting = 0; nesting < 1; ++nesting ) {
+            start_time = Utils::read_time_in_seconds();
+            cout << "  nrollout(" << nesting << ", greedy)=" << setprecision(5)
+                 << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem, greedy, width, rdepth, nesting),
+                                       problem.init(), ntrials, depth)
+                 << setprecision(2);
+            cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+        }
+    }
+
+    Policy::random_t<state_t> random(problem);
+    for( int nesting = 0; nesting < 1; ++nesting ) {
+        start_time = Utils::read_time_in_seconds();
+        cout << "  nrollout(" << nesting << ", random)=" << setprecision(5)
+             << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem, random, width, rdepth, nesting),
+                                   problem.init(), ntrials, depth)
+             << setprecision(2);
+        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+    }
+
+    Policy::mcts_t<state_t> uct(problem, random, 1e5, 100, -4); 
+#if 0
+    for( int i = 0; i < 1e8; ++i ) {
+        uct.search_tree(problem.init(), 0);
+        //uct.SEARCH(problem.init());
+    }
+    cout << "size=" << uct.size() << endl;
+    //cout << "size=" << uct.SIZE() << endl;
+    unsigned count_sum = 0;
+    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+        count_sum += uct.count(problem.init(), a);
+        cout << "  optimal(" << a << ")=" << setprecision(5)
+             << hash.QValue(problem.init(), a) << endl;
+        cout << "uct-value(" << a << ")=" << setprecision(5)
+             << uct.value(problem.init(), a)
+             << ", count=" << uct.count(problem.init(), a)
+             << endl;
+    }
+    cout << "count-sum=" << count_sum << endl;
+#endif
+
+#if 1
+    start_time = Utils::read_time_in_seconds();
+    cout << "  uct(random)=" << setprecision(5)
+         << Policy::evaluation(uct, problem.init(), ntrials, depth)
+         << setprecision(2);
+    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+#endif
+
+#endif
+
+    // free resources
+    for( unsigned i = 0; i < results.size(); ++i ) {
+        delete results[i].hash_;
+    }
+    delete heuristic;
+
     exit(0);
 }
 

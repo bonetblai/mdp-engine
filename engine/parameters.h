@@ -25,6 +25,7 @@ namespace Algorithm {
 
 struct parameters_t {
     float epsilon_;
+    unsigned long seed_;
 
     struct vi_parameters_t {
         unsigned max_number_iterations_;
@@ -48,7 +49,7 @@ struct parameters_t {
         eval_parameters_t() : number_trials_(0), max_number_steps_(0) { }
     } eval;
 
-    parameters_t() : epsilon_(0) { }
+    parameters_t() : epsilon_(0), seed_(0) { }
 };
 
 }; // end of namespace Algorithm
