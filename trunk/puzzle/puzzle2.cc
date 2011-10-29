@@ -21,12 +21,12 @@ const Problem::action_t down = 2;
 const Problem::action_t right = 3;
 
 class bits_t {
-    size_t bits_;
+    unsigned bits_;
   public:
-    bits_t(size_t bits) : bits_(bits) { }
+    bits_t(unsigned bits) : bits_(bits) { }
     ~bits_t() { }
     void print(ostream &os) const {
-        for( size_t i = 8*sizeof(size_t); i > 0; --i )
+        for( unsigned i = 8*sizeof(unsigned); i > 0; --i )
             os << ((bits_ >> (i-1)) % 2);
     }
 };
@@ -37,17 +37,17 @@ inline ostream& operator<<(ostream &os, const bits_t &b) {
 }
 
 class state_t {
-    size_t d0_;
-    size_t d1_;
-    size_t d2_;
+    unsigned d0_;
+    unsigned d1_;
+    unsigned d2_;
   public:
-    state_t(size_t d0 = 0, size_t d1 = 0, size_t d2 = 0) : d0_(d0), d1_(d1), d2_(d2) { }
+    state_t(unsigned d0 = 0, unsigned d1 = 0, unsigned d2 = 0) : d0_(d0), d1_(d1), d2_(d2) { }
     state_t(const state_t &s) : d0_(s.d0_), d1_(s.d1_), d2_(s.d2_) { }
     ~state_t() { }
     size_t hash() const { return d1_ ^ d2_; }
-    size_t rows() const { return (d0_>>4) & 0xF; }
-    size_t cols() const { return (d0_>>8) & 0xF; }
-    bool applicable(size_t rows, size_t cols, Problem::action_t a) const {
+    unsigned rows() const { return (d0_>>4) & 0xF; }
+    unsigned cols() const { return (d0_>>8) & 0xF; }
+    bool applicable(unsigned rows, unsigned cols, Problem::action_t a) const {
         return true;
         switch( a ) {
             case ::up: return blank() >= cols;
@@ -57,8 +57,8 @@ class state_t {
         }
         return false;
     }
-    void set_tile(size_t t, size_t pos) {
-        size_t shift = pos < 8 ? pos << 2 : (pos - 8) << 2;
+    void set_tile(unsigned t, unsigned pos) {
+        unsigned shift = pos < 8 ? pos << 2 : (pos - 8) << 2;
         if( pos < 8 ) {
             d1_ &= ~(0xF << shift);
             d1_ |= t<<shift;
@@ -67,54 +67,54 @@ class state_t {
             d2_ |= t << shift;
         }
     }
-    void set_blank(size_t pos) {
+    void set_blank(unsigned pos) {
         d0_ &= ~(0xF);
         d0_ |= pos;
         set_tile(0, pos);
     }
-    size_t blank() const {
+    unsigned blank() const {
         return d0_ & 0xF;
     }
-    size_t tile(size_t pos) const {
-        size_t shift = pos < 8 ? pos << 2 : (pos - 8) << 2;
+    unsigned tile(unsigned pos) const {
+        unsigned shift = pos < 8 ? pos << 2 : (pos - 8) << 2;
         return pos < 8 ? (d1_ >> shift) & 0xF : (d2_ >> shift) & 0xF;
     }
-    void up(size_t rows, size_t cols) {
-        size_t b = blank();
+    void up(unsigned rows, unsigned cols) {
+        unsigned b = blank();
         if( b >= cols ) {
-            size_t p = b-cols, t = tile(p);
+            unsigned p = b-cols, t = tile(p);
             set_tile(t, b);
             set_blank(p);
         }
     }
-    void right(size_t rows, size_t cols) {
-        size_t b = blank();
+    void right(unsigned rows, unsigned cols) {
+        unsigned b = blank();
         if( b%cols < cols-1 ) {
-            size_t p = b+1, t = tile(p);
+            unsigned p = b+1, t = tile(p);
             set_tile(t, b);
             set_blank(p);
         }
     }
-    void down(size_t rows, size_t cols) {
-        size_t b = blank();
+    void down(unsigned rows, unsigned cols) {
+        unsigned b = blank();
         if( b+cols < rows*cols ) {
-            size_t p = b+cols, t = tile(p);
+            unsigned p = b+cols, t = tile(p);
             set_tile(t, b);
             set_blank(p);
         }
     }
-    void left(size_t rows, size_t cols) {
-        size_t b = blank();
+    void left(unsigned rows, unsigned cols) {
+        unsigned b = blank();
         if( b%cols > 0 ) {
-            size_t p = b-1,
+            unsigned p = b-1,
             t = tile(p);
             set_tile(t, b);
             set_blank(p);
         }
     }
-    void random_moves(size_t rows, size_t cols, size_t n = 0) {
-        for( size_t i = 0; i < n; ++i ) {
-            size_t m = Random::uniform(4);
+    void random_moves(unsigned rows, unsigned cols, unsigned n = 0) {
+        for( unsigned i = 0; i < n; ++i ) {
+            unsigned m = Random::uniform(4);
             if( m == 0 )
                 up(rows, cols);
             else if( m == 1 )
@@ -125,24 +125,25 @@ class state_t {
                 left(rows, cols);
         }
     }
-    void set_goal(size_t rows, size_t cols) {
+    void set_goal(unsigned rows, unsigned cols) {
         d0_ = d1_ = d2_ = 0;
         d0_ |= (rows<<4);
         d0_ |= (cols<<8);
         set_blank(0);
-        for( size_t t = 0; t < rows*cols; ++t )
+        for( unsigned t = 0; t < rows*cols; ++t )
             set_tile(t, 1+t);
     }
-    size_t manhattan() const {
-        size_t sum = 0;
-        for( size_t p = 0; p < rows()*cols(); ++p )
+    unsigned manhattan() const {
+        unsigned sum = 0;
+        for( unsigned p = 0; p < rows()*cols(); ++p )
             if( p != blank() ) {
-                size_t t = tile(p);
+                unsigned t = tile(p);
                 int r = ((1+t)/cols()) - (p/cols()), c = ((1+t)%cols()) - (p%cols());
                 sum += (r<0?-r:r) + (c<0?-c:c);
             }
         return sum;
     }
+
     const state_t& operator=(const state_t &s) {
         d0_ = s.d0_;
         d1_ = s.d1_;
@@ -162,7 +163,7 @@ class state_t {
     }
     void print(ostream &os) const {
         os << "|" << setw(2) << blank() << "|";
-        for( size_t i = 0; i < rows() * cols(); ++i ) {
+        for( unsigned i = 0; i < rows() * cols(); ++i ) {
             os << (i == blank() ? 0 : 1+tile(i));
             os << (i < rows() * cols() - 1 ? "," : "|");
         }
@@ -176,14 +177,14 @@ inline ostream& operator<<(ostream &os, const state_t &s) {
 }
 
 class problem_t : public Problem::problem_t<state_t> {
-    size_t rows_;
-    size_t cols_;
+    unsigned rows_;
+    unsigned cols_;
     float p_;
     state_t init_;
     state_t goal_;
 
   public:
-    problem_t(size_t rows, size_t cols, const state_t &init, float p = 1.0)
+    problem_t(unsigned rows, unsigned cols, const state_t &init, float p = 1.0)
       : rows_(rows), cols_(cols), p_(p), init_(init) {
         goal_.set_goal(rows_, cols_);
     }
@@ -267,6 +268,99 @@ class manhattan_t : public Heuristic::heuristic_t<state_t> {
     float operator()(const state_t &s) const { return value(s); }
 };
 
+void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results) {
+
+    unsigned evaluation_trials = 100;
+    unsigned evaluation_depth = 50;
+    unsigned rollout_width = 50;
+    unsigned rollout_depth = 50;
+    float start_time = 0;
+
+    cout << "evaluation of policies:" << endl;
+
+    // Optimal policy (if available)
+    if( !results.empty() ) {
+        const Problem::hash_t<state_t> &hash = *results[0].hash_;
+        start_time = Utils::read_time_in_seconds();
+        cout << "  optimal=" << setprecision(5)
+             << Policy::evaluation(Policy::hash_policy_t<state_t>(problem, hash),
+                                   problem.init(),
+                                   evaluation_trials,
+                                   evaluation_depth)
+             << setprecision(2);
+        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+    }
+
+    // Rollouts wrt heuristic greedy (base) policy (if available)
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        start_time = Utils::read_time_in_seconds();
+        for( int nesting = 0; nesting < 2; ++nesting ) {
+            start_time = Utils::read_time_in_seconds();
+            cout << "  nrollout(" << nesting << ", greedy)=" << setprecision(5)
+                 << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem,
+                                                                         greedy,
+                                                                         rollout_width,
+                                                                         rollout_depth,
+                                                                         nesting),
+                                       problem.init(),
+                                       evaluation_trials,
+                                       evaluation_depth)
+                 << setprecision(2);
+            cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+        }
+    }
+
+    // Rollouts wrt random base policy
+    Policy::random_t<state_t> random(problem);
+    for( int nesting = 0; nesting < 1; ++nesting ) {
+        start_time = Utils::read_time_in_seconds();
+        cout << "  nrollout(" << nesting << ", random)=" << setprecision(5)
+             << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem,
+                                                                     random,
+                                                                     rollout_width,
+                                                                     rollout_depth,
+                                                                     nesting),
+                                   problem.init(),
+                                   evaluation_trials,
+                                   evaluation_depth)
+             << setprecision(2);
+        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+    }
+
+    // UCT Policies wrt random base policy
+    Policy::mcts_t<state_t> uct(problem, random, 1e4, 50, -.15); 
+
+#if 0
+    for( int i = 0; i < 1e8; ++i ) {
+        uct.search_tree(problem.init(), 0);
+        //uct.SEARCH(problem.init());
+    }
+    cout << "size=" << uct.size() << endl;
+    //cout << "size=" << uct.SIZE() << endl;
+    unsigned count_sum = 0;
+    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+        count_sum += uct.count(problem.init(), a);
+        cout << "  optimal(" << a << ")=" << setprecision(5)
+             << hash.QValue(problem.init(), a) << endl;
+        cout << "uct-value(" << a << ")=" << setprecision(5)
+             << uct.value(problem.init(), a)
+             << ", count=" << uct.count(problem.init(), a)
+             << endl;
+    }
+    cout << "count-sum=" << count_sum << endl;
+#endif
+
+    start_time = Utils::read_time_in_seconds();
+    cout << "  uct(random)=" << setprecision(5)
+         << Policy::evaluation(uct,
+                               problem.init(),
+                               evaluation_trials,
+                               evaluation_depth)
+         << setprecision(2);
+    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+}
+
 void usage(ostream &os) {
     os << endl
        << "usage: puzzle [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-k <n>] [-K <f>] [-p <f>] [-s <n>] [-v <n>] <rows> <cols>"
@@ -302,8 +396,8 @@ void usage(ostream &os) {
 }
 
 int main(int argc, const char **argv) {
-    size_t rows = 0;
-    size_t cols = 0;
+    unsigned rows = 0;
+    unsigned cols = 0;
 
     float p = 1.0;
     unsigned bitmap = 0;
@@ -403,74 +497,8 @@ int main(int argc, const char **argv) {
         }
     }
 
-#if 0
-    // evaluate policy
-    unsigned ntrials = 500;
-    unsigned depth = 100;
-    unsigned width = 10;
-    unsigned rdepth = 10;
-
-    cout << "evaluation of policies:" << endl;
-
-    start_time = Utils::read_time_in_seconds();
-    cout << "  optimal=" << setprecision(5)
-         << Policy::evaluation(Policy::hash_policy_t<state_t>(problem, hash),
-                               problem.init(), ntrials, depth)
-         << setprecision(2);
-    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
-
-    if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        for( int nesting = 0; nesting < 1; ++nesting ) {
-            start_time = Utils::read_time_in_seconds();
-            cout << "  nrollout(" << nesting << ", greedy)=" << setprecision(5)
-                 << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem, greedy, width, rdepth, nesting),
-                                       problem.init(), ntrials, depth)
-                 << setprecision(2);
-            cout << " " << Utils::read_time_in_seconds() - start_time << endl;
-        }
-    }
-
-    Policy::random_t<state_t> random(problem);
-    for( int nesting = 0; nesting < 1; ++nesting ) {
-        start_time = Utils::read_time_in_seconds();
-        cout << "  nrollout(" << nesting << ", random)=" << setprecision(5)
-             << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem, random, width, rdepth, nesting),
-                                   problem.init(), ntrials, depth)
-             << setprecision(2);
-        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
-    }
-
-    Policy::mcts_t<state_t> uct(problem, random, 1e5, 100, -4); 
-#if 0
-    for( int i = 0; i < 1e8; ++i ) {
-        uct.search_tree(problem.init(), 0);
-        //uct.SEARCH(problem.init());
-    }
-    cout << "size=" << uct.size() << endl;
-    //cout << "size=" << uct.SIZE() << endl;
-    unsigned count_sum = 0;
-    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
-        count_sum += uct.count(problem.init(), a);
-        cout << "  optimal(" << a << ")=" << setprecision(5)
-             << hash.QValue(problem.init(), a) << endl;
-        cout << "uct-value(" << a << ")=" << setprecision(5)
-             << uct.value(problem.init(), a)
-             << ", count=" << uct.count(problem.init(), a)
-             << endl;
-    }
-    cout << "count-sum=" << count_sum << endl;
-#endif
-
-#if 1
-    start_time = Utils::read_time_in_seconds();
-    cout << "  uct(random)=" << setprecision(5)
-         << Policy::evaluation(uct, problem.init(), ntrials, depth)
-         << setprecision(2);
-    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
-#endif
-
-#endif
+    // evaluate policies
+    evaluate_policies(problem, heuristic, results);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {

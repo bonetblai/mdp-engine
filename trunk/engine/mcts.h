@@ -65,8 +65,7 @@ template<typename T> struct node_t {
     } 
     ~node_t() { }
 
-    Problem::action_t select_action(const Problem::problem_t<T> &problem, float uct_parameter) const {
-        //if( Random::real() < .1 ) return Random::uniform(policy_t<T>::problem().number_actions());
+    Problem::action_t select_action2(const Problem::problem_t<T> &problem, float uct_parameter) const {
         float log_ns = logf(counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
@@ -131,7 +130,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
-        return select_action(it->second, false);
+        return select_action(it->second, 0, false);
     }
 
     float value(const T &s, Problem::action_t a) const {
@@ -161,18 +160,14 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
 
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
-        //typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(0, s));
         if( it == table_.end() ) {
             std::vector<float> values(1 + policy_t<T>::problem().number_actions(), 0);
             std::vector<int> counts(1 + policy_t<T>::problem().number_actions(), 0);
-            float value = evaluate(s);
-            //values[0] = value;
-            //counts[0] = 1;
             table_.insert(std::make_pair(std::make_pair(depth, s), data_t(values, counts)));
-            //table_.insert(std::make_pair(std::make_pair(0, s), data_t(values, counts)));
 #ifdef DEBUG
-            std::cout << " insert " << value << std::endl;
+            std::cout << " insert 0" << std::endl;
 #endif
+            float value = evaluate(s);
             return value;
         } else if( depth == depth_bound_ ) {
 #ifdef DEBUG
@@ -180,10 +175,9 @@ template<typename T> class mcts_t : public improvement_t<T> {
                       << " fetch " << it->second.values_[0]
                       << " return" << std::endl;
 #endif
-            //++it->second.counts_[0];
-            return it->second.values_[0];
+            return 0;
         } else {
-            Problem::action_t a = select_action(it->second, depth);
+            Problem::action_t a = select_action(it->second, depth, true);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
             std::pair<const T, bool> p = policy_t<T>::problem().sample(s, a);
@@ -199,42 +193,11 @@ template<typename T> class mcts_t : public improvement_t<T> {
             float n = it->second.counts_[1+a];
             float new_value = cost + .95 * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
-            // CHECK: learning rate is 0.5, it could be 1/n(s,a)
             return old_value;
         }
     }
 
-#if 0
-def search(self, state, depth = 0):
-    if self.is_terminal(state): return 0
-    action = self.select_action(state)
-    new_state, cost = self.sample_next_state(state, action)
-
-    if random() < 1.0/(self.state_visit_counts[(state)] + 1):
-        try: q = cost + self.gamma*self.Q[(new_state, action)]
-        except KeyError: q = cost + self.gamma*self.V_approx[new_state]
-    else:
-        q = cost + self.gamma*self.search(new_state, depth + 1)
-    assert q != 0
-
-    self.state_visit_counts[(state)] += 1
-    self.nr_samples += 1
-    self.state_action_counts[(state, action)] += 1
-
-    try:
-        old_average = self.Q[(state, action)]
-        n = self.state_action_counts[(state, action)]
-        #new_average = old_average + (1.0/n)*(q - old_average)
-        new_average = old_average + (0.5)*(q - old_average)
-        except KeyError:
-            new_average = q
-
-    self.Q[(state, action)] = new_average
-    return q
-#endif
-
-    Problem::action_t select_action(const data_t &data, int depth, bool add_bonus = true) const {
-        //if( Random::real() < .1 ) return Random::uniform(policy_t<T>::problem().number_actions());
+    Problem::action_t select_action(const data_t &data, int depth, bool add_bonus) const {
         float log_ns = logf(data.counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
@@ -269,7 +232,7 @@ def search(self, state, depth = 0):
 #endif
             return 0;
         } else {
-            Problem::action_t a = node->select_action(policy_t<T>::problem(), uct_parameter_);
+            Problem::action_t a = node->select_action2(policy_t<T>::problem(), uct_parameter_);
 #ifdef DEBUG
             std::cout << " act=" << a;
 #endif
@@ -327,7 +290,7 @@ def search(self, state, depth = 0):
         
 
     float evaluate(const T &s) const {
-        return 0;//evaluation(improvement_t<T>::base_policy_, s, width_, depth_);
+        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_);
     }
 };
 

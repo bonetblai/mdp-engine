@@ -43,26 +43,25 @@ template<typename T> class rollout_t : public improvement_t<T> {
     virtual ~rollout_t() { }
 
     virtual Problem::action_t operator()(const T &s) const {
-        std::vector<Problem::action_t> best_actions;
-        best_actions.reserve(policy_t<T>::problem_.number_actions());
+        Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
-            std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
-            float value = evaluate(p.first);
-            if( value <= best_value ) {
-                if( value < best_value ) {
-                    best_value = value;
-                    best_actions.clear();
-                }
-                best_actions.push_back(a);
+            float value = 0;
+            for( unsigned trial = 0; trial < width_; ++trial ) {
+                std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
+                value += policy_t<T>::problem_.cost(s, a) + 0.95 * evaluate(p.first);
+            }
+            value /= width_;
+            if( value < best_value ) {
+                best_value = value;
+                best_action = a;
             }
         }
-        assert(!best_actions.empty());
-        return best_actions[Random::uniform(best_actions.size())];
+        return best_action;
     }
 
     float evaluate(const T &s) const {
-        return evaluation(improvement_t<T>::base_policy_, s, width_, depth_);
+        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_);
     }
 };
 
