@@ -54,8 +54,12 @@ template<typename T> class policy_graph_t {
     const std::list<std::pair<T, Hash::data_t*> >& nodes() const { return nodes_; }
 
     void recompute() {
+#ifdef USEMAX
         unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
+#else
+        std::vector<std::pair<T, float> > outcomes;
+#endif
 
         size_ = 0;
         tips_.clear();
@@ -82,7 +86,12 @@ template<typename T> class policy_graph_t {
                 std::pair<Problem::action_t, float> p = hash_.bestQValue(n.first);
                 assert(p.first != Problem::noop);
                 n.second->set_action(p.first);
+#ifdef USEMAX
                 problem_.next(n.first, p.first, outcomes, osize);
+#else
+                problem_.next(n.first, p.first, outcomes);
+                unsigned osize = outcomes.size();
+#endif
                 for( unsigned i = 0; i < osize; ++i ) {
                     if( !hash_.solved(outcomes[i].first) ) {
                         unsolved = true;
@@ -116,10 +125,15 @@ template<typename T> class policy_graph_t {
     }
 
     void postorder_dfs(const T &s, std::list<std::pair<T, Hash::data_t*> > &visited) {
+        std::list<std::pair<T, Hash::data_t*> > open;
+
+#ifdef USEMAX
         unsigned osize = 0;
         std::pair<T, float> outcomes[MAXOUTCOMES];
+#else
+        std::vector<std::pair<T, float> > outcomes;
+#endif
 
-        std::list<std::pair<T, Hash::data_t*> > open;
         Hash::data_t *dptr = hash_.data_ptr(s);
         open.push_back(std::make_pair(s, dptr ));
         dptr->mark();
@@ -131,7 +145,12 @@ template<typename T> class policy_graph_t {
             assert(n.second->solved());
 
             if( n.second->action() != Problem::noop ) {
+#ifdef USEMAX
                 problem_.next(n.first, n.second->action(), outcomes, osize);
+#else
+                problem_.next(n.first, n.second->action(), outcomes);
+                unsigned osize = outcomes.size();
+#endif
                 for( unsigned i = 0; i < osize; ++i ) {
                     Hash::data_t *dptr = hash_.data_ptr(outcomes[i].first);
                     if( !dptr->marked() ) {
@@ -141,7 +160,12 @@ template<typename T> class policy_graph_t {
                 }
             } else {
                 std::pair<Problem::action_t, float> p = hash_.bestQValue(n.first);
+#ifdef USEMAX
                 problem_.next(n.first, p.first, outcomes, osize);
+#else
+                problem_.next(n.first, p.first, outcomes);
+                unsigned osize = outcomes.size();
+#endif
                 for( unsigned i = 0; i < osize; ++i )
                     hash_.solve(outcomes[i].first);
             }
@@ -163,9 +187,14 @@ template<typename T> class policy_graph_t {
 
 template<typename T>
 void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash) {
+    std::list<std::pair<T, Hash::data_t*> > open;
+
+#ifdef USEMAX
     unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
-    std::list<std::pair<T, Hash::data_t*> > open;
+#else
+    std::vector<std::pair<T, float> > outcomes;
+#endif
 
     Hash::data_t *dptr = hash.data_ptr(s);
     open.push_back(std::make_pair(s, dptr));
@@ -181,7 +210,12 @@ void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::h
         if( problem.terminal(n.first) ) continue;
 
         for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+#ifdef USEMAX
             problem.next(n.first, a, outcomes, osize);
+#else
+            problem.next(n.first, a, outcomes);
+            unsigned osize = outcomes.size();
+#endif
             for( unsigned i = 0; i < osize; ++i ) {
                 Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
                 if( !ptr->marked() ) {
@@ -240,8 +274,13 @@ size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem
 template<typename T>
 bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, float epsilon) {
     std::list<std::pair<T, Hash::data_t*> > open, closed;
+
+#ifdef USEMAX
     std::pair<T, float> outcomes[MAXOUTCOMES];
     unsigned osize = 0;
+#else
+    std::vector<std::pair<T, float> > outcomes;
+#endif
 
     Hash::data_t *dptr = hash.data_ptr(s);
     if( !dptr->solved() ) {
@@ -262,7 +301,12 @@ bool check_solved(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash
             continue;
         }
 
+#ifdef USEMAX
         problem.next(n.first, p.first, outcomes, osize);
+#else
+        problem.next(n.first, p.first, outcomes);
+        unsigned osize = outcomes.size();
+#endif
         for( unsigned i = 0; i < osize; ++ i ) {
             Hash::data_t *dptr = hash.data_ptr(outcomes[i].first);
             if( !dptr->solved() && !dptr->marked() ) {
@@ -573,8 +617,12 @@ size_t hdp_i(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T
 
 template<typename T>
 bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t* dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
+#ifdef USEMAX
     unsigned osize = 0;
     std::pair<T, float> outcomes[MAXOUTCOMES];
+#else
+    std::vector<std::pair<T, float> > outcomes;
+#endif
 
     // base cases
     if( dptr->solved() || problem.terminal(s) ) {
@@ -601,8 +649,13 @@ bool hdp(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T
     dptr->mark();
 
     // expansion
-    bool flag = true;
+#ifdef USEMAX
     problem.next(s, p.first, outcomes, osize);
+#else
+    problem.next(s, p.first, outcomes);
+    unsigned osize = outcomes.size();
+#endif
+    bool flag = true;
     for( unsigned i = 0; i < osize; ++i ) {
         Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
         if( ptr->scc_idx() == std::numeric_limits<unsigned>::max() ) {
@@ -657,8 +710,12 @@ size_t hdp_driver(const Problem::problem_t<T> &problem, const T &s, Problem::has
 
 template<typename T, int V>
 bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const T &s, Hash::data_t *dptr, size_t &index, std::list<Hash::data_t*> &stack, std::list<Hash::data_t*> &visited, const parameters_t &parameters) {
+#ifdef USEMAX
     std::pair<T, float> outcomes[MAXOUTCOMES];
     unsigned osize = 0;
+#else
+    std::vector<std::pair<T, float> > outcomes;
+#endif
 
     // base cases
     if( dptr->solved() || problem.terminal(s) ) {
@@ -686,8 +743,13 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
     bool flag = false;
     float bqv = std::numeric_limits<float>::max();
     for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
-        float qv = 0.0;
+#ifdef USEMAX
         problem.next(s, a, outcomes, osize);
+#else
+        problem.next(s, a, outcomes);
+        unsigned osize = outcomes.size();
+#endif
+        float qv = 0.0;
         for( unsigned i = 0; i < osize; ++i )
             qv += outcomes[i].second * hash.value(outcomes[i].first);
         qv += problem.cost(s, a);
