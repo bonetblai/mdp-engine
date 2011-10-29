@@ -1,4 +1,2 @@
-- remove MAXOUTCOMES
 - implement mcts
 - implement uct
-- remove virtual methods replacing them by direct calls to methods (as in STL)
