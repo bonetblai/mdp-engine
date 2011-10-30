@@ -289,7 +289,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 
 
 void usage(ostream &os) {
-    os << "usage: wet [-a <n>] [-b <n>] [-e <f>] [-g <f>] [-h <n>] [-p <f>] [-s <n>] [-v <n>] [-X] [-Y|-Z] <size>"
+    os << "usage: wet [-a <n>] [-b <n>] [-e <f>] [-g <f>] [-h <n>] [-p <f>] [-s <n>] [-X] [-Y|-Z] <size>"
        << endl;
 }
 
