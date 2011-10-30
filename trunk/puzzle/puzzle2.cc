@@ -268,7 +268,7 @@ class manhattan_t : public Heuristic::heuristic_t<state_t> {
     float operator()(const state_t &s) const { return value(s); }
 };
 
-void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results) {
+void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results, unsigned max_width, float uct_parameter) {
 
     unsigned evaluation_trials = 100;
     unsigned evaluation_depth = 50;
@@ -288,7 +288,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
                                    evaluation_trials,
                                    evaluation_depth)
              << setprecision(2);
-        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
 
     // Rollouts wrt heuristic greedy (base) policy (if available)
@@ -307,12 +307,22 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
                                        evaluation_trials,
                                        evaluation_depth)
                  << setprecision(2);
-            cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+            cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
         }
     }
 
-    // Rollouts wrt random base policy
+    // Random policy
     Policy::random_t<state_t> random(problem);
+    start_time = Utils::read_time_in_seconds();
+    cout << "  random=" << setprecision(5)
+         << Policy::evaluation(random,
+                               problem.init(),
+                               evaluation_trials,
+                               evaluation_depth)
+         << setprecision(2);
+    cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
+
+    // Rollouts wrt random base policy
     for( int nesting = 0; nesting < 1; ++nesting ) {
         start_time = Utils::read_time_in_seconds();
         cout << "  nrollout(" << nesting << ", random)=" << setprecision(5)
@@ -325,40 +335,22 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
                                    evaluation_trials,
                                    evaluation_depth)
              << setprecision(2);
-        cout << " " << Utils::read_time_in_seconds() - start_time << endl;
+        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
 
     // UCT Policies wrt random base policy
-    Policy::mcts_t<state_t> uct(problem, random, 1e4, 50, -.15); 
-
-#if 0
-    for( int i = 0; i < 1e8; ++i ) {
-        uct.search_tree(problem.init(), 0);
-        //uct.SEARCH(problem.init());
+    for( unsigned width = 2; width <= max_width; width *= 2 ) {
+        Policy::mcts_t<state_t> uct(problem, random, width, 50, uct_parameter); 
+        start_time = Utils::read_time_in_seconds();
+        cout << "  uct(random, width=" << width << ", p=" << uct_parameter << ")="
+             << setprecision(5)
+             << Policy::evaluation(uct,
+                                   problem.init(),
+                                   evaluation_trials,
+                                   evaluation_depth)
+             << setprecision(2);
+        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
-    cout << "size=" << uct.size() << endl;
-    //cout << "size=" << uct.SIZE() << endl;
-    unsigned count_sum = 0;
-    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
-        count_sum += uct.count(problem.init(), a);
-        cout << "  optimal(" << a << ")=" << setprecision(5)
-             << hash.QValue(problem.init(), a) << endl;
-        cout << "uct-value(" << a << ")=" << setprecision(5)
-             << uct.value(problem.init(), a)
-             << ", count=" << uct.count(problem.init(), a)
-             << endl;
-    }
-    cout << "count-sum=" << count_sum << endl;
-#endif
-
-    start_time = Utils::read_time_in_seconds();
-    cout << "  uct(random)=" << setprecision(5)
-         << Policy::evaluation(uct,
-                               problem.init(),
-                               evaluation_trials,
-                               evaluation_depth)
-         << setprecision(2);
-    cout << " " << Utils::read_time_in_seconds() - start_time << endl;
 }
 
 void usage(ostream &os) {
@@ -496,7 +488,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results);
+    evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
