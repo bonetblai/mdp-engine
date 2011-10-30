@@ -265,11 +265,11 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 
 void usage(ostream &os) {
     os << endl
-       << "usage: race [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-k <n>] [-K <f>] [-p <f>] [-s <n>] [-v <n>] <file>"
+       << "usage: race [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <file>"
        << endl << endl
        << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
-       << "  -b <n>    Visits bound for blrtdp. Default: 0."
+       << "  -b <n>    Visits bound for blrtdp. Default: inf."
        << endl
        << "  -e <f>    Epsilon. Default: 0."
        << endl
@@ -277,7 +277,7 @@ void usage(ostream &os) {
        << endl
        << "  -g <f>    Parameter for epsilon-greedy. Default: 0."
        << endl
-       << "  -h <n>    Heuristics: 0=zero, 1=minmin, 2=hdp(0). Default: 0."
+       << "  -h <n>    Heuristics: 0=zero, 1=minmin. Default: 0."
        << endl
 #if 0
        << "  -k <n>    Kappa consistency level. Default: 0."
@@ -288,8 +288,6 @@ void usage(ostream &os) {
        << "  -p <f>    Parameter p in [0,1]. Default: 1."
        << endl
        << "  -s <n>    Random seed. Default: 0."
-       << endl
-       << "  -v <n>    Verbosity. Default: 0."
        << endl
        << "  <file>    Racetrack file."
        << endl << endl;
