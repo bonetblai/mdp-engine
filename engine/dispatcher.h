@@ -66,8 +66,8 @@ template<typename T> struct result_t {
     unsigned updates_;
     unsigned expansions_;
     unsigned psize_;
-    unsigned atime_;
-    unsigned htime_;
+    float atime_;
+    float htime_;
     Problem::hash_t<T> *hash_;
 };
 

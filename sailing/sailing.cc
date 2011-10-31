@@ -1,7 +1,8 @@
 #include <iostream>
 #include <iomanip>
+#include <strings.h>
 
-#define MAXOUTCOMES   3
+#define DISCOUNT 1
 
 #include "algorithm.h"
 #include "parameters.h"
@@ -14,42 +15,70 @@
 
 using namespace std;
 
-const Problem::action_t fwd = 0;
-const Problem::action_t left = 1;
-const Problem::action_t right = 2;
-
-typedef unsigned short ushort_t;
-
 class state_t {
-    ushort_t row_;
-    ushort_t col_;
+    short x_;
+    short y_;
+    short wind_;
 
   public:
-    state_t(ushort_t row = 0, ushort_t col = 0) : row_(row), col_(col) { }
-    state_t(const state_t &s) : row_(s.row_), col_(s.col_) { }
+    enum { Away = 0, Down = 1, Cross = 2, Up = 3, Into = 4 }; // tacks
+
+  public:
+    state_t(short x = 0, short y = 0, short wind = 0)
+      : x_(x), y_(y), wind_(wind) { }
+    state_t(const state_t &s)
+      : x_(s.x_), y_(s.y_), wind_(s.wind_) { }
     ~state_t() { }
-    size_t hash() const { return row_ ^ col_; }
-    unsigned row() const { return row_; }
-    unsigned col() const { return col_; }
-    void fwd(unsigned rows) { if( row() < rows - 1 ) ++row_; }
-    void left(unsigned cols) { if( col() > 0 ) --col_; }
-    void right(unsigned cols) { if( col() < cols - 1 ) ++col_; }
+
+    size_t hash() const {
+        return (x_ << ((8*sizeof(short)) + 3)) | (y_ << 3) | wind_;
+    }
+
+    int tack(Problem::action_t a) const {
+        int d = Utils::abs<int>(a - wind_);
+        return d < 8 - d ? d : 8 - d;
+    }
+    bool in_lake(short rows, short cols) const {
+        return (x_ >= 0) && (x_ < rows) && (y_ >= 0) && (y_ < cols);
+    }
+    pair<int, int> direction(Problem::action_t a) const {
+        switch( a ) {
+            case 0: return make_pair(0, 1);
+            case 1: return make_pair(1, 1);
+            case 2: return make_pair(1, 0);
+            case 3: return make_pair(1, -1);
+            case 4: return make_pair(0, -1);
+            case 5: return make_pair(-1, -1);
+            case 6: return make_pair(-1, 0);
+            case 7: return make_pair(-1, 1);
+            default: return make_pair(-1, -1);
+        }
+    }
+
+    state_t apply(Problem::action_t a) const {
+        pair<int, int> dir = direction(a);
+        return state_t(x_ + dir.first, y_ + dir.second);
+    }
+
     const state_t& operator=( const state_t &s) {
-        row_ = s.row_;
-        col_ = s.col_;
+        x_ = s.x_;
+        y_ = s.y_;
+        wind_ = s.wind_;
         return *this;
     }
     bool operator==(const state_t &s) const {
-        return (row_ == s.row_) && (col_ == s.col_);
+        return (x_ == s.x_) && (y_ == s.y_) && (wind_ == s.wind_);
     }
     bool operator!=(const state_t &s) const {
-        return (row_ != s.row_) || (col_ != s.col_);
+        return (x_ != s.x_) || (y_ != s.y_) || (wind_ != s.wind_);
     }
     bool operator<(const state_t &s) const {
-        return (row_ < s.row_) || ((row_ == s.row_) && (col_ < s.col_));
+        return (x_ < s.x_) ||
+               ((x_ == s.x_) && (y_ < s.y_)) ||
+               ((x_ == s.x_) && (y_ == s.y_) && (wind_ < s.wind_));
     }
     void print(ostream &os) const {
-        os << "( " << row() << " , " << col() << " )";
+        os << "(" << x_ << "," << y_ << "," << wind_ << ")";
     }
     friend class problem_t;
 };
@@ -60,78 +89,85 @@ inline ostream& operator<<(ostream &os, const state_t &s) {
 }
 
 class problem_t : public Problem::problem_t<state_t> {
-    unsigned rows_;
-    unsigned cols_;
-    float p_;
+    int rows_;
+    int cols_;
+    float wind_transition_[64];
+    float costs_[5];
     state_t init_;
+    state_t goal_;
+
+    static const float default_wind_transition_[];
+    static const float default_costs_[];
 
   public:
-    problem_t(unsigned rows, unsigned cols, float p = 1.0)
-      : rows_(rows), cols_(cols), p_(p), init_(0, cols / 2) {
+    problem_t(int rows, int cols,
+              int init_x = 0, int init_y = 0,
+              int goal_x = numeric_limits<int>::max(),
+              int goal_y = numeric_limits<int>::max(),
+              float *wind_transition = 0, float *costs = 0)
+      : rows_(rows), cols_(cols), init_(init_x, init_y), goal_(goal_x, goal_y) {
+
+        if( (goal_x == numeric_limits<int>::max()) ||
+            (goal_y == numeric_limits<int>::max()) ) {
+            goal_ = state_t(rows - 1, cols - 1);
+        }
+        
+        if( wind_transition != 0 ) {
+            bcopy(wind_transition, wind_transition_, 64 * sizeof(float));
+        } else {
+            bcopy(default_wind_transition_, wind_transition_, 64 * sizeof(float));
+        }
+
+        if( costs != 0 ) {
+            bcopy(costs, costs_, 5 * sizeof(float));
+        } else {
+            bcopy(default_costs_, costs_, 5 * sizeof(float));
+        }
     }
     virtual ~problem_t() { }
 
-    virtual Problem::action_t number_actions() const { return 3; }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return true;
-    }
+    virtual Problem::action_t number_actions() const { return 8; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
-        return s.row() == rows_ - 1;
+        return (s.x_ == goal_.x_) && (s.y_ == goal_.y_);
+    }
+    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
+        return s.tack(a) == state_t::Into ? false : s.apply(a).in_lake(rows_, cols_);
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
-        return terminal(s) ? 0 : 1;
+        return terminal(s) ? 0 : costs_[s.tack(a)];
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const {
-        ++expansions_;
-        unsigned i = 0;
-        if( a != fwd ) {
-            outcomes[i++] = make_pair(s, 1.0);
-            if( a == ::left ) {
-                outcomes[0].first.left(cols_);
-            } else if( a == ::right ) {
-                outcomes[0].first.right(cols_);
-            }
-        } else if( a == fwd ) {
-            if( p_ > 0 ) {
-                outcomes[i] = make_pair(s, p_);
-                outcomes[i++].first.fwd(rows_);
-            }
-            if( 1 - p_ > 0 ) {
-                outcomes[i] = make_pair(s, (1 - p_) / 2);
-                outcomes[i++].first.left(cols_);
-                outcomes[i] = make_pair(s, (1 - p_) / 2);
-                outcomes[i++].first.right(cols_);
-            }
-        }
-        osize = i;
-    }
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
     virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
         ++expansions_;
         outcomes.clear();
-        outcomes.reserve(3);
-
-        if( a != fwd ) {
-            outcomes.push_back(make_pair(s, 1.0));
-            if( a == ::left ) {
-                outcomes.back().first.left(cols_);
-            } else if( a == ::right ) {
-                outcomes.back().first.right(cols_);
-            }
-        } else if( a == fwd ) {
-            if( p_ > 0 ) {
-                outcomes.push_back(make_pair(s, p_));
-                outcomes.back().first.fwd(rows_);
-            }
-            if( 1 - p_ > 0 ) {
-                outcomes.push_back(make_pair(s, (1 - p_) / 2));
-                outcomes.back().first.left(cols_);
-                outcomes.push_back(make_pair(s, (1 - p_) / 2));
-                outcomes.back().first.right(cols_);
+        outcomes.reserve(8);
+        state_t next_s = s.apply(a);
+        assert(next_s.in_lake(rows_, cols_));
+        for( int nwind = 0; nwind < 8; ++nwind ) {
+            float p = wind_transition_[s.wind_ * 8 + nwind];
+            if( p > 0 ) {
+                next_s.wind_ = nwind;
+                outcomes.push_back(make_pair(next_s, p));
             }
         }
     }
     virtual void print(ostream &os) const { }
+};
+
+const float problem_t::default_wind_transition_[] = {
+    0.4, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3,
+    0.4, 0.3, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.4, 0.3, 0.3, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.4, 0.3, 0.3, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.4, 0.2, 0.4, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 0.4, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 0.4,
+    0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3
+};
+
+const float problem_t::default_costs_[] = {
+    1, 2, 3, 4, numeric_limits<float>::max()
 };
 
 inline ostream& operator<<(ostream &os, const problem_t &p) {
@@ -225,7 +261,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 }
 
 void usage(ostream &os) {
-    os << "usage: rect [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <rows> <cols>"
+    os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <rows> <cols>"
        << endl << endl
        << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
@@ -245,8 +281,6 @@ void usage(ostream &os) {
        << "  -K <f>    Used to define kappa measures. Default: 2."
        << endl
 #endif
-       << "  -p <f>    Parameter p in [0,1]. Default: 1."
-       << endl
        << "  -s <n>    Random seed. Default: 0."
        << endl
        << "  <rows>    Rows <= 2^16."
@@ -259,7 +293,6 @@ int main(int argc, const char **argv) {
     unsigned rows = 0;
     unsigned cols = 0;
 
-    float p = 1.0;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
@@ -303,11 +336,6 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
-            case 'p':
-                p = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
             case 's':
                 parameters.seed_ = strtoul(argv[1], 0, 0);
                 argv += 2;
@@ -329,7 +357,7 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     Random::seeds(parameters.seed_);
-    problem_t problem(rows, cols, p);
+    problem_t problem(rows, cols);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -350,10 +378,18 @@ int main(int argc, const char **argv) {
         for( unsigned i = 0; i < results.size(); ++i ) {
             Dispatcher::print_result(cout, &results[i]);
         }
+
+        const Problem::hash_t<state_t> &hash = *results[0].hash_;
+        float value = 0;
+        for( Problem::hash_t<state_t>::const_iterator it = hash.begin(); it != hash.end(); ++it ) {
+            value += it->second->value();
+        }
+        value /= hash.size();
+        cout << "avg value = " << value << endl;
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    //evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {

@@ -210,20 +210,22 @@ void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::h
         if( problem.terminal(n.first) ) continue;
 
         for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+            if( problem.applicable(n.first, a) ) {
 #ifdef USEMAX
-            problem.next(n.first, a, outcomes, osize);
+                problem.next(n.first, a, outcomes, osize);
 #else
-            problem.next(n.first, a, outcomes);
-            unsigned osize = outcomes.size();
+                problem.next(n.first, a, outcomes);
+                unsigned osize = outcomes.size();
 #endif
-            for( unsigned i = 0; i < osize; ++i ) {
-                Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
-                if( !ptr->marked() ) {
-                    open.push_back(std::make_pair(outcomes[i].first, ptr));
-                    ptr->mark();
+                for( unsigned i = 0; i < osize; ++i ) {
+                    Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
+                    if( !ptr->marked() ) {
+                        open.push_back(std::make_pair(outcomes[i].first, ptr));
+                        ptr->mark();
 #ifdef DEBUG
-                    std::cout << "marking " << outcomes[i].first << std::endl;
+                        std::cout << "marking " << outcomes[i].first << std::endl;
 #endif
+                    }
                 }
             }
         }
@@ -351,7 +353,7 @@ size_t lrtdp_trial(const Problem::problem_t<T> &problem, Problem::hash_t<T> &has
     while( !problem.terminal(t) && !dptr->solved() && (dptr->count() <= parameters.rtdp.bound_) ) {
 
 #ifdef DEBUG
-        std::cout << "  " << t << " = " << dptr->value() << ":" << hash.heuristic(t) << std::endl;
+        std::cout << "  " << t << " = " << dptr->value() << std::endl;
 #endif
 
         std::pair<Problem::action_t, float> p = hash.bestQValue(t);

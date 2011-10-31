@@ -52,7 +52,11 @@ template<typename T> inline T max(const T a, const T b) {
     return a >= b ? a : b;
 }
 
-};
+template<typename T> inline T abs(const T a) {
+    return a < 0 ? -a : a;
+}
+
+}; // end of namespace
 
 #undef DEBUG
 

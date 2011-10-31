@@ -72,10 +72,12 @@ template<typename T> class hash_t : public Hash::hash_map_t<T> {
         action_t best_action = noop;
         float best_value = std::numeric_limits<float>::max();
         for( action_t a = 0; a < problem_.number_actions(); ++a ) {
-            float value = QValue(s, a);
-            if( value < best_value ) {
-                best_value = value;
-                best_action = a;
+            if( problem_.applicable(s, a) ) {
+                float value = QValue(s, a);
+                if( value < best_value ) {
+                    best_value = value;
+                    best_action = a;
+                }
             }
         }
         return std::make_pair(best_action, best_value);
@@ -117,6 +119,7 @@ template<typename T> class problem_t {
     virtual action_t number_actions() const = 0;
     virtual const T& init() const = 0;
     virtual bool terminal(const T &s) const = 0;
+    virtual bool applicable(const T &s, action_t a) const = 0;
     virtual float cost(const T &s, action_t a) const = 0;
     virtual void next(const T &s, action_t a, std::pair<T, float> *outcomes, unsigned &osize) const = 0;
     virtual void next(const T &s, action_t a, std::vector<std::pair<T, float> > &outcomes) const = 0;
@@ -253,7 +256,7 @@ inline float hash_t<T>::QValue(const T &s, action_t a) const {
     for( unsigned i = 0; i < osize; ++i ) {
         qv += outcomes[i].second * value(outcomes[i].first);
     }
-    return problem_.cost(s, a) + .95 * qv;
+    return problem_.cost(s, a) + DISCOUNT * qv;
 }
 
 template<typename T>
