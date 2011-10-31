@@ -3,6 +3,7 @@
 #include <tr1/unordered_set>
 
 #define MAXOUTCOMES   10
+#define DISCOUNT   1
 
 #include "algorithm.h"
 #include "parameters.h"

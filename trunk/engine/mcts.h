@@ -191,7 +191,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
             float &old_value = it->second.values_[1+a];
             float n = it->second.counts_[1+a];
-            float new_value = cost + .95 * search_tree(p.first, 1 + depth);
+            float new_value = cost + DISCOUNT * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
             return old_value;
         }
@@ -255,7 +255,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
                           << " value=" << node->values_[1+a] << std::endl;
 #endif
                 float cost = policy_t<T>::problem().cost(s, a);
-                float new_value = cost + .95 * search(p.first, child, 1+depth);
+                float new_value = cost + DISCOUNT * search(p.first, child, 1+depth);
                 float &old_value = node->values_[1+a];
                 
 #if 1

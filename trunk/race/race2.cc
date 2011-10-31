@@ -4,6 +4,7 @@
 #include <vector>
 
 #define  MAXOUTCOMES  10
+#define  DISCOUNT  1
 
 #include "parsing.h"
 #include "algorithm.h"
@@ -108,6 +109,9 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return (s != init_) && grid_.goal_pos(s.x(), s.y());
+    }
+    virtual bool applicable(const state_t &s, Problem::action_t a) const {
+        return true;
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;

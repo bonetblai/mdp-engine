@@ -49,7 +49,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
             float value = 0;
             for( unsigned trial = 0; trial < width_; ++trial ) {
                 std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
-                value += policy_t<T>::problem_.cost(s, a) + 0.95 * evaluate(p.first);
+                value += policy_t<T>::problem_.cost(s, a) + DISCOUNT * evaluate(p.first);
             }
             value /= width_;
             if( value < best_value ) {
