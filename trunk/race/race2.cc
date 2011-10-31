@@ -3,8 +3,7 @@
 #include <map>
 #include <vector>
 
-#define  MAXOUTCOMES  10
-#define  DISCOUNT  1
+#define  DISCOUNT  .95
 
 #include "parsing.h"
 #include "algorithm.h"
@@ -116,55 +115,58 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const {
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const { }
+    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
         ++expansions_;
-        unsigned i = 0;
+        outcomes.clear();
         if( s == init_ ) {
+            outcomes.reserve(inits_.size());
             for( size_t j = 0; j < inits_.size(); ++j )
-                outcomes[i++] = make_pair(inits_[j], 1.0/(float)inits_.size());
+                outcomes.push_back(make_pair(inits_[j], 1.0 / (float)inits_.size()));
         } else {
+            outcomes.reserve(2);
             size_t off = s.x() * cols_ + s.y();
-            size_t key = (((unsigned short)s.dx())<<16) | (unsigned short)s.dy();
+            size_t key = (((unsigned short)s.dx()) << 16) | (unsigned short)s.dy();
             ecache_t::const_iterator ci = ecache_[a][off].find(key);
             if( ci != ecache_[a][off].end() ) {
-                outcomes[i++] = make_pair((*ci).second.first, p_);
-                outcomes[i++] = make_pair((*ci).second.second, 1 - p_);
+                if( p_ > 0.0 ) {
+                    outcomes.push_back(make_pair(ci->second.first, p_));
+                    assert(grid_.valid_pos(ci->second.first.x(), ci->second.first.y()));
+                }
+                if( 1 - p_ > 0.0 ) {
+                    outcomes.push_back(make_pair(ci->second.second, 1 - p_));
+                    assert(grid_.valid_pos(ci->second.second.x(), ci->second.second.y()));
+                }
             } else {
-                pair<state_t,state_t> entry;
-                short ox = 0, oy = 0, ux = (a/3)-1, uy = (a%3)-1;
+                pair<state_t, state_t> entry;
+                short ox = 0, oy = 0, ux = (a/3) - 1, uy = (a%3) - 1;
                 if( p_ > 0.0 ) {
                     int dx = s.dx() + ux, dy = s.dy() + uy;
                     int x = s.x() + dx, y = s.y() + dy;
                     int rv = grid_.valid_path(s.x(), s.y(), x, y, ox, oy);
-                    if( rv == 0 )
+                    if( rv == 0 ) {
                         entry.first = state_t(x, y, dx, dy);
-                    else
+                    } else {
                         entry.first = state_t(ox, oy, 0, 0);
-                    outcomes[i++] = make_pair(entry.first, p_);
+                    }
+                    assert(grid_.valid_pos(entry.first.x(), entry.first.y()));
+                    outcomes.push_back(make_pair(entry.first, p_));
                 }
                 if( 1 - p_ > 0.0 ) {
                     int dx = s.dx(), dy = s.dy();
                     int x = s.x() + dx, y = s.y() + dy;
                     int rv = grid_.valid_path(s.x(), s.y(), x, y, ox, oy);
-                    if( rv == 0 )
+                    if( rv == 0 ) {
                         entry.second = state_t(x, y, dx, dy);
-                    else
+                    } else {
                         entry.second = state_t(ox, oy, 0, 0);
-                    outcomes[i++] = make_pair(entry.second, 1 - p_);
+                    }
+                    assert(grid_.valid_pos(entry.first.x(), entry.first.y()));
+                    outcomes.push_back(make_pair(entry.second, 1 - p_));
                 }
                 ecache_[a][off].insert(make_pair(key, entry));
             }
         }
-        osize = i;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
-        pair<state_t, float> tmp[MAXOUTCOMES];
-        unsigned osize = 0;
-        next(s, a, &tmp[0], osize);
-        outcomes.clear();
-        outcomes.reserve(MAXOUTCOMES);
-        for( unsigned i = 0; i < osize; ++i )
-            outcomes.push_back(tmp[i]);
     }
     virtual void print(ostream &os) const { }
 };
@@ -387,7 +389,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    //evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {

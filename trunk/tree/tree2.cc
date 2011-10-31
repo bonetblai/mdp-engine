@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <tr1/unordered_set>
 
-#define MAXOUTCOMES   10
 #define DISCOUNT   1
 
 #include "algorithm.h"
@@ -147,28 +146,32 @@ class problem_t : public Problem::problem_t<state_t> {
     }
 
     virtual Problem::action_t number_actions() const { return 2; }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return true;
-    }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s.depth() == n_ - 1;
     }
+    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
+        return true;
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const {
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
+    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
         ++expansions_;
-        unsigned i = 0;
+        outcomes.clear();
         if( a == Problem::noop ) {
-            outcomes[i++] = make_pair(s, 1.0);
+            outcomes.reserve(1);
+            outcomes.push_back(make_pair(s, 1.0));
         } else {
-            unsigned j = 0;
+            outcomes.reserve(3);
             float p = pow(p_, 1 + s.onebits());
             float q = noisy(s) ? p * q_ : 0.0;
-            if( p - q > 0 ) outcomes[i++] = make_pair(s, p - q);
-            if( q > 0 ) outcomes[i++] = make_pair(s, q);
-            if( 1-p > 0 ) outcomes[i++] = make_pair(s, 1 - p);
+            if( p - q > 0 ) outcomes.push_back(make_pair(s, p - q));
+            if( q > 0 ) outcomes.push_back(make_pair(s, q));
+            if( 1 - p > 0 ) outcomes.push_back(make_pair(s, 1 - p));
+
+            unsigned j = 0;
             if( a == onelfwd ) {
                 if( p - q > 0 ) outcomes[j++].first.onelfwd(n_);
                 if( q > 0 ) outcomes[j++].first.onerfwd(n_);
@@ -178,16 +181,6 @@ class problem_t : public Problem::problem_t<state_t> {
             }
             if( 1 - p > 0 ) outcomes[j++].first.onebwd();
         }
-        osize = i;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
-        pair<state_t, float> tmp[MAXOUTCOMES];
-        unsigned osize = 0;
-        next(s, a, &tmp[0], osize);
-        outcomes.clear();
-        outcomes.reserve(MAXOUTCOMES);
-        for( unsigned i = 0; i < osize; ++i )
-            outcomes.push_back(tmp[i]);
     }
     virtual void print(ostream &os) const { }
 };

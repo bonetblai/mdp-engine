@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define MAXOUTCOMES   3
+#define DISCOUNT   .95
 
 #include "algorithm.h"
 #include "parameters.h"
@@ -72,46 +72,22 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions() const { return 3; }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return true;
-    }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s.row() == rows_ - 1;
     }
+    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
+        return true;
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const {
-        ++expansions_;
-        unsigned i = 0;
-        if( a != fwd ) {
-            outcomes[i++] = make_pair(s, 1.0);
-            if( a == ::left ) {
-                outcomes[0].first.left(cols_);
-            } else if( a == ::right ) {
-                outcomes[0].first.right(cols_);
-            }
-        } else if( a == fwd ) {
-            if( p_ > 0 ) {
-                outcomes[i] = make_pair(s, p_);
-                outcomes[i++].first.fwd(rows_);
-            }
-            if( 1 - p_ > 0 ) {
-                outcomes[i] = make_pair(s, (1 - p_) / 2);
-                outcomes[i++].first.left(cols_);
-                outcomes[i] = make_pair(s, (1 - p_) / 2);
-                outcomes[i++].first.right(cols_);
-            }
-        }
-        osize = i;
-    }
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
     virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
         ++expansions_;
         outcomes.clear();
-        outcomes.reserve(3);
-
         if( a != fwd ) {
+            outcomes.reserve(1);
             outcomes.push_back(make_pair(s, 1.0));
             if( a == ::left ) {
                 outcomes.back().first.left(cols_);
@@ -119,6 +95,7 @@ class problem_t : public Problem::problem_t<state_t> {
                 outcomes.back().first.right(cols_);
             }
         } else if( a == fwd ) {
+            outcomes.reserve(3);
             if( p_ > 0 ) {
                 outcomes.push_back(make_pair(s, p_));
                 outcomes.back().first.fwd(rows_);

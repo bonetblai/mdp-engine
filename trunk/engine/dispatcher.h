@@ -33,7 +33,7 @@
 namespace Dispatcher {
 
 const char *algorithm_name[] = {
-    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "elrtdp", "check", "hdp-i", "hdp", "ldfs+", "ldfs"
+    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "check", "hdp", "ldfs+", "ldfs", "hdp-i"
 };
 
 template<typename T> struct algorithm_table_t {
@@ -45,12 +45,11 @@ template<typename T> struct algorithm_table_t {
             case  2: return Algorithm::uniform_lrtdp<T>;
             case  3: return Algorithm::bounded_lrtdp<T>;
             case  4: return Algorithm::improved_lao<T>;
-            case  5: return Algorithm::standard_lrtdp<T>;
-            case  6: return 0; //Algorithm::hdp_i<T>
-            case  7: return Algorithm::plain_check<T>;
-            case  8: return Algorithm::hdp_driver<T>;
-            case  9: return Algorithm::ldfs_plus_driver<T>;
-            case 10: return Algorithm::ldfs_driver<T>;
+            case  5: return Algorithm::plain_check<T>;
+            case  6: return Algorithm::hdp_driver<T>;
+            case  7: return Algorithm::ldfs_plus_driver<T>;
+            case  8: return Algorithm::ldfs_driver<T>;
+            case  9: return 0; //Algorithm::hdp_i<T>
             default: return 0;
         }
         return 0;

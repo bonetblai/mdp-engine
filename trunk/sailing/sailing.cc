@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <strings.h>
 
-#define DISCOUNT 1
+#define DISCOUNT .9
 
 #include "algorithm.h"
 #include "parameters.h"

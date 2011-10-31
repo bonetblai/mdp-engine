@@ -2,7 +2,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define MAXOUTCOMES   10
+#define DISCOUNT   .95
 
 #include "algorithm.h"
 #include "parameters.h"
@@ -48,7 +48,6 @@ class state_t {
     unsigned rows() const { return (d0_>>4) & 0xF; }
     unsigned cols() const { return (d0_>>8) & 0xF; }
     bool applicable(unsigned rows, unsigned cols, Problem::action_t a) const {
-        return true;
         switch( a ) {
             case ::up: return blank() >= cols;
             case ::right: return blank() % cols < cols-1;
@@ -191,61 +190,36 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual ~problem_t() { }
 
     virtual ::Problem::action_t number_actions() const { return 4; }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return s.applicable(rows_, cols_, a);
-    }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s == goal_;
     }
+    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
+        return s.applicable(rows_, cols_, a);
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const {
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t,float> *outcomes, unsigned &osize) const { }
+    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
         ++expansions_;
-        unsigned i = 0;
+        outcomes.clear();
+        outcomes.reserve(2);
         if( p_ > 0 ) {
-            outcomes[i++] = make_pair(s, p_);
-            if( a == ::up )
-                outcomes[0].first.up(rows_, cols_);
-            else if( a == ::right )
-                outcomes[0].first.right(rows_, cols_);
-            else if( a == ::down )
-                outcomes[0].first.down(rows_, cols_);
-            else
-                outcomes[0].first.left(rows_, cols_);
+            outcomes.push_back(make_pair(s, p_));
+            if( a == ::up ) {
+                outcomes.back().first.up(rows_, cols_);
+            } else if( a == ::right ) {
+                outcomes.back().first.right(rows_, cols_);
+            } else if( a == ::down ) {
+                outcomes.back().first.down(rows_, cols_);
+            } else {
+                outcomes.back().first.left(rows_, cols_);
+            }
         }
         if( 1-p_ > 0 ) {
-            outcomes[i++] = make_pair(s, 1-p_);
-#if 0
-            if( a != up ) {
-                outcomes[i] = make_pair(s, (1-p_)/3);
-                outcomes[i++].first.up(rows_, cols_); 
-            }
-            if( a != right ) {
-                outcomes[i] = make_pair(s, (1-p_)/3);
-                outcomes[i++].first.right(rows_, cols_); 
-            }
-            if( a != down ) {
-                outcomes[i] = make_pair(s, (1-p_)/3);
-                outcomes[i++].first.down(rows_, cols_); 
-            }
-            if( a != left ) {
-                outcomes[i] = make_pair(s, (1-p_)/3);
-                outcomes[i++].first.left(rows_, cols_); 
-            }
-#endif
+            outcomes.push_back(make_pair(s, 1 - p_));
         }
-        osize = i;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
-        pair<state_t, float> tmp[MAXOUTCOMES];
-        unsigned osize = 0;
-        next(s, a, &tmp[0], osize);
-        outcomes.clear();
-        outcomes.reserve(MAXOUTCOMES);
-        for( unsigned i = 0; i < osize; ++i )
-            outcomes.push_back(tmp[i]);
     }
     virtual void print(ostream &os) const { }
 };
@@ -488,7 +462,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    //evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
