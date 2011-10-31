@@ -2,7 +2,7 @@
 #include <iostream>
 #include <math.h>
 
-#define MAXOUTCOMES   10
+#define DISCOUNT   .95
 
 #include "algorithm.h"
 #include "parameters.h"
@@ -111,47 +111,44 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual Problem::action_t number_actions() const { return 5; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s ) const { return s == goal_; }
+    virtual bool applicable(const state_t &s, Problem::action_t a) const {
+        return true;
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const {
+    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
+    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t, float> > &outcomes) const {
         ++expansions_;
-        unsigned i = 0;
+        outcomes.clear();
         float e = kappa_table[water(s.x(), s.y())];
         float e2 = e*e;
         if( YVER ) {
-            outcomes[i++] = make_pair(s.move(a), 1.0-e-e2);                                    // kappa = 0
+            outcomes.reserve(4);
+            outcomes.push_back(make_pair(s.move(a), 1.0 - e - e2));                               // kappa = 0
             if( e - e2 > 0.0 ) {
-                outcomes[i++] = make_pair(s.move(1 + (a % 4)), (e - e2) / 2.0);                // kappa = 1
-                outcomes[i++] = make_pair(s.move(1 + ((a+2) % 4)), (e - e2) / 2.0);            // kappa = 1
+                outcomes.push_back(make_pair(s.move(1 + (a % 4)), (e - e2) / 2.0));               // kappa = 1
+                outcomes.push_back(make_pair(s.move(1 + ((a+2) % 4)), (e - e2) / 2.0));           // kappa = 1
             }
-            if( e2 > 0.0 ) outcomes[i++] = make_pair(s, 2 * e2);                               // kappa = 2
+            if( e2 > 0.0 ) outcomes.push_back(make_pair(s, 2 * e2));                              // kappa = 2
         } else if( ZVER ) {
-            outcomes[i++] = make_pair(s.move(a), 1.0 - e2);                                    // kappa = 0
+            outcomes.reserve(3);
+            outcomes.push_back(make_pair(s.move(a), 1.0 - e2));                                   // kappa = 0
             if( e2 > 0.0 ) {
-                outcomes[i++] = make_pair(s.move(1 +(a % 4)), e2 / 2.0);                       // kappa = 2
-                outcomes[i++] = make_pair(s.move(1 +((a+2) % 4)), e2 / 2.0);                   // kappa = 2
+                outcomes.push_back(make_pair(s.move(1 +(a % 4)), e2 / 2.0));                      // kappa = 2
+                outcomes.push_back(make_pair(s.move(1 +((a+2) % 4)), e2 / 2.0));                  // kappa = 2
             }
         } else {
-            outcomes[i++] = make_pair(s.move(a), 1.0 - e - e2);                                // kappa = 0
+            outcomes.reserve(6);
+            outcomes.push_back(make_pair(s.move(a), 1.0 - e - e2));                               // kappa = 0
             if( e - e2 > 0.0 ) {
-                outcomes[i++] = make_pair((s.move(a)).move(1 + (a % 4)), (e - e2) / 4.0 );     // kappa = 1
-                outcomes[i++] = make_pair((s.move(a)).move(1 + ((a+2) % 4)), (e - e2) / 4.0 ); // kappa = 1
-                outcomes[i++] = make_pair(s.move(1 + (a % 4)), (e - e2) / 4.0 );               // kappa = 1
-                outcomes[i++] = make_pair(s.move(1 + ((a+2) % 4)), (e - e2) / 4.0 );           // kappa = 1
+                outcomes.push_back(make_pair((s.move(a)).move(1 + (a % 4)), (e - e2) / 4.0));     // kappa = 1
+                outcomes.push_back(make_pair((s.move(a)).move(1 + ((a+2) % 4)), (e - e2) / 4.0)); // kappa = 1
+                outcomes.push_back(make_pair(s.move(1 + (a % 4)), (e - e2) / 4.0));               // kappa = 1
+                outcomes.push_back(make_pair(s.move(1 + ((a+2) % 4)), (e - e2) / 4.0));           // kappa = 1
             }
-            if( e2 > 0.0 ) outcomes[i++] = make_pair(s, 2 * e2);                               // kappa = 2
+            if( e2 > 0.0 ) outcomes.push_back(make_pair(s, 2 * e2));                              // kappa = 2
         }
-        osize = i;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t, float> > &outcomes) const {
-        pair<state_t, float> tmp[MAXOUTCOMES];
-        unsigned osize = 0;
-        next(s, a, &tmp[0], osize);
-        outcomes.clear();
-        outcomes.reserve(MAXOUTCOMES);
-        for( unsigned i = 0; i < osize; ++i )
-            outcomes.push_back(tmp[i]);
     }
     virtual void print(ostream &os) const {
         os << "size = " << size_ << endl

@@ -121,20 +121,14 @@ template<typename T> class problem_t {
     virtual bool terminal(const T &s) const = 0;
     virtual bool applicable(const T &s, action_t a) const = 0;
     virtual float cost(const T &s, action_t a) const = 0;
-    virtual void next(const T &s, action_t a, std::pair<T, float> *outcomes, unsigned &osize) const = 0;
     virtual void next(const T &s, action_t a, std::vector<std::pair<T, float> > &outcomes) const = 0;
 
     // sample next state given action using problem's dynamics
     std::pair<T, bool> sample(const T &s, action_t a) const {
-#ifdef USEMAX
-        unsigned osize = 0;
-        std::pair<T, float> outcomes[MAXOUTCOMES];
-        next(s, a, outcomes, osize);
-#else
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
-#endif
+
         float r = Random::real();
         for( unsigned i = 0; i < osize; ++i ) {
             if( r < outcomes[i].second )
@@ -146,32 +140,18 @@ template<typename T> class problem_t {
 
     // sample next state given action uniformly among all possible next states
     std::pair<T, bool> usample(const T &s, action_t a) const {
-#ifdef USEMAX
-        unsigned osize = 0;
-        std::pair<T, float> outcomes[MAXOUTCOMES];
-        next(s, a, outcomes, osize);
-#else
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
-#endif
         return std::make_pair(outcomes[Random::uniform(osize)].first, true);
-
     }
 
     // sample next (unlabeled) state given action; probabilities are re-weighted
     std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
-#ifdef USEMAX
-        unsigned osize = 0;
-        bool label[MAXOUTCOMES];
-        std::pair<T, float> outcomes[MAXOUTCOMES];
-        next(s, a, outcomes, osize);
-#else
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
         std::vector<bool> label(osize, false);
-#endif
 
         size_t n = 0;
         float mass = 0;
@@ -210,22 +190,13 @@ template<typename T> class problem_t {
     }
 
     size_t policy_size_aux(hash_t<T> &hash, const T &s) const {
-#ifdef USEMAX
-        unsigned osize = 0;
-        std::pair<T, float> outcomes[MAXOUTCOMES];
-#else
         std::vector<std::pair<T, float> > outcomes;
-#endif
         size_t size = 0;
         if( !terminal(s) && !hash.marked(s) ) {
             hash.mark(s);
             std::pair<action_t, float> p = hash.bestQValue(s);
-#ifdef USEMAX
-            next(s, p.first, outcomes, osize);
-#else
             next(s, p.first, outcomes);
             unsigned osize = outcomes.size();
-#endif
             for( unsigned i = 0; i < osize; ++i ) {
                 size += policy_size_aux(hash, outcomes[i].first);
             }
@@ -242,15 +213,9 @@ template<typename T>
 inline float hash_t<T>::QValue(const T &s, action_t a) const {
     if( problem_.terminal(s) ) return 0;
 
-#ifdef USEMAX
-    unsigned osize = 0;
-    std::pair<T, float> outcomes[MAXOUTCOMES];
-    problem_.next(s, a, outcomes, osize);
-#else
     std::vector<std::pair<T, float> > outcomes;
     problem_.next(s, a, outcomes);
     unsigned osize = outcomes.size();
-#endif
 
     float qv = 0.0;
     for( unsigned i = 0; i < osize; ++i ) {
@@ -263,15 +228,9 @@ template<typename T>
 inline float min_hash_t<T>::QValue(const T &s, action_t a) const {
     if( hash_t<T>::problem_.terminal(s) ) return 0;
 
-#ifdef USEMAX
-    unsigned osize = 0;
-    std::pair<T, float> outcomes[MAXOUTCOMES];
-    hash_t<T>::problem_.next(s, a, outcomes, osize);
-#else
     std::vector<std::pair<T, float> > outcomes;
     hash_t<T>::problem_.next(s, a, outcomes);
     unsigned osize = outcomes.size();
-#endif
 
     float qv = std::numeric_limits<float>::max();
     for( unsigned i = 0; i < osize; ++i ) {
