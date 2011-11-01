@@ -1,194 +1,10 @@
 #include <iostream>
 #include <iomanip>
-#include <tr1/unordered_set>
+#include <strings.h>
 
-#define DISCOUNT   1
-
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
-#include "dispatcher.h"
+#include "sailing.h"
 
 using namespace std;
-
-const Problem::action_t onelfwd = 0;
-const Problem::action_t onerfwd = 1;
-
-class bits_t {
-    unsigned bits_;
-
-  public:
-    bits_t(unsigned bits) : bits_(bits) { }
-    ~bits_t() { }
-    void print(ostream &os) const {
-        for( unsigned i = 8 * sizeof(unsigned); i > 0; --i )
-            os << ((bits_ >> (i-1)) % 2);
-    }
-};
-
-inline ostream& operator<<(ostream &os, const bits_t &b) {
-    b.print(os);
-    return os;
-}
-
-class state_t {
-    unsigned data1_;
-    unsigned data2_;
-
-  public:
-    state_t() : data1_(0), data2_(0) { }
-    state_t(const state_t &s) : data1_(s.data1_), data2_(s.data2_) { }
-    ~state_t() { }
-    size_t hash() const { return data1_ ^ data2_; }
-    unsigned depth() const { return data1_ >> 26; }
-    unsigned branch1() const { return data1_ & ~(63 << 26); }
-    pair<unsigned, unsigned> branch() const {
-        return make_pair(branch1(), data2_);
-    }
-    unsigned onebits() const {
-        unsigned count = 0;
-        pair<unsigned, unsigned> b = branch();
-        for( unsigned i = 0; i < 8 * sizeof(unsigned); ++i ) {
-            count += b.first % 2;
-            b.first = b.first >> 1;
-            count += b.second % 2;
-            b.second = b.second >> 1;
-        }
-        return count;
-    }
-    void onelfwd(unsigned n) {
-        if( depth() < n-1 ) {
-            unsigned d = depth() + 1;
-            data1_ = (d << 26) | branch1();
-        }
-    }
-    void onerfwd(unsigned n) {
-        if( depth() < n-1 ) {
-            unsigned d = depth() + 1;
-            data1_ = (d << 26) | branch1();
-            if( depth() <= 32 )
-                data2_ ^= (1 << (depth() - 1));
-            else
-                data1_ ^= (1 << (depth() - 33));
-        }
-    }
-    void onebwd() {
-        if( depth() > 0 ) {
-            if( depth() <= 32 )
-                data2_ &= ~(1 << (depth() - 1));
-            else
-                data1_ &= ~(1 << (depth() - 33));
-            unsigned d = depth() - 1;
-            data1_ = (d << 26) | branch1();
-        }
-    }
-    const state_t& operator=(const state_t &s) {
-        data1_ = s.data1_;
-        data2_ = s.data2_;
-        return *this;
-    }
-    bool operator==(const state_t &s) const {
-        return (data1_ == s.data1_) && (data2_ == s.data2_);
-    }
-    bool operator!=(const state_t &s) const {
-        return (data1_ != s.data1_) || (data2_ != s.data2_);
-    }
-    bool operator<(const state_t &s) const {
-        return (data1_ < s.data1_) ||
-               ((data1_ == s.data1_) && (data2_ < s.data2_));
-    }
-    void print(ostream &os) const {
-        bits_t b1(branch1()), b2(data2_);
-        os << "( " << depth()
-           << " , [" << branch1()
-           << "|" << data2_
-           << "]:" << b1
-           << "|" << b2 << " )";
-    }
-    friend class problem_t;
-};
-
-inline ostream& operator<<(ostream &os, const state_t &s) {
-    s.print(os);
-    return os;
-}
-
-class problem_t : public Problem::problem_t<state_t> {
-    unsigned n_;
-    float p_;
-    float q_;
-    float r_;
-    state_t init_;
-    tr1::unordered_set<state_t, Hash::hash_function_t<state_t> > noisy_;
-
-  public:
-    problem_t(unsigned n, float p, float q = 0.0, float r = 0.0)
-      : n_(n), p_(p), q_(q), r_(r) {
-        fill_noisy_states();
-    }
-    virtual ~problem_t() { }
-
-    void fill_noisy_states() {
-        if( r_ > 0.0 ) {
-            Problem::hash_t<state_t> hash(*this);
-            Algorithm::generate_space(*this, init_, hash);
-            for( Problem::hash_t<state_t>::const_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
-                if( Random::real() < r_ ) noisy_.insert((*hi).first);
-            }
-        }
-    }
-    bool noisy(const state_t &s) const {
-        return r_ > 0.0 ? (noisy_.find(s) != noisy_.end()) : false;
-    }
-
-    virtual Problem::action_t number_actions() const { return 2; }
-    virtual const state_t& init() const { return init_; }
-    virtual bool terminal(const state_t &s) const {
-        return s.depth() == n_ - 1;
-    }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return true;
-    }
-    virtual float cost(const state_t &s, Problem::action_t a) const {
-        return terminal(s) ? 0 : 1;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
-        ++expansions_;
-        outcomes.clear();
-        if( a == Problem::noop ) {
-            outcomes.reserve(1);
-            outcomes.push_back(make_pair(s, 1.0));
-        } else {
-            outcomes.reserve(3);
-            float p = pow(p_, 1 + s.onebits());
-            float q = noisy(s) ? p * q_ : 0.0;
-            if( p - q > 0 ) outcomes.push_back(make_pair(s, p - q));
-            if( q > 0 ) outcomes.push_back(make_pair(s, q));
-            if( 1 - p > 0 ) outcomes.push_back(make_pair(s, 1 - p));
-
-            unsigned j = 0;
-            if( a == onelfwd ) {
-                if( p - q > 0 ) outcomes[j++].first.onelfwd(n_);
-                if( q > 0 ) outcomes[j++].first.onerfwd(n_);
-            } else if( a == onerfwd ) {
-                if( p - q > 0 ) outcomes[j++].first.onerfwd(n_);
-                if( q > 0 ) outcomes[j++].first.onelfwd(n_);
-            }
-            if( 1 - p > 0 ) outcomes[j++].first.onebwd();
-        }
-    }
-    virtual void print(ostream &os) const { }
-};
-
-inline ostream& operator<<(ostream &os, const problem_t &p) {
-    p.print(os);
-    return os;
-}
 
 void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results, unsigned max_width, float uct_parameter) {
 
@@ -276,7 +92,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 }
 
 void usage(ostream &os) {
-    os << "usage: tree [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-q <f>] [-r <f>] [-s <n>] <size>"
+    os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <rows> <cols>"
        << endl << endl
        << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
@@ -296,24 +112,18 @@ void usage(ostream &os) {
        << "  -K <f>    Used to define kappa measures. Default: 2."
        << endl
 #endif
-       << "  -p <f>    Parameter p in [0,1]. Default: 1."
-       << endl
-       << "  -q <f>    Parameter q in [0,1]. Default: 1/2."
-       << endl
-       << "  -r <f>    Parameter r in [0,1]. Default: 0."
-       << endl
        << "  -s <n>    Random seed. Default: 0."
        << endl
-       << "  <size>    Depth of tree <= 58."
+       << "  <rows>    Rows <= 2^16."
+       << endl
+       << "  <cols>    Cols <= 2^16."
        << endl << endl;
 }
 
 int main(int argc, const char **argv) {
-    unsigned size = 0;
-    float q = 0.5;
-    float r = 0.0;
+    unsigned rows = 0;
+    unsigned cols = 0;
 
-    float p = 1.0;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
@@ -357,21 +167,6 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
-            case 'p':
-                p = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'q':
-                q = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'r':
-                r = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
             case 's':
                 parameters.seed_ = strtoul(argv[1], 0, 0);
                 argv += 2;
@@ -383,8 +178,9 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 1 ) {
-        size = strtoul(argv[0], 0, 0);
+    if( argc == 2 ) {
+        rows = strtoul(argv[0], 0, 0);
+        cols = strtoul(argv[1], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -392,7 +188,7 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     Random::seeds(parameters.seed_);
-    problem_t problem(size, p, q, r);
+    problem_t problem(rows, cols);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -400,7 +196,7 @@ int main(int argc, const char **argv) {
         heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
     } else if( h == 2 ) {
         //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
-    } 
+    }
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
@@ -408,7 +204,6 @@ int main(int argc, const char **argv) {
 
     // print results
     if( !results.empty() ) {
-        cout << "seed=" << parameters.seed_ << endl;
         if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
         for( unsigned i = 0; i < results.size(); ++i ) {
             Dispatcher::print_result(cout, &results[i]);
@@ -416,7 +211,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    //evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {

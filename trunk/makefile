@@ -1,7 +1,11 @@
+PROBLEMS =	puzzle race rect sailing tree wet
+
 all:
-	(cd puzzle; make)
-	(cd race; make)
-	(cd rect; make)
-	(cd sailing; make)
-	(cd tree; make)
-	(cd wet; make)
+	for p in $(PROBLEMS); do \
+	    (cd $$p; make) \
+        done
+
+clean:
+	for p in $(PROBLEMS); do \
+	    (cd $$p; make clean) \
+        done

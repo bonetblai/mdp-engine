@@ -1,120 +1,11 @@
+#include <cassert>
 #include <iostream>
-#include <iomanip>
+#include <map>
+#include <vector>
 
-#define DISCOUNT   .95
-
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
-#include "dispatcher.h"
+#include "race.h"
 
 using namespace std;
-
-const Problem::action_t fwd = 0;
-const Problem::action_t left = 1;
-const Problem::action_t right = 2;
-
-typedef unsigned short ushort_t;
-
-class state_t {
-    ushort_t row_;
-    ushort_t col_;
-
-  public:
-    state_t(ushort_t row = 0, ushort_t col = 0) : row_(row), col_(col) { }
-    state_t(const state_t &s) : row_(s.row_), col_(s.col_) { }
-    ~state_t() { }
-    size_t hash() const { return row_ ^ col_; }
-    unsigned row() const { return row_; }
-    unsigned col() const { return col_; }
-    void fwd(unsigned rows) { if( row() < rows - 1 ) ++row_; }
-    void left(unsigned cols) { if( col() > 0 ) --col_; }
-    void right(unsigned cols) { if( col() < cols - 1 ) ++col_; }
-    const state_t& operator=( const state_t &s) {
-        row_ = s.row_;
-        col_ = s.col_;
-        return *this;
-    }
-    bool operator==(const state_t &s) const {
-        return (row_ == s.row_) && (col_ == s.col_);
-    }
-    bool operator!=(const state_t &s) const {
-        return (row_ != s.row_) || (col_ != s.col_);
-    }
-    bool operator<(const state_t &s) const {
-        return (row_ < s.row_) || ((row_ == s.row_) && (col_ < s.col_));
-    }
-    void print(ostream &os) const {
-        os << "( " << row() << " , " << col() << " )";
-    }
-    friend class problem_t;
-};
-
-inline ostream& operator<<(ostream &os, const state_t &s) {
-    s.print(os);
-    return os;
-}
-
-class problem_t : public Problem::problem_t<state_t> {
-    unsigned rows_;
-    unsigned cols_;
-    float p_;
-    state_t init_;
-
-  public:
-    problem_t(unsigned rows, unsigned cols, float p = 1.0)
-      : rows_(rows), cols_(cols), p_(p), init_(0, cols / 2) {
-    }
-    virtual ~problem_t() { }
-
-    virtual Problem::action_t number_actions() const { return 3; }
-    virtual const state_t& init() const { return init_; }
-    virtual bool terminal(const state_t &s) const {
-        return s.row() == rows_ - 1;
-    }
-    virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
-        return true;
-    }
-    virtual float cost(const state_t &s, Problem::action_t a) const {
-        return terminal(s) ? 0 : 1;
-    }
-    virtual void next(const state_t &s, Problem::action_t a, pair<state_t, float> *outcomes, unsigned &osize) const { }
-    virtual void next(const state_t &s, Problem::action_t a, vector<pair<state_t,float> > &outcomes) const {
-        ++expansions_;
-        outcomes.clear();
-        if( a != fwd ) {
-            outcomes.reserve(1);
-            outcomes.push_back(make_pair(s, 1.0));
-            if( a == ::left ) {
-                outcomes.back().first.left(cols_);
-            } else if( a == ::right ) {
-                outcomes.back().first.right(cols_);
-            }
-        } else if( a == fwd ) {
-            outcomes.reserve(3);
-            if( p_ > 0 ) {
-                outcomes.push_back(make_pair(s, p_));
-                outcomes.back().first.fwd(rows_);
-            }
-            if( 1 - p_ > 0 ) {
-                outcomes.push_back(make_pair(s, (1 - p_) / 2));
-                outcomes.back().first.left(cols_);
-                outcomes.push_back(make_pair(s, (1 - p_) / 2));
-                outcomes.back().first.right(cols_);
-            }
-        }
-    }
-    virtual void print(ostream &os) const { }
-};
-
-inline ostream& operator<<(ostream &os, const problem_t &p) {
-    p.print(os);
-    return os;
-}
 
 void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results, unsigned max_width, float uct_parameter) {
 
@@ -202,7 +93,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 }
 
 void usage(ostream &os) {
-    os << "usage: rect [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <rows> <cols>"
+    os << "usage: race [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <file>"
        << endl << endl
        << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
@@ -226,15 +117,12 @@ void usage(ostream &os) {
        << endl
        << "  -s <n>    Random seed. Default: 0."
        << endl
-       << "  <rows>    Rows <= 2^16."
-       << endl
-       << "  <cols>    Cols <= 2^16."
+       << "  <file>    Racetrack file."
        << endl << endl;
 }
 
 int main(int argc, const char **argv) {
-    unsigned rows = 0;
-    unsigned cols = 0;
+    FILE *is = 0;
 
     float p = 1.0;
     unsigned bitmap = 0;
@@ -296,9 +184,8 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 2 ) {
-        rows = strtoul(argv[0], 0, 0);
-        cols = strtoul(argv[1], 0, 0);
+    if( argc == 1 ) {
+        is = fopen(argv[0], "r");
     } else {
         usage(cout);
         exit(-1);
@@ -306,7 +193,10 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     Random::seeds(parameters.seed_);
-    problem_t problem(rows, cols, p);
+    grid_t grid;
+    grid.parse(cout, is);
+    problem_t problem(grid, p);
+    fclose(is);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -314,7 +204,7 @@ int main(int argc, const char **argv) {
         heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
     } else if( h == 2 ) {
         //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
-    } 
+    }
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
@@ -322,7 +212,6 @@ int main(int argc, const char **argv) {
 
     // print results
     if( !results.empty() ) {
-        cout << "seed=" << parameters.seed_ << endl;
         if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
         for( unsigned i = 0; i < results.size(); ++i ) {
             Dispatcher::print_result(cout, &results[i]);
@@ -330,7 +219,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    //evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
