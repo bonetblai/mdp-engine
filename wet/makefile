@@ -1,19 +1,19 @@
 G++	=	g++
 CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine
-OBJS	=	wet2.o
-TARGET	=	wet2
+OBJS	=	main.o
+TARGET	=	wet
 
 $(TARGET):	$(OBJS)
 		$(G++) $(CCFLAGS) -o $(TARGET) $(OBJS)
 
 clean:
-		rm -f *~
+		rm -f $(OBJS) $(TARGET) *~
 
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<
 
-wet2.o:		wet2.cc
-wet2.o:		../engine/algorithm.h ../engine/dispatcher.h ../engine/hash.h ../engine/heuristic.h
-wet2.o:		../engine/mcts.h ../engine/parameters.h ../engine/problem.h ../engine/policy.h
-wet2.o:		../engine/random.h ../engine/rollout.h ../engine/uct.h ../engine/utils.h
+main.o:		wet.h
+main.o:		../engine/algorithm.h ../engine/dispatcher.h ../engine/hash.h ../engine/heuristic.h
+main.o:		../engine/mcts.h ../engine/parameters.h ../engine/problem.h ../engine/policy.h
+main.o:		../engine/random.h ../engine/rollout.h ../engine/uct.h ../engine/utils.h
 

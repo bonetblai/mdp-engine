@@ -1,3 +1,2 @@
-- fix blrtdt w/ discount
-- fix check w/ discount
-- fix ldfs+ w/ discount
+- fix blrtdt w/ & w/o discount (e.g. race w/ barto-small)
+- fix ldfs+ w/ discount (e.g. race w/ barto-small)

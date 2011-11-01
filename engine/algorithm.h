@@ -698,7 +698,7 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
             float qv = 0.0;
             for( unsigned i = 0; i < osize; ++i )
                 qv += outcomes[i].second * hash.value(outcomes[i].first);
-            qv += problem.cost(s, a);
+            qv = problem.cost(s, a) + DISCOUNT * qv;
             bqv = Utils::min(bqv, qv);
             if( fabs(qv - dptr->value()) > parameters.epsilon_ ) continue;
             dptr->mark();
