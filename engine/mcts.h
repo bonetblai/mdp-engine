@@ -37,6 +37,10 @@ template<typename T> class hash_function_t {
     size_t operator()(const std::pair<unsigned, T> &p) const { return p.second.hash(); }
 };
 
+
+////////////////////////////////////////////////
+
+
 template<typename T> struct node_t;
 template<typename T> class mcts_hash_t : public Hash::generic_hash_map_t<std::pair<Problem::action_t, T>, const node_t<T>*, hash_function_t<T> > {
   public:

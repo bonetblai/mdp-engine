@@ -108,7 +108,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return (s != init_) && grid_.goal_pos(s.x(), s.y());
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
-        return true;
+        return (a == 0) || (s != init_);
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;

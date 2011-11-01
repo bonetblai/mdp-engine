@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "race.h"
+#include "ao.h"
 
 using namespace std;
 
@@ -77,6 +78,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
         cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
 
+#if 0
     // UCT Policies wrt random base policy
     for( unsigned width = 2; width <= max_width; width *= 2 ) {
         Policy::mcts_t<state_t> uct(problem, random, width, 50, uct_parameter); 
@@ -84,6 +86,21 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
         cout << "  uct(random, width=" << width << ", p=" << uct_parameter << ")="
              << setprecision(5)
              << Policy::evaluation(uct,
+                                   problem.init(),
+                                   evaluation_trials,
+                                   evaluation_depth)
+             << setprecision(2);
+        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
+    }
+#endif
+
+    // AO Policies wrt random base policy
+    for( unsigned width = 2; width <= max_width; width *= 2 ) {
+        Policy::ao_t<state_t> ao(problem, random, width, 10, 2); 
+        start_time = Utils::read_time_in_seconds();
+        cout << "  ao(random, width=" << width << ")="
+             << setprecision(5)
+             << Policy::evaluation(ao,
                                    problem.init(),
                                    evaluation_trials,
                                    evaluation_depth)
@@ -219,7 +236,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    //evaluate_policies(problem, heuristic, results, 128, -.15);
+    evaluate_policies(problem, heuristic, results, 128, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
