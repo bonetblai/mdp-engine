@@ -84,6 +84,10 @@ template<typename T> struct node_t {
     }
 };
 
+
+////////////////////////////////////////////////
+
+
 struct data_t {
     std::vector<float> values_;
     std::vector<int> counts_;
@@ -108,6 +112,10 @@ template<typename T> class mcts_table_t : public Hash::generic_hash_map_t<std::p
     }
 };
 
+
+////////////////////////////////////////////////
+
+
 template<typename T> class mcts_t : public improvement_t<T> {
   protected:
     unsigned width_;
@@ -118,7 +126,9 @@ template<typename T> class mcts_t : public improvement_t<T> {
   public:
     mcts_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float uct_parameter)
       : improvement_t<T>(problem, base_policy),
-        width_(width), depth_bound_(depth_bound), uct_parameter_(uct_parameter) {
+        width_(width),
+        depth_bound_(depth_bound),
+        uct_parameter_(uct_parameter) {
         number_nodes_ = 0;
     }
     virtual ~mcts_t() { }
@@ -150,7 +160,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 
     float search_tree(const T &s, unsigned depth) const {
 #ifdef DEBUG
-        std::cout << std::setw(2*depth) << "" << "search(" << s << "):";
+        std::cout << std::setw(2*depth) << "" << "search_tree(" << s << "):";
 #endif
         if( policy_t<T>::problem().terminal(s) ) {
 #ifdef DEBUG
@@ -177,11 +187,15 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
             return 0;
         } else {
+            // select action for this node and increase counts
             Problem::action_t a = select_action(it->second, depth, true);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
+
+            // sample next state
             std::pair<const T, bool> p = policy_t<T>::problem().sample(s, a);
             float cost = policy_t<T>::problem().cost(s, a);
+
 #ifdef DEBUG
             std::cout << " count=" << it->second.counts_[0]-1
                       << " fetch " << std::setprecision(5) << it->second.values_[1+a]
@@ -189,6 +203,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
                       << " next=" << p.first
                       << std::endl;
 #endif
+
+            // do recursion and update value
             float &old_value = it->second.values_[1+a];
             float n = it->second.counts_[1+a];
             float new_value = cost + DISCOUNT * search_tree(p.first, 1 + depth);
@@ -201,16 +217,22 @@ template<typename T> class mcts_t : public improvement_t<T> {
         float log_ns = logf(data.counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
+
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(); ++a ) {
+            // if this action has never been taken in this node, select it
             if( data.counts_[1+a] == 0 ) {
 #ifdef DEBUG
                 std::cout << " (empty count)";
 #endif
                 return a;
             }
+
+            // compute score of action adding bonus (if applicable)
             assert(data.counts_[0] > 0);
             float bonus = add_bonus ? uct_parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
             float value = data.values_[1+a] + bonus;
+
+            // update best action so far
             if( value < best_value ) {
                 best_value = value;
                 best_action = a;
@@ -222,6 +244,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
 
     unsigned number_nodes_;
     unsigned SIZE() const { return number_nodes_; }
+
+    // different states at same depth are treated as different nodes in the tree
     float search(const T &s, const node_t<T> *node, unsigned depth) {
 #ifdef DEBUG
         std::cout << std::setw(2*depth) << "" << "search(" << s << "):";
@@ -232,12 +256,12 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
             return 0;
         } else {
+            // select action for this node and increase counts
             Problem::action_t a = node->select_action2(policy_t<T>::problem(), uct_parameter_);
-#ifdef DEBUG
-            std::cout << " act=" << a;
-#endif
             ++node->counts_[0];
             ++node->counts_[1+a];
+
+            // sample next state
             std::pair<const T, bool> p = policy_t<T>::problem().sample(s, a);
             typename mcts_hash_t<T>::const_iterator it = node->children_.find(std::make_pair(a, p.first));
             if( it == node->children_.end() ) {
@@ -250,19 +274,17 @@ template<typename T> class mcts_t : public improvement_t<T> {
                 return evaluate(p.first);
             } else {
                 const node_t<T> *child = it->second;
+                float cost = policy_t<T>::problem().cost(s, a);
+
 #ifdef DEBUG
                 std::cout << " counts=(" << node->counts_[0] << "," << node->counts_[1+a] << ")"
                           << " value=" << node->values_[1+a] << std::endl;
 #endif
-                float cost = policy_t<T>::problem().cost(s, a);
+
+                // do recursion and update value
                 float new_value = cost + DISCOUNT * search(p.first, child, 1+depth);
                 float &old_value = node->values_[1+a];
-                
-#if 1
                 old_value += (new_value - old_value) / (float)node->counts_[1+a];
-#else
-                old_value = (old_value * (node->counts_[1+a] - 1) + new_value) / node->counts_[1+a];
-#endif
                 return old_value;
             }
         }
