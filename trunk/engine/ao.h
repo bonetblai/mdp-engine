@@ -215,7 +215,7 @@ template<typename T> class ao_t : public improvement_t<T> {
                 //std::cout << "action=" << a << std::endl;
                 // create action node for this action
                 unsigned priority = node->priority_ + (a == best_action ? 0 : 1);
-                action_node_t<T> *a_node = new action_node_t<T>(a, 1 + node->depth_, priority, node);
+                action_node_t<T> *a_node = new action_node_t<T>(a, node->depth_, priority, node);
                 node->children_.push_back(a_node);
                 ++num_nodes_;
 
@@ -226,17 +226,17 @@ template<typename T> class ao_t : public improvement_t<T> {
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
                     const T &state = outcomes[i].first;
                     float prob = outcomes[i].second;
-                    state_node_t<T> *s_node = new state_node_t<T>(state, 2 + node->depth_, priority, a_node);
+                    state_node_t<T> *s_node = new state_node_t<T>(state, 1 + node->depth_, priority, a_node);
                     a_node->children_.push_back(s_node);
                     a_node->probability_.push_back(prob);
                     ++num_nodes_;
 
                     // set default value of child using base policy
-                    s_node->value_ = evaluate(state);
+                    s_node->value_ = evaluate(state, 1 + node->depth_);
                     a_node->value_ += prob * s_node->value_;
 
                     // insert child into priority queue
-                    if( s_node->depth_ <= 2*depth_bound_ ) {
+                    if( s_node->depth_ <= depth_bound_ ) {
                         priority_queue_.push(s_node);
                         //std::cout << "push " << s_node << " "; s_node->print(std::cout); std::cout << std::endl;
                     }
@@ -249,8 +249,8 @@ template<typename T> class ao_t : public improvement_t<T> {
         return node;
     }
 
-    float evaluate(const T &s) const {
-        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_);
+    float evaluate(const T &s, unsigned depth) const {
+        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_ - depth);
     }
 };
 

@@ -5,6 +5,7 @@
 
 #include "race.h"
 #include "ao.h"
+#include "ao2.h"
 
 using namespace std;
 
@@ -96,11 +97,11 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 
     // AO Policies wrt random base policy
     for( unsigned width = 2; width <= max_width; width *= 2 ) {
-        Policy::ao_t<state_t> ao(problem, random, width, 10, 2); 
+        Policy::ao2_t<state_t> ao2(problem, random, width, 10, 2); 
         start_time = Utils::read_time_in_seconds();
-        cout << "  ao(random, width=" << width << ")="
+        cout << "  ao2(random, width=" << width << ")="
              << setprecision(5)
-             << Policy::evaluation(ao,
+             << Policy::evaluation(ao2,
                                    problem.init(),
                                    evaluation_trials,
                                    evaluation_depth)
