@@ -7,117 +7,9 @@
 #include "ao.h"
 #include "ao2.h"
 
+#include "../evaluation.h"
+
 using namespace std;
-
-void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results, unsigned max_width, float uct_parameter) {
-
-    unsigned evaluation_trials = 200;
-    unsigned evaluation_depth = 75;
-    unsigned rollout_width = 50;
-    unsigned rollout_depth = 50;
-    float start_time = 0;
-
-    cout << "evaluation of policies:" << endl;
-
-    // Optimal policy (if available)
-    if( !results.empty() ) {
-        const Problem::hash_t<state_t> &hash = *results[0].hash_;
-        start_time = Utils::read_time_in_seconds();
-        cout << "  optimal=" << setprecision(5)
-             << Policy::evaluation(Policy::hash_policy_t<state_t>(problem, hash),
-                                   problem.init(),
-                                   evaluation_trials,
-                                   evaluation_depth)
-             << setprecision(2);
-        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-    }
-
-    // Rollouts wrt heuristic greedy (base) policy (if available)
-    if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        start_time = Utils::read_time_in_seconds();
-        for( int nesting = 0; nesting < 2; ++nesting ) {
-            start_time = Utils::read_time_in_seconds();
-            cout << "  nrollout(" << nesting << ", greedy)=" << setprecision(5)
-                 << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem,
-                                                                         greedy,
-                                                                         rollout_width,
-                                                                         rollout_depth,
-                                                                         nesting),
-                                       problem.init(),
-                                       evaluation_trials,
-                                       evaluation_depth)
-                 << setprecision(2);
-            cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-        }
-    }
-
-    // Random policy
-    Policy::random_t<state_t> random(problem);
-    start_time = Utils::read_time_in_seconds();
-    cout << "  random=" << setprecision(5)
-         << Policy::evaluation(random,
-                               problem.init(),
-                               evaluation_trials,
-                               evaluation_depth)
-         << setprecision(2);
-    cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-
-    // Rollouts wrt random base policy
-    for( int nesting = 0; nesting < 1; ++nesting ) {
-        start_time = Utils::read_time_in_seconds();
-        cout << "  nrollout(" << nesting << ", random)=" << setprecision(5)
-             << Policy::evaluation(Policy::nested_rollout_t<state_t>(problem,
-                                                                     random,
-                                                                     rollout_width,
-                                                                     rollout_depth,
-                                                                     nesting),
-                                   problem.init(),
-                                   evaluation_trials,
-                                   evaluation_depth)
-             << setprecision(2);
-        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-    }
-
-    const Problem::hash_t<state_t> &hash = *results[0].hash_;
-    Policy::hash_policy_t<state_t> policy(problem, hash);
-
-#if 1
-    // UCT Policies wrt random base policy
-    for( unsigned width = 5; width <= max_width; width *= 2 ) {
-        //Policy::mcts_t<state_t> uct(problem, random, width, 50, uct_parameter); 
-        Policy::mcts_t<state_t> uct(problem, policy, width, 50, uct_parameter); 
-        start_time = Utils::read_time_in_seconds();
-        cout << "  uct(random, width=" << width << ", p=" << uct_parameter << ")="
-             << setprecision(5)
-             << Policy::evaluation(uct,
-                                   problem.init(),
-                                   evaluation_trials,
-                                   evaluation_depth)
-             << setprecision(2);
-        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-    }
-#endif
-
-    // AO Policies wrt random base policy
-    //Policy::ao2_t<state_t> ao2(problem, policy, 20000, 10, 2); 
-    //cout << "best action = " << ao2(problem.init()) << endl;
-#if 1
-    for( unsigned width = 5; width <= max_width; width *= 2 ) {
-        //Policy::ao2_t<state_t> ao2(problem, random, width, 50, 2); 
-        Policy::ao2_t<state_t> ao2(problem, policy, width, 50, 2); 
-        start_time = Utils::read_time_in_seconds();
-        cout << "  ao2(random, width=" << width << ")="
-             << setprecision(5)
-             << Policy::evaluation(ao2,
-                                   problem.init(),
-                                   evaluation_trials,
-                                   evaluation_depth)
-             << setprecision(2);
-        cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
-    }
-#endif
-}
 
 void usage(ostream &os) {
     os << "usage: race [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <file>"
@@ -211,8 +103,17 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 1 ) {
+    if( argc == 10 ) {
         is = fopen(argv[0], "r");
+        policy = strtoul(argv[1], 0, 0);
+        rollout_width = strtoul(argv[2], 0, 0);
+        rollout_depth = strtoul(argv[3], 0, 0);
+        rollout_nesting = strtoul(argv[4], 0, 0);
+        uct_width = strtoul(argv[5], 0, 0);
+        uct_depth = strtoul(argv[6], 0, 0);
+        uct_parameter = strtod(argv[7], 0);
+        ao_width = strtoul(argv[8], 0, 0);
+        ao_depth = strtoul(argv[9], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -241,12 +142,14 @@ int main(int argc, const char **argv) {
     if( !results.empty() ) {
         if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
         for( unsigned i = 0; i < results.size(); ++i ) {
-            Dispatcher::print_result(cout, &results[i]);
+            //Dispatcher::print_result(cout, &results[i]);
         }
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 160, -.15);
+    const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
+    evaluate_policy(policy, problem, hash, heuristic);
+    //evaluate_all_policies(problem, hash, heuristic);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
