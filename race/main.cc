@@ -11,8 +11,8 @@ using namespace std;
 
 void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heuristic::heuristic_t<state_t> *heuristic, const vector<Dispatcher::result_t<state_t> > &results, unsigned max_width, float uct_parameter) {
 
-    unsigned evaluation_trials = 100;
-    unsigned evaluation_depth = 50;
+    unsigned evaluation_trials = 200;
+    unsigned evaluation_depth = 75;
     unsigned rollout_width = 50;
     unsigned rollout_depth = 50;
     float start_time = 0;
@@ -79,10 +79,14 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
         cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
 
-#if 0
+    const Problem::hash_t<state_t> &hash = *results[0].hash_;
+    Policy::hash_policy_t<state_t> policy(problem, hash);
+
+#if 1
     // UCT Policies wrt random base policy
-    for( unsigned width = 2; width <= max_width; width *= 2 ) {
-        Policy::mcts_t<state_t> uct(problem, random, width, 50, uct_parameter); 
+    for( unsigned width = 5; width <= max_width; width *= 2 ) {
+        //Policy::mcts_t<state_t> uct(problem, random, width, 50, uct_parameter); 
+        Policy::mcts_t<state_t> uct(problem, policy, width, 50, uct_parameter); 
         start_time = Utils::read_time_in_seconds();
         cout << "  uct(random, width=" << width << ", p=" << uct_parameter << ")="
              << setprecision(5)
@@ -96,8 +100,12 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
 #endif
 
     // AO Policies wrt random base policy
-    for( unsigned width = 2; width <= max_width; width *= 2 ) {
-        Policy::ao2_t<state_t> ao2(problem, random, width, 10, 2); 
+    //Policy::ao2_t<state_t> ao2(problem, policy, 20000, 10, 2); 
+    //cout << "best action = " << ao2(problem.init()) << endl;
+#if 1
+    for( unsigned width = 5; width <= max_width; width *= 2 ) {
+        //Policy::ao2_t<state_t> ao2(problem, random, width, 50, 2); 
+        Policy::ao2_t<state_t> ao2(problem, policy, width, 50, 2); 
         start_time = Utils::read_time_in_seconds();
         cout << "  ao2(random, width=" << width << ")="
              << setprecision(5)
@@ -108,6 +116,7 @@ void evaluate_policies(const Problem::problem_t<state_t> &problem, const Heurist
              << setprecision(2);
         cout << " (" << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
     }
+#endif
 }
 
 void usage(ostream &os) {
@@ -237,7 +246,7 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    evaluate_policies(problem, heuristic, results, 128, -.15);
+    evaluate_policies(problem, heuristic, results, 160, -.15);
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {

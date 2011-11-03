@@ -50,8 +50,8 @@ template<typename T> class improvement_t : public policy_t<T> {
     const policy_t<T> &base_policy_;
 
   public:
-    improvement_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy)
-      : policy_t<T>(problem), base_policy_(base_policy) {
+    improvement_t(const policy_t<T> &base_policy)
+      : policy_t<T>(base_policy.problem()), base_policy_(base_policy) {
     }
     virtual ~improvement_t() { }
 };
@@ -61,7 +61,14 @@ template<typename T> class random_t : public policy_t<T> {
     random_t(const Problem::problem_t<T> &problem) : policy_t<T>(problem) { }
     virtual ~random_t() { }
     virtual Problem::action_t operator()(const T &s) const {
-        return Random::uniform(policy_t<T>::problem_.number_actions());
+        std::vector<Problem::action_t> actions;
+        actions.reserve(policy_t<T>::problem_.number_actions());
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+            if( policy_t<T>::problem_.applicable(s, a) ) {
+                actions.push_back(a);
+            }
+        }
+        return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
 };
 
@@ -70,12 +77,13 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     const Problem::hash_t<T> &hash_;
 
   public:
-    hash_policy_t(const Problem::problem_t<T> &problem, const Problem::hash_t<T> &hash)
-      : policy_t<T>(problem), hash_(hash) {
+    hash_policy_t(const Problem::hash_t<T> &hash)
+      : policy_t<T>(hash.problem()), hash_(hash) {
     }
     virtual ~hash_policy_t() { }
     virtual Problem::action_t operator()(const T &s) const {
         std::pair<Problem::action_t, float> p = hash_.bestQValue(s);
+        assert(policy_t<T>::problem_.applicable(s, p.first));
         return p.first;
     }
 };
@@ -94,16 +102,18 @@ template<typename T> class greedy_t : public policy_t<T> {
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
-            float value = 0;
-            policy_t<T>::problem_.next(s, a, outcomes);
-            for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                value += outcomes[i].second * heuristic_.value(outcomes[i].first);
-            }
-            value += policy_t<T>::problem_.cost(s, a);
+            if( policy_t<T>::problem_.applicable(s, a) ) {
+                float value = 0;
+                policy_t<T>::problem_.next(s, a, outcomes);
+                for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
+                    value += outcomes[i].second * heuristic_.value(outcomes[i].first);
+                }
+                value += policy_t<T>::problem_.cost(s, a);
 
-            if( value < best_value ) {
-                best_value = value;
-                best_action = a;
+                if( value < best_value ) {
+                    best_value = value;
+                    best_action = a;
+                }
             }
         }
         return best_action;
@@ -119,6 +129,8 @@ float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned m
     float cost = 0;
     while( !policy.problem().terminal(state) && (steps <= max_depth) ) {
         Problem::action_t action = policy(state);
+        assert(action != Problem::noop);
+        assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
         cost += powf(DISCOUNT, steps) * policy.problem().cost(state, action);
         state = p.first;

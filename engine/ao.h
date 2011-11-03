@@ -148,8 +148,8 @@ template<typename T> class ao_t : public improvement_t<T> {
     mutable std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, min_priority_t<T> > priority_queue_;
 
   public:
-    ao_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
-      : improvement_t<T>(problem, base_policy),
+    ao_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
+      : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
         discrepancy_bound_(discrepancy_bound),
@@ -170,7 +170,7 @@ template<typename T> class ao_t : public improvement_t<T> {
             if( node == 0 ) break;
             node->propagate(policy_t<T>::problem_);
         }
-        assert((width_ == 0) || (root_ != 0));
+        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem_.applicable(s, root_->best_action_)));
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action_;

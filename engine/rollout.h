@@ -36,8 +36,8 @@ template<typename T> class rollout_t : public improvement_t<T> {
     unsigned depth_;
 
   public:
-    rollout_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth)
-      : improvement_t<T>(problem, base_policy),
+    rollout_t(const policy_t<T> &base_policy, unsigned width, unsigned depth)
+      : improvement_t<T>(base_policy),
         width_(width), depth_(depth) {
     }
     virtual ~rollout_t() { }
@@ -46,17 +46,20 @@ template<typename T> class rollout_t : public improvement_t<T> {
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
-            float value = 0;
-            for( unsigned trial = 0; trial < width_; ++trial ) {
-                std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
-                value += policy_t<T>::problem_.cost(s, a) + DISCOUNT * evaluate(p.first);
-            }
-            value /= width_;
-            if( value < best_value ) {
-                best_value = value;
-                best_action = a;
+            if( policy_t<T>::problem().applicable(s, a) ) {
+                float value = 0;
+                for( unsigned trial = 0; trial < width_; ++trial ) {
+                    std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
+                    value += policy_t<T>::problem_.cost(s, a) + DISCOUNT * evaluate(p.first);
+                }
+                value /= width_;
+                if( value < best_value ) {
+                    best_value = value;
+                    best_action = a;
+                }
             }
         }
+        assert(best_action != Problem::noop);
         return best_action;
     }
 
@@ -71,15 +74,15 @@ template<typename T> class nested_rollout_t : public policy_t<T> {
     const policy_t<T> *nested_policy_;
     int nesting_level_;
 
-    nested_rollout_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth, int nesting_level)
-      : policy_t<T>(problem),
+    nested_rollout_t(const policy_t<T> &base_policy, unsigned width, unsigned depth, int nesting_level)
+      : policy_t<T>(base_policy.problem()),
         base_policy_(0), nested_policy_(0), nesting_level_(nesting_level) {
         assert(nesting_level_ >= 0);
         if( nesting_level_ == 0 ) {
             nested_policy_ = &base_policy;
         } else {
-            base_policy_ = new nested_rollout_t<T>(problem, base_policy, width, depth, --nesting_level);
-            nested_policy_ = new rollout_t<T>(problem, *base_policy_, width, depth);
+            base_policy_ = new nested_rollout_t<T>(base_policy, width, depth, --nesting_level);
+            nested_policy_ = new rollout_t<T>(*base_policy_, width, depth);
         }
     }
     virtual ~nested_rollout_t() {

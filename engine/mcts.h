@@ -128,8 +128,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
     mutable mcts_table_t<T> table_;
 
   public:
-    mcts_t(const Problem::problem_t<T> &problem, const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float uct_parameter)
-      : improvement_t<T>(problem, base_policy),
+    mcts_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float uct_parameter)
+      : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
         uct_parameter_(uct_parameter) {
@@ -144,7 +144,9 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
-        return select_action(it->second, 0, false);
+        Problem::action_t action = select_action(s, it->second, 0, false);
+        assert(policy_t<T>::problem_.applicable(s, action));
+        return action;
     }
 
     float value(const T &s, Problem::action_t a) const {
@@ -181,7 +183,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #ifdef DEBUG
             std::cout << " insert 0" << std::endl;
 #endif
-            float value = evaluate(s);
+            float value = evaluate(s, depth);
             return value;
         } else if( depth == depth_bound_ ) {
 #ifdef DEBUG
@@ -192,7 +194,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
             return 0;
         } else {
             // select action for this node and increase counts
-            Problem::action_t a = select_action(it->second, depth, true);
+            Problem::action_t a = select_action(s, it->second, depth, true);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
 
@@ -217,29 +219,31 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
     }
 
-    Problem::action_t select_action(const data_t &data, int depth, bool add_bonus) const {
+    Problem::action_t select_action(const T &state, const data_t &data, int depth, bool add_bonus) const {
         float log_ns = logf(data.counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
 
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(); ++a ) {
-            // if this action has never been taken in this node, select it
-            if( data.counts_[1+a] == 0 ) {
+            if( policy_t<T>::problem_.applicable(state, a) ) {
+                // if this action has never been taken in this node, select it
+                if( data.counts_[1+a] == 0 ) {
 #ifdef DEBUG
-                std::cout << " (empty count)";
+                    std::cout << " (empty count)";
 #endif
-                return a;
-            }
+                    return a;
+                }
 
-            // compute score of action adding bonus (if applicable)
-            assert(data.counts_[0] > 0);
-            float bonus = add_bonus ? uct_parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
-            float value = data.values_[1+a] + bonus;
+                // compute score of action adding bonus (if applicable)
+                assert(data.counts_[0] > 0);
+                float bonus = add_bonus ? uct_parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
+                float value = data.values_[1+a] + bonus;
 
-            // update best action so far
-            if( value < best_value ) {
-                best_value = value;
-                best_action = a;
+                // update best action so far
+                if( value < best_value ) {
+                    best_value = value;
+                    best_action = a;
+                }
             }
         }
         assert(best_action != Problem::noop);
@@ -315,8 +319,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
     }
         
 
-    float evaluate(const T &s) const {
-        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_);
+    float evaluate(const T &s, unsigned depth) const {
+        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_ - depth);
     }
 };
 
