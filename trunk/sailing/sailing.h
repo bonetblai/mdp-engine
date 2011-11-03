@@ -33,7 +33,7 @@ class state_t {
     }
 
     int tack(Problem::action_t a) const {
-        int d = Utils::abs<int>(a - wind_);
+        int d = Utils::abs(a - wind_);
         return d < 8 - d ? d : 8 - d;
     }
     bool in_lake(short rows, short cols) const {

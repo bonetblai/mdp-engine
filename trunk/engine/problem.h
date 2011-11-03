@@ -60,6 +60,7 @@ template<typename T> class hash_t : public Hash::hash_map_t<T> {
     }
     virtual ~hash_t() { }
 
+    const problem_t<T>& problem() const { return problem_; }
     unsigned updates() const { return updates_; }
     void inc_updates() { ++updates_; }
     void update(const T &s, float value) {
