@@ -11,7 +11,7 @@
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <rows> <cols>"
+    os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <dim>"
        << endl << endl
        << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
        << endl
@@ -33,15 +33,12 @@ void usage(ostream &os) {
 #endif
        << "  -s <n>    Random seed. Default: 0."
        << endl
-       << "  <rows>    Rows <= 2^16."
-       << endl
-       << "  <cols>    Cols <= 2^16."
+       << "  <dim>     Dimension for rows ans cols <= 2^16."
        << endl << endl;
 }
 
 int main(int argc, const char **argv) {
-    unsigned rows = 0;
-    unsigned cols = 0;
+    unsigned dim = 0;
 
     unsigned bitmap = 0;
     int h = 0;
@@ -97,18 +94,17 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 11 ) {
-        rows = strtoul(argv[0], 0, 0);
-        cols = strtoul(argv[1], 0, 0);
-        policy = strtoul(argv[2], 0, 0);
-        rollout_width = strtoul(argv[3], 0, 0);
-        rollout_depth = strtoul(argv[4], 0, 0);
-        rollout_nesting = strtoul(argv[5], 0, 0);
-        uct_width = strtoul(argv[6], 0, 0);
-        uct_depth = strtoul(argv[7], 0, 0);
-        uct_parameter = strtod(argv[8], 0);
-        ao_width = strtoul(argv[9], 0, 0);
-        ao_depth = strtoul(argv[10], 0, 0);
+    if( argc == 10 ) {
+        dim = strtoul(argv[0], 0, 0);
+        policy = strtoul(argv[1], 0, 0);
+        rollout_width = strtoul(argv[2], 0, 0);
+        rollout_depth = strtoul(argv[3], 0, 0);
+        rollout_nesting = strtoul(argv[4], 0, 0);
+        uct_width = strtoul(argv[5], 0, 0);
+        uct_depth = strtoul(argv[6], 0, 0);
+        uct_parameter = strtod(argv[7], 0);
+        ao_width = strtoul(argv[8], 0, 0);
+        ao_depth = strtoul(argv[9], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -116,7 +112,7 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     Random::seeds(parameters.seed_);
-    problem_t problem(rows, cols);
+    problem_t problem(dim, dim);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
