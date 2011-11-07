@@ -4,6 +4,7 @@
 
 #include "ao2.h"
 #include "ao3.h"
+#include "ao4.h"
 #include "mcts.h"
 
 using namespace std;
@@ -22,6 +23,7 @@ float uct_parameter = -0.15;
 
 unsigned ao_width = 32;
 unsigned ao_depth = 50;
+float ao_parameter = 0.5;
 
 template<typename T>
 void evaluate_policy(const Policy::policy_t<T> &policy) {
@@ -66,8 +68,16 @@ void evaluate_ao2_policy(const Policy::policy_t<T> &base, const char *name) {
 
 template<typename T>
 void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
-    Policy::ao3_t<T> policy(base, ao_width, ao_depth); 
+    Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
     cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
+    evaluate_policy(policy);
+    policy.stats(std::cout);
+}
+
+template<typename T>
+void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name) {
+    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
+    cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
 }
@@ -104,33 +114,39 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
                     case 6:
                         evaluate_ao3_policy(greedy_policy, "greedy");
                         break;
+                    case 7:
+                        evaluate_ao4_policy(greedy_policy, "greedy");
+                        break;
                 }
             } else {
                 cout << "<policy=" << policy << " is not available>" << endl;
             }
             break;
-        case 7:
+        case 8:
             cout << "random= " << flush;
             evaluate_policy(random_policy);
             break;
-        case 8:
+        case 9:
             evaluate_rollout_policy(random_policy, "random");
             break;
-        case 9:
+        case 10:
             evaluate_uct_policy(random_policy, "random");
             break;
-        case 10:
+        case 11:
             evaluate_ao2_policy(random_policy, "random");
             break;
-        case 11:
+        case 12:
             evaluate_ao3_policy(random_policy, "random");
+            break;
+        case 13:
+            evaluate_ao4_policy(random_policy, "random");
             break;
     }
 }
 
 template<typename T>
 void evaluate_all_policies(const Problem::problem_t<T> &problem, const Problem::hash_t<T> *hash, const Heuristic::heuristic_t<T> *heuristic) {
-    for( unsigned policy = 1; policy < 12; ++policy ) {
+    for( unsigned policy = 1; policy < 14; ++policy ) {
         evaluate_policy(policy, problem, hash, heuristic);
     }
 }
