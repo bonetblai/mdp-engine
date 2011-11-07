@@ -127,17 +127,15 @@ template<typename T> class ao2_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
-    unsigned discrepancy_bound_;
     mutable unsigned num_nodes_;
     mutable ao2_state_node_t<T> *root_;
     mutable std::priority_queue<const ao2_state_node_t<T>*, std::vector<const ao2_state_node_t<T>*>, ao2_min_priority_t<T> > priority_queue_;
 
   public:
-    ao2_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
+    ao2_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
-        discrepancy_bound_(discrepancy_bound),
         num_nodes_(0),
         root_(0) {
     }
