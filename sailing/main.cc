@@ -111,6 +111,7 @@ int main(int argc, const char **argv) {
     }
 
     // build problem instances
+    cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     problem_t problem(dim, dim);
 
@@ -130,7 +131,7 @@ int main(int argc, const char **argv) {
     if( !results.empty() ) {
         if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
         for( unsigned i = 0; i < results.size(); ++i ) {
-            //Dispatcher::print_result(cout, &results[i]);
+            Dispatcher::print_result(cout, &results[i]);
         }
     }
 
