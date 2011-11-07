@@ -159,6 +159,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
+    float ao_parameter_;
     unsigned num_exp_per_iteration_;
     mutable unsigned num_nodes_;
     mutable ao4_state_node_t<T> *root_;
@@ -169,10 +170,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
     mutable float from_outside_;
 
   public:
-    ao4_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound)
+    ao4_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float ao_parameter)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
+        ao_parameter_(ao_parameter),
         num_exp_per_iteration_(2),
         num_nodes_(0),
         root_(0) {
