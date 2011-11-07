@@ -1,10 +1,10 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine
+CCFLAGS	=	-Wall -O3 -pg -ffloat-store -ffast-math -msse -I../engine
 OBJS	=	main.o parsing.o
 TARGET	=	race
 
 $(TARGET):	$(OBJS)
-		$(G++) $(CCFLAGS) -o $(TARGET) $(OBJS)
+		$(G++) -static $(CCFLAGS) -o $(TARGET) $(OBJS)
 
 clean:
 		rm -f $(OBJS) $(TARGET) *~
