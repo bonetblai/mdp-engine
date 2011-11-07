@@ -69,6 +69,7 @@ void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
     Policy::ao3_t<T> policy(base, ao_width, ao_depth); 
     cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
     evaluate_policy(policy);
+    policy.stats(std::cout);
 }
 
 template<typename T>
