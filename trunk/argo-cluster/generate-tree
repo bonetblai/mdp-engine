@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
-problem = "sailing"
+problem = "tree"
 microtask_number = 1
 microtask_file = problem + "_mutask_"
 
 tasks = [
-    '-s 0 10',
-    '-s 0 50',
-    '-s 0 100',
+    '-s 0 8',
+    '-s 0 16',
 ]
 
 def frange(start, end, step):
@@ -18,7 +17,7 @@ def open_file():
     f.write('#!/usr/bin/env python\n')
     f.write('import os\n')
     f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
-    f.write('cmd = "./' + problem + '  -f -a 1 -h 1 ')
+    f.write('cmd = "./' + problem + '  -f -a 1 -h 1 -p .70 ')
     return f
 
 def close_file(f):
