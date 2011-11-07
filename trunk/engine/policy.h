@@ -127,12 +127,14 @@ float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned m
     T state = s;
     size_t steps = 0;
     float cost = 0;
+    float discount = 1;
     while( !policy.problem().terminal(state) && (steps <= max_depth) ) {
         Problem::action_t action = policy(state);
         assert(action != Problem::noop);
         assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
-        cost += powf(DISCOUNT, steps) * policy.problem().cost(state, action);
+        cost += discount * policy.problem().cost(state, action);
+        discount *= DISCOUNT;
         state = p.first;
         ++steps;
     }

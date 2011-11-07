@@ -57,15 +57,15 @@ template<typename T> struct ao2_node_t {
     }
 };
 
-template<typename T> struct state_node2_t;
-template<typename T> struct action_node2_t : public ao2_node_t<T> {
+template<typename T> struct ao2_state_node_t;
+template<typename T> struct ao2_action_node_t : public ao2_node_t<T> {
     Problem::action_t action_;
     std::vector<float> probability_;
 
-    action_node2_t(Problem::action_t action, unsigned depth, unsigned priority, const ao2_node_t<T> *parent = 0)
+    ao2_action_node_t(Problem::action_t action, unsigned depth, unsigned priority, const ao2_node_t<T> *parent = 0)
       : ao2_node_t<T>(0, depth, priority, parent), action_(action) { }
 
-    virtual ~action_node2_t() {
+    virtual ~ao2_action_node_t() {
         for( unsigned i = 0, isz = ao2_node_t<T>::children_.size(); i < isz; ++i )
             delete ao2_node_t<T>::children_[i];
     }
@@ -81,15 +81,15 @@ template<typename T> struct action_node2_t : public ao2_node_t<T> {
     }
 };
 
-template<typename T> struct state_node2_t : public ao2_node_t<T> {
+template<typename T> struct ao2_state_node_t : public ao2_node_t<T> {
     const T state_;
     mutable int best_action_;
 
-    state_node2_t(const T &state, unsigned depth, unsigned priority, const ao2_node_t<T> *parent = 0)
+    ao2_state_node_t(const T &state, unsigned depth, unsigned priority, const ao2_node_t<T> *parent = 0)
       : ao2_node_t<T>(0, depth, priority, parent),
         state_(state), best_action_(-1) { }
 
-    virtual ~state_node2_t() {
+    virtual ~ao2_state_node_t() {
         for( unsigned i = 0, isz = ao2_node_t<T>::children_.size(); i < isz; ++i )
             delete ao2_node_t<T>::children_[i];
     }
@@ -98,7 +98,7 @@ template<typename T> struct state_node2_t : public ao2_node_t<T> {
         if( best_action_ == -1 )
             return Problem::noop;
         else
-            return static_cast<const action_node2_t<T>*>(ao2_node_t<T>::children_[best_action_])->action_;
+            return static_cast<const ao2_action_node_t<T>*>(ao2_node_t<T>::children_[best_action_])->action_;
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
@@ -113,8 +113,8 @@ template<typename T> struct state_node2_t : public ao2_node_t<T> {
     }
 };
 
-template<typename T> struct min_priority2_t {
-    bool operator()(const state_node2_t<T> *n1, const state_node2_t<T> *n2) {
+template<typename T> struct ao2_min_priority_t {
+    bool operator()(const ao2_state_node_t<T> *n1, const ao2_state_node_t<T> *n2) {
         return fabs(n1->delta_) > fabs(n2->delta_);
     }
 };
@@ -129,8 +129,8 @@ template<typename T> class ao2_t : public improvement_t<T> {
     unsigned depth_bound_;
     unsigned discrepancy_bound_;
     mutable unsigned num_nodes_;
-    mutable state_node2_t<T> *root_;
-    mutable std::priority_queue<const state_node2_t<T>*, std::vector<const state_node2_t<T>*>, min_priority2_t<T> > priority_queue_;
+    mutable ao2_state_node_t<T> *root_;
+    mutable std::priority_queue<const ao2_state_node_t<T>*, std::vector<const ao2_state_node_t<T>*>, ao2_min_priority_t<T> > priority_queue_;
 
   public:
     ao2_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
@@ -147,14 +147,14 @@ template<typename T> class ao2_t : public improvement_t<T> {
         //std::cout << std::endl << "new iteration" << std::endl;
         // initialize tree and priority queue
         clear();
-        root_ = new state_node2_t<T>(s, 0, 0);
+        root_ = new ao2_state_node_t<T>(s, 0, 0);
         priority_queue_.push(root_);
 
         // expand leaves and propagate values
         for( unsigned i = 0; (i < width_) && !priority_queue_.empty(); ++i ) {
             //std::cout << std::endl;
-            for( unsigned j = 0; (j < 5) && !priority_queue_.empty(); ++j ) {
-                const state_node2_t<T> *node = expand();
+            for( unsigned j = 0; (j < 1) && !priority_queue_.empty(); ++j ) {
+                const ao2_state_node_t<T> *node = expand();
                 propagate(node);
             }
             clear_priority_queue();
@@ -188,9 +188,9 @@ template<typename T> class ao2_t : public improvement_t<T> {
         }
     }
 
-    const state_node2_t<T>* expand() const {
+    const ao2_state_node_t<T>* expand() const {
         // get best open node
-        const state_node2_t<T> *node = priority_queue_.top();
+        const ao2_state_node_t<T> *node = priority_queue_.top();
         priority_queue_.pop();
         //std::cout << "pop " << node << " " << std::flush; node->print(std::cout, false); std::cout << std::endl;
         assert(node->children_.empty());
@@ -202,7 +202,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
             if( policy_t<T>::problem_.applicable(node->state_, a) ) {
                 // create action node for this action
                 unsigned priority = 0;//node->priority_ + (a == best_action ? 0 : 1);
-                action_node2_t<T> *a_node = new action_node2_t<T>(a, node->depth_, priority, node);
+                ao2_action_node_t<T> *a_node = new ao2_action_node_t<T>(a, node->depth_, priority, node);
                 node->children_.push_back(a_node);
                 ++num_nodes_;
 
@@ -213,7 +213,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
                 for( unsigned i = 0, isz = outcomes.size(); i < isz; ++i ) {
                     const T &state = outcomes[i].first;
                     float prob = outcomes[i].second;
-                    state_node2_t<T> *s_node = new state_node2_t<T>(state, 1 + node->depth_, priority, a_node);
+                    ao2_state_node_t<T> *s_node = new ao2_state_node_t<T>(state, 1 + node->depth_, priority, a_node);
                     a_node->children_.push_back(s_node);
                     a_node->probability_.push_back(prob);
                     ++num_nodes_;
@@ -239,26 +239,26 @@ template<typename T> class ao2_t : public improvement_t<T> {
         return node;
     }
 
-    void propagate(const state_node2_t<T> *s_node) const {
+    void propagate(const ao2_state_node_t<T> *s_node) const {
         while( s_node != 0 ) {
             float value = std::numeric_limits<float>::max();
             for( unsigned i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                 float child_value = s_node->children_[i]->value_;
                 if( child_value < value ) {
                     value = child_value;
-                    s_node->best_action_ = i; //static_cast<const action_node2_t<T>*>(s_node->children_[i])->action_;
+                    s_node->best_action_ = i; //static_cast<const ao2_action_node_t<T>*>(s_node->children_[i])->action_;
                 }
             }
             s_node->value_ = value;
             //std::cout << "propagate: s_node->value=" << s_node->value_ << std::endl;
             if( s_node->parent_ != 0 ) {
-                const action_node2_t<T> *a_node = static_cast<const action_node2_t<T>*>(s_node->parent_);
+                const ao2_action_node_t<T> *a_node = static_cast<const ao2_action_node_t<T>*>(s_node->parent_);
                 float value = 0;
                 for( unsigned i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
                     value += a_node->probability_[i] * a_node->children_[i]->value_;
                 }
                 assert(a_node->parent_ != 0);
-                s_node = static_cast<const state_node2_t<T>*>(a_node->parent_);
+                s_node = static_cast<const ao2_state_node_t<T>*>(a_node->parent_);
                 a_node->value_ = policy_t<T>::problem_.cost(s_node->state_, a_node->action_) + DISCOUNT * value;
             } else {
                 s_node = 0;
@@ -266,10 +266,10 @@ template<typename T> class ao2_t : public improvement_t<T> {
         }
     }
 
-    void recompute_delta(const state_node2_t<T> *s_node, float delta, bool in_best_policy) const {
+    void recompute_delta(const ao2_state_node_t<T> *s_node, float delta, bool in_best_policy) const {
         float Delta = std::numeric_limits<float>::max();
         for( unsigned i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-            const action_node2_t<T> *a_node = static_cast<const action_node2_t<T>*>(s_node->children_[i]);
+            const ao2_action_node_t<T> *a_node = static_cast<const ao2_action_node_t<T>*>(s_node->children_[i]);
             float dif = a_node->value_ - s_node->value_;
             if( dif > 0 ) Delta = Utils::min(Delta, dif);
         }
@@ -277,7 +277,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
         //std::cout << std::setw(2*s_node->depth_) << "" << "s_node->value=" << s_node->value_ << ", #children=" << s_node->children_.size() << ", Delta=" << Delta << std::endl;
 
         for( unsigned i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-            const action_node2_t<T> *a_node = static_cast<const action_node2_t<T>*>(s_node->children_[i]);
+            const ao2_action_node_t<T> *a_node = static_cast<const ao2_action_node_t<T>*>(s_node->children_[i]);
             float dif = a_node->value_ - s_node->value_;
             if( dif == 0 ) {
                 recompute_delta(a_node, delta, Delta, true, in_best_policy);
@@ -292,12 +292,12 @@ template<typename T> class ao2_t : public improvement_t<T> {
             //std::cout << std::setw(2*s_node->depth_) << "" << "push " << s_node << " "; s_node->print(std::cout, false); std::cout << std::endl;
         }
     }
-    void recompute_delta(const action_node2_t<T> *a_node, float delta, float Delta,
+    void recompute_delta(const ao2_action_node_t<T> *a_node, float delta, float Delta,
                          bool best_action, bool in_best_policy) const {
         //std::cout << "#children=" << a_node->children_.size() << std::endl;
         for( unsigned i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
             float prob = a_node->probability_[i];
-            const state_node2_t<T> *s_node = static_cast<const state_node2_t<T>*>(a_node->children_[i]);
+            const ao2_state_node_t<T> *s_node = static_cast<const ao2_state_node_t<T>*>(a_node->children_[i]);
             float ndelta = 0;
             if( in_best_policy && best_action ) {
                 assert(delta >= 0);
