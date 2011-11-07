@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
-problem = "sailing"
+problem = "race"
 microtask_number = 1
 microtask_file = problem + "_mutask_"
 
-tasks = [
-    '-s 0 10',
-    '-s 0 50',
-    '-s 0 100',
+#tracks = [ 'barto-big.track', 'barto-small.track', 'hansen-bigger.track', 'ring-1.track', 'ring-2.track', 'ring-3.track', 'ring-4.track', 'ring-5.track', 'ring-6.track', 'square-1.track', 'square-2.track', 'square-3.track', 'square-4.track', 'square-5.track', 'tiny.track' ]
+tracks = [
+    '-s 0 tracks/barto-small.track',
+    '-s 0 tracks/ring-1.track',
+    '-s 0 tracks/square-1.track',
+    '-s 0 tracks/tiny.track',
 ]
 
 def frange(start, end, step):
@@ -18,7 +20,7 @@ def open_file():
     f.write('#!/usr/bin/env python\n')
     f.write('import os\n')
     f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
-    f.write('cmd = "./' + problem + '  -f -a 1 -h 1 ')
+    f.write('cmd = "./' + problem + '  -f -a 1 -h 1 -p .70 ')
     return f
 
 def close_file(f):
@@ -30,7 +32,7 @@ def close_file(f):
     f.close()
     microtask_number += 1
 
-for t in tasks:
+for t in tracks:
     for p in range(1, 10):
         if p == 1 or p == 2 or p == 6: # plain algorithms (1=optimal, 2=greedy, 6=random)
             f = open_file()
