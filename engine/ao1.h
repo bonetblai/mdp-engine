@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef AO_H
-#define AO_H
+#ifndef AO1_H
+#define AO1_H
 
 #include "policy.h"
 
@@ -35,101 +35,101 @@ namespace Policy {
 ////////////////////////////////////////////////
 
 
-template<typename T> struct ao_node_t {
+template<typename T> struct ao1_node_t {
     mutable float value_;
     unsigned depth_;
     unsigned priority_;
-    const ao_node_t *parent_;
-    std::vector<const ao_node_t*> children_;
+    const ao1_node_t *parent_;
+    std::vector<const ao1_node_t*> children_;
 
-    ao_node_t(float value = 0, unsigned depth = 0, unsigned priority = 0, const ao_node_t<T> *parent = 0)
+    ao1_node_t(float value = 0, unsigned depth = 0, unsigned priority = 0, const ao1_node_t<T> *parent = 0)
       : value_(value), depth_(depth), priority_(priority), parent_(parent) { }
 
-    virtual ~ao_node_t() { }
+    virtual ~ao1_node_t() { }
     virtual void print(std::ostream &os) const = 0;
 
     void print_tree(std::ostream &os) const {
         print(os);
         os << std::endl;
-        for( size_t i = 0, isz = ao_node_t<T>::children_.size(); i < isz; ++i )
-            ao_node_t<T>::children_[i]->print_tree(os);
+        for( size_t i = 0, isz = ao1_node_t<T>::children_.size(); i < isz; ++i )
+            ao1_node_t<T>::children_[i]->print_tree(os);
     }
 };
 
-template<typename T> struct state_node_t;
-template<typename T> struct action_node_t : public ao_node_t<T> {
+template<typename T> struct ao1_state_node_t;
+template<typename T> struct ao1_action_node_t : public ao1_node_t<T> {
     Problem::action_t action_;
     std::vector<float> probability_;
 
-    action_node_t(Problem::action_t action, unsigned depth, unsigned priority, const ao_node_t<T> *parent = 0)
-      : ao_node_t<T>(0, depth, priority, parent), action_(action) { }
+    ao1_action_node_t(Problem::action_t action, unsigned depth, unsigned priority, const ao1_node_t<T> *parent = 0)
+      : ao1_node_t<T>(0, depth, priority, parent), action_(action) { }
 
-    virtual ~action_node_t() {
-        for( size_t i = 0, isz = ao_node_t<T>::children_.size(); i < isz; ++i )
-            delete ao_node_t<T>::children_[i];
+    virtual ~ao1_action_node_t() {
+        for( size_t i = 0, isz = ao1_node_t<T>::children_.size(); i < isz; ++i )
+            delete ao1_node_t<T>::children_[i];
     }
 
     void propagate(const Problem::problem_t<T> &problem) const {
         float value = 0;
-        for( size_t i = 0, isz = ao_node_t<T>::children_.size(); i < isz; ++i ) {
-            value += probability_[i] * ao_node_t<T>::children_[i]->value_;
+        for( size_t i = 0, isz = ao1_node_t<T>::children_.size(); i < isz; ++i ) {
+            value += probability_[i] * ao1_node_t<T>::children_[i]->value_;
         }
-        assert(ao_node_t<T>::parent_ != 0);
-        const T &s = static_cast<const state_node_t<T>*>(ao_node_t<T>::parent_)->state_;
-        ao_node_t<T>::value_ = problem.cost(s, action_) + DISCOUNT * value;
-        static_cast<const state_node_t<T>*>(ao_node_t<T>::parent_)->propagate(problem);
+        assert(ao1_node_t<T>::parent_ != 0);
+        const T &s = static_cast<const ao1_state_node_t<T>*>(ao1_node_t<T>::parent_)->state_;
+        ao1_node_t<T>::value_ = problem.cost(s, action_) + DISCOUNT * value;
+        static_cast<const ao1_state_node_t<T>*>(ao1_node_t<T>::parent_)->propagate(problem);
     }
 
     virtual void print(std::ostream &os) const {
-        os << std::setw(2 * ao_node_t<T>::depth_) << ""
+        os << std::setw(2 * ao1_node_t<T>::depth_) << ""
            << "[action=" << action_
-           << ",value=" << ao_node_t<T>::value_
-           << ",depth=" << ao_node_t<T>::depth_
-           << ",priority=" << ao_node_t<T>::priority_
+           << ",value=" << ao1_node_t<T>::value_
+           << ",depth=" << ao1_node_t<T>::depth_
+           << ",priority=" << ao1_node_t<T>::priority_
            << "]";
     }
 };
 
-template<typename T> struct state_node_t : public ao_node_t<T> {
+template<typename T> struct ao1_state_node_t : public ao1_node_t<T> {
     const T state_;
     mutable Problem::action_t best_action_;
 
-    state_node_t(const T &state, unsigned depth, unsigned priority, const ao_node_t<T> *parent = 0)
-      : ao_node_t<T>(0, depth, priority, parent),
+    ao1_state_node_t(const T &state, unsigned depth, unsigned priority, const ao1_node_t<T> *parent = 0)
+      : ao1_node_t<T>(0, depth, priority, parent),
         state_(state), best_action_(Problem::noop) { }
 
-    virtual ~state_node_t() {
-        for( size_t i = 0, isz = ao_node_t<T>::children_.size(); i < isz; ++i )
-            delete ao_node_t<T>::children_[i];
+    virtual ~ao1_state_node_t() {
+        for( size_t i = 0, isz = ao1_node_t<T>::children_.size(); i < isz; ++i )
+            delete ao1_node_t<T>::children_[i];
     }
 
     void propagate(const Problem::problem_t<T> &problem) const {
         float value = std::numeric_limits<float>::max();
-        for( size_t i = 0, isz = ao_node_t<T>::children_.size(); i < isz; ++i ) {
-            float child_value = ao_node_t<T>::children_[i]->value_;
+        for( size_t i = 0, isz = ao1_node_t<T>::children_.size(); i < isz; ++i ) {
+            float child_value = ao1_node_t<T>::children_[i]->value_;
             if( child_value < value ) {
                 value = child_value;
-                best_action_ = static_cast<const action_node_t<T>*>(ao_node_t<T>::children_[i])->action_;
+                best_action_ = static_cast<const ao1_action_node_t<T>*>(ao1_node_t<T>::children_[i])->action_;
             }
         }
-        ao_node_t<T>::value_ = value;
-        if( ao_node_t<T>::parent_ != 0 )
-            static_cast<const action_node_t<T>*>(ao_node_t<T>::parent_)->propagate(problem);
+        ao1_node_t<T>::value_ = value;
+        if( ao1_node_t<T>::parent_ != 0 )
+            static_cast<const ao1_action_node_t<T>*>(ao1_node_t<T>::parent_)->propagate(problem);
     }
 
     virtual void print(std::ostream &os) const {
-        os << std::setw(2 * ao_node_t<T>::depth_) << ""
+        os << std::setw(2 * ao1_node_t<T>::depth_) << ""
            << "[state=" << state_
            << ",best_action=" << best_action_
-           << ",value=" << ao_node_t<T>::value_
-           << ",depth=" << ao_node_t<T>::depth_
-           << ",priority=" << ao_node_t<T>::priority_
+           << ",value=" << ao1_node_t<T>::value_
+           << ",depth=" << ao1_node_t<T>::depth_
+           << ",priority=" << ao1_node_t<T>::priority_
            << "]";
     }
 };
 
-template<typename T> struct min_priority_t {
-    bool operator()(const state_node_t<T> *n1, const state_node_t<T> *n2) {
+template<typename T> struct ao1_min_priority_t {
+    bool operator()(const ao1_state_node_t<T> *n1, const ao1_state_node_t<T> *n2) {
         return n1->priority_ > n2->priority_;
     }
 };
@@ -144,8 +144,8 @@ template<typename T> class ao_t : public improvement_t<T> {
     unsigned depth_bound_;
     unsigned discrepancy_bound_;
     mutable unsigned num_nodes_;
-    mutable state_node_t<T> *root_;
-    mutable std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, min_priority_t<T> > priority_queue_;
+    mutable ao1_state_node_t<T> *root_;
+    mutable std::priority_queue<ao1_state_node_t<T>*, std::vector<ao1_state_node_t<T>*>, ao1_min_priority_t<T> > priority_queue_;
 
   public:
     ao_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
@@ -161,12 +161,12 @@ template<typename T> class ao_t : public improvement_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         // initialize tree and priority queue
         clear();
-        root_ = new state_node_t<T>(s, 0, 0);
+        root_ = new ao1_state_node_t<T>(s, 0, 0);
         priority_queue_.push(root_);
 
         // expand leaves and propagate values
         for( unsigned i = 0; (i < width_) && !priority_queue_.empty(); ++i ) {
-            const state_node_t<T> *node = expand();
+            const ao1_state_node_t<T> *node = expand();
             if( node == 0 ) break;
             node->propagate(policy_t<T>::problem_);
         }
@@ -195,9 +195,9 @@ template<typename T> class ao_t : public improvement_t<T> {
         }
     }
 
-    const state_node_t<T>* expand() const {
+    const ao1_state_node_t<T>* expand() const {
         // get best open node
-        state_node_t<T> *node = priority_queue_.top();
+        ao1_state_node_t<T> *node = priority_queue_.top();
         priority_queue_.pop();
         //std::cout << "pop " << node << " "; node->print(std::cout); std::cout << std::endl;
         //std::cout << "pri=" << node->priority_ << std::endl;
@@ -215,7 +215,7 @@ template<typename T> class ao_t : public improvement_t<T> {
                 //std::cout << "action=" << a << std::endl;
                 // create action node for this action
                 unsigned priority = node->priority_ + (a == best_action ? 0 : 1);
-                action_node_t<T> *a_node = new action_node_t<T>(a, node->depth_, priority, node);
+                ao1_action_node_t<T> *a_node = new ao1_action_node_t<T>(a, node->depth_, priority, node);
                 node->children_.push_back(a_node);
                 ++num_nodes_;
 
@@ -226,7 +226,7 @@ template<typename T> class ao_t : public improvement_t<T> {
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
                     const T &state = outcomes[i].first;
                     float prob = outcomes[i].second;
-                    state_node_t<T> *s_node = new state_node_t<T>(state, 1 + node->depth_, priority, a_node);
+                    ao1_state_node_t<T> *s_node = new ao1_state_node_t<T>(state, 1 + node->depth_, priority, a_node);
                     a_node->children_.push_back(s_node);
                     a_node->probability_.push_back(prob);
                     ++num_nodes_;
