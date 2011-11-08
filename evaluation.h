@@ -68,15 +68,16 @@ void evaluate_ao2_policy(const Policy::policy_t<T> &base, const char *name) {
 
 template<typename T>
 void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
-    Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
+    //Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
+    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, false); 
     cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
 }
 
 template<typename T>
-void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name) {
-    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
+void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name, bool delayed = true) {
+    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, delayed); 
     cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
@@ -95,6 +96,7 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
         case 4:
         case 5:
         case 6:
+        case 7:
             if( heuristic != 0 ) {
                 Policy::greedy_t<T> greedy_policy(problem, *heuristic);
                 switch( policy ) {
