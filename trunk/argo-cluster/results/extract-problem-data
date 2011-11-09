@@ -1,0 +1,55 @@
+#!/bin/bash
+
+problem=$1
+
+
+# locate files
+#echo phase0
+
+FILES=`grep -l $problem raw/*/output.*`
+
+if [ "$FILES" == "" ]; then
+    echo No files for problem \'$problem\'
+    exit 0
+fi
+
+# extract base policies
+#echo phase1
+
+for type in optimal random greedy; do
+    file=`grep -l ^$type $FILES`
+    if [ -e "$file" ]; then
+        tail --lines=1 $file > data/$problem.$type
+    fi
+done
+
+# extract policies: uct, ao3, ao4
+#echo phase2
+
+for policy in uct ao3 ao4; do
+    echo $policy
+    files0=`grep -l ^$policy $FILES`
+    if [ "$files0" != "" ]; then
+        for type in random greedy; do
+            printf "  %s:" $type
+            files1=`grep -l $type $files0`
+            if [ "$files1" != "" ]; then
+                widths=`grep ^$policy $files1 | cut -f2 -d, | sort -u`
+                for width in $widths; do
+                    printf " %s" $width
+                    files2=`grep -l $width, $files1`
+                    pars=`grep ^$policy $files2 | awk 'BEGIN { FS="[,)=]"; } { print $7; }' | sort -nr | uniq`
+                    > data/$problem.$policy.$type.$width
+                    for par in $pars; do
+                        files3=`grep -l p=$par $files2`
+                        grep ^$policy $files3 >> data/$problem.$policy.$type.$width
+                    done
+                done
+                printf "\n"
+            else
+                echo " <none>"
+            fi
+        done
+    fi
+done
+

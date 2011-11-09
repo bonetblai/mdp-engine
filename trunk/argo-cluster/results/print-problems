@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# locate files
+#echo phase0
+
+problems=`grep race raw/*/output.* | awk '{ print $9 }' | sort | uniq`
+
+if [ "$problems" == "" ]; then
+    echo No files available
+    exit 0
+fi
+
+for p in $problems; do
+    echo `basename $p .track`
+done
+
