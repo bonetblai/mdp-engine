@@ -138,7 +138,7 @@ template<typename T> struct ao1_min_priority_t {
 ////////////////////////////////////////////////
 
 
-template<typename T> class ao_t : public improvement_t<T> {
+template<typename T> class ao1_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
@@ -148,7 +148,7 @@ template<typename T> class ao_t : public improvement_t<T> {
     mutable std::priority_queue<ao1_state_node_t<T>*, std::vector<ao1_state_node_t<T>*>, ao1_min_priority_t<T> > priority_queue_;
 
   public:
-    ao_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
+    ao1_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, unsigned discrepancy_bound = std::numeric_limits<unsigned>::max())
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
@@ -156,7 +156,7 @@ template<typename T> class ao_t : public improvement_t<T> {
         num_nodes_(0),
         root_(0) {
     }
-    virtual ~ao_t() { }
+    virtual ~ao1_t() { }
 
     virtual Problem::action_t operator()(const T &s) const {
         // initialize tree and priority queue

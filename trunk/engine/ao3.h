@@ -302,8 +302,9 @@ template<typename T> class ao3_t : public improvement_t<T> {
 
     void stats(std::ostream &os) const {
         if( from_inside_ + from_outside_ > 0 ) {
-            os << "%inside=" << from_inside_ / (from_inside_ + from_outside_) << std::endl;
-            os << "%outside=" << from_outside_ / (from_inside_ + from_outside_) << std::endl;
+            os << "%in=" << from_inside_ / (from_inside_ + from_outside_)
+               << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
+               << std::endl;
         }
     }
 

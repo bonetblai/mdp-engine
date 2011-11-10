@@ -89,6 +89,7 @@ template<typename T> class nested_rollout_t : public policy_t<T> {
         delete base_policy_;
         if( nesting_level_ > 0 ) delete nested_policy_;
     }
+
     virtual Problem::action_t operator()(const T &s) const {
         return (*nested_policy_)(s);
     }
