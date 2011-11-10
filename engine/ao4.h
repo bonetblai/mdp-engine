@@ -28,6 +28,7 @@
 #include <queue>
 
 //#define DEBUG
+//#define USE_PQ
 
 namespace Policy {
 
@@ -180,8 +181,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
     unsigned num_exp_per_iteration_;
     mutable unsigned num_nodes_;
     mutable ao4_state_node_t<T> *root_;
+#ifdef USE_PQ
     mutable ao4_priority_queue_t<T> inside_priority_queue_;
     mutable ao4_priority_queue_t<T> outside_priority_queue_;
+#else
+    mutable ao4_node_t<T> *best_inside_;
+    mutable ao4_node_t<T> *best_outside_;
+#endif
     mutable ao4_table_t<T> table_;
     mutable float from_inside_;
     mutable float from_outside_;
@@ -198,6 +204,10 @@ template<typename T> class ao4_t : public improvement_t<T> {
         root_(0),
         from_inside_(0),
         from_outside_(0) {
+#ifndef USE_PQ
+        best_inside_ = 0;
+        best_outside_ = 0;
+#endif
     }
     virtual ~ao4_t() { }
 
@@ -227,8 +237,22 @@ template<typename T> class ao4_t : public improvement_t<T> {
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action();
     }
 
+    bool empty_inside_priority_queue() const {
+#ifdef USE_PQ
+        return inside_priority_queue_.empty();
+#else
+        return best_inside_ == 0;
+#endif
+    }
+    bool empty_outside_priority_queue() const {
+#ifdef USE_PQ
+        return outside_priority_queue_.empty();
+#else
+        return best_outside_ == 0;
+#endif
+    }
     bool empty_priority_queues() const {
-        return inside_priority_queue_.empty() && outside_priority_queue_.empty();
+        return empty_inside_priority_queue() && empty_outside_priority_queue();
     }
     void clear(ao4_priority_queue_t<T> &pq) const {
         while( !pq.empty() ) {
@@ -238,39 +262,76 @@ template<typename T> class ao4_t : public improvement_t<T> {
         }
     }
     void clear_priority_queues() const {
+#ifdef USE_PQ
         clear(inside_priority_queue_);
         clear(outside_priority_queue_);
+#else
+        if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
+        best_inside_ = 0;
+        if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
+        best_outside_ = 0;
+#endif
+    }
+    void insert_into_inside_priority_queue(ao4_node_t<T> *node) const {
+#ifdef USE_PQ
+        inside_priority_queue_.push(node);
+        node->in_pq_ = true;
+#else
+        if( (best_inside_ == 0) || ao4_min_priority_t<T>()(best_inside_, node) ) {
+            if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
+            best_inside_ = node;
+            best_inside_->in_pq_ = true;
+        }
+#endif
+    }
+    void insert_into_outside_priority_queue(ao4_node_t<T> *node) const {
+#ifdef USE_PQ
+        outside_priority_queue_.push(node);
+        node->in_pq_ = true;
+#else
+        if( (best_outside_ == 0) || ao4_min_priority_t<T>()(best_outside_, node) ) {
+            if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
+            best_outside_ = node;
+            best_outside_->in_pq_ = true;
+        }
+#endif
     }
     void insert_into_priority_queue(ao4_node_t<T> *node) const {
         if( !node->in_pq_ ) {
-            if( node->delta_ >= 0 ) {
-                inside_priority_queue_.push(node);
-            } else {
-                outside_priority_queue_.push(node);
-            }
-            node->in_pq_ = true;
+            if( node->delta_ >= 0 )
+                insert_into_inside_priority_queue(node);
+            else
+                insert_into_outside_priority_queue(node);
             //std::cout << std::setw(2*node->depth_) << "" << "push "; node->print(std::cout, false); std::cout << std::endl;
         }
     }
     ao4_node_t<T>* select_from_inside() const {
+#ifdef USE_PQ
         ao4_node_t<T> *node = inside_priority_queue_.top();
         inside_priority_queue_.pop();
+#else
+        ao4_node_t<T> *node = best_inside_;
+#endif
         node->in_pq_ = false;
         ++from_inside_;
         return node;
     }
     ao4_node_t<T>* select_from_outside() const {
+#ifdef USE_PQ
         ao4_node_t<T> *node = outside_priority_queue_.top();
         outside_priority_queue_.pop();
+#else
+        ao4_node_t<T> *node = best_outside_;
+#endif
         node->in_pq_ = false;
         ++from_outside_;
         return node;
     }
     ao4_node_t<T>* select_from_priority_queue() const {
         ao4_node_t<T> *node = 0;
-        if( inside_priority_queue_.empty() ) {
+        if( empty_inside_priority_queue() ) {
             node = select_from_outside();
-        } else if( outside_priority_queue_.empty() ) {
+        } else if( empty_outside_priority_queue() ) {
             node = select_from_inside();
         } else {
             if( Random::real() < ao_parameter_ ) {
@@ -309,7 +370,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             ++num_nodes_;
             ao4_state_node_t<T> *node = new ao4_state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth), node));
-            node->value_ = evaluate(state, depth);
+            node->value_ = depth < depth_bound_ ? evaluate(state, depth) : 0;
             //std::cout << "NEW "; node->print(std::cout, false); std::cout << std::endl;
             return node;
         } else {
@@ -320,8 +381,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
 
     void stats(std::ostream &os) const {
         if( from_inside_ + from_outside_ > 0 ) {
-            os << "%inside=" << from_inside_ / (from_inside_ + from_outside_) << std::endl;
-            os << "%outside=" << from_outside_ / (from_inside_ + from_outside_) << std::endl;
+            os << "%in=" << from_inside_ / (from_inside_ + from_outside_)
+               << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
+               << std::endl;
         }
     }
 
@@ -364,12 +426,12 @@ template<typename T> class ao4_t : public improvement_t<T> {
                     // estimate it by sampling and applying rollouts of
                     // base policy.
                     float value = 0;
-                    for( int i = 0, nsamples = 100; i < nsamples; ++i ) {
+                    for( int i = 0, nsamples = 5; i < nsamples; ++i ) {
                         std::pair<T, bool> sample = policy_t<T>::problem_.sample(s_node->state_, a);
                         ao4_state_node_t<T> *node = fetch_node(sample.first, 1 + s_node->depth_);
                         value += node->value_;
                     }
-                    a_node->value_ = a_node->action_cost_ + DISCOUNT * value / 100;
+                    a_node->value_ = a_node->action_cost_ + DISCOUNT * value / 5;
                 }
             }
         }
@@ -501,7 +563,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         } else {
             for( int i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
                 ao4_state_node_t<T> *s_node = a_node->children_[i].second;
-                if( s_node->in_queue_ == false ) {
+                if( !s_node->in_queue_ ) {
                     float delta = std::numeric_limits<float>::max();
                     bool in_best_policy = false;
                     for( int j = 0, jsz = s_node->parents_.size(); j < jsz; ++j ) {
@@ -513,7 +575,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
                         delta = Utils::min(delta, fabsf(d));
                         in_best_policy = in_best_policy || parent->in_best_policy_;
                     }
-                    //delta /= s_node->parents_.size();
                     s_node->delta_ = in_best_policy ? delta : -delta;
                     s_node->in_best_policy_ = in_best_policy;
                     s_queue.push_back(s_node);

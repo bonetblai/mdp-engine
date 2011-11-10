@@ -1,10 +1,8 @@
 #include <iostream>
-#include <iomanip>
 #include <strings.h>
+#include <vector>
 
 #include "sailing.h"
-#include "ao.h"
-#include "ao2.h"
 
 #include "../evaluation.h"
 
@@ -94,7 +92,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 10 ) {
+    if( argc == 11 ) {
         dim = strtoul(argv[0], 0, 0);
         policy = strtoul(argv[1], 0, 0);
         rollout_width = strtoul(argv[2], 0, 0);
@@ -105,6 +103,7 @@ int main(int argc, const char **argv) {
         uct_parameter = strtod(argv[7], 0);
         ao_width = strtoul(argv[8], 0, 0);
         ao_depth = strtoul(argv[9], 0, 0);
+        ao_parameter = strtod(argv[10], 0);
     } else {
         usage(cout);
         exit(-1);

@@ -4,21 +4,21 @@ problem = "race"
 microtask_number = 1
 microtask_file = problem + "_mutask_"
 
-tracks = [
-    'tracks/tiny.track',
-    #'tracks/barto-small.track',
+tasks = [
+    #'tracks/tiny.track',
+    'tracks/barto-small.track',
     #'tracks/barto-big.track',
     #'tracks/hansen-bigger.track',
     #'tracks/ring-1.track',
     #'tracks/ring-2.track',
-    'tracks/ring-3.track',
-    'tracks/ring-4.track',
+    #'tracks/ring-3.track',
+    #'tracks/ring-4.track',
     #'tracks/ring-5.track',
     #'tracks/ring-6.track',
     #'tracks/square-1.track',
     #'tracks/square-2.track',
-    'tracks/square-3.track',
-    'tracks/square-4.track',
+    #'tracks/square-3.track',
+    #'tracks/square-4.track',
     #'tracks/square-5.track',
 ]
 
@@ -48,11 +48,11 @@ def close_file(f):
     f.close()
     microtask_number += 1
 
-for t in tracks:
+for t in tasks:
     for p in policies:
         if p == 1 or p == 10 or p == 20: # Plain algorithms: 1=optimal, 10=greedy, 20=random
             f = open_file()
-            f.write(t + ' ' + str(p) + '  ')
+            f.write(t + ' ' + str(p) + ' ')
             f.write('0 0 0   0 0 0   0 0 0')
             close_file(f)
         elif p == 11 or p == 21: # Rollout: 11=greedy, 21=random

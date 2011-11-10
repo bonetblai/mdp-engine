@@ -70,7 +70,7 @@ template<typename T>
 void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
     //Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
     Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, false); 
-    cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
+    cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
 }
@@ -78,7 +78,7 @@ void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
 template<typename T>
 void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name, bool delayed = true) {
     Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, delayed); 
-    cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ")= " << flush;
+    cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
 }
@@ -91,32 +91,32 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
         case 1:
             evaluate_hash_policy(hash, "optimal");
             break;
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
             if( heuristic != 0 ) {
                 Policy::greedy_t<T> greedy_policy(problem, *heuristic);
                 switch( policy ) {
-                    case 2:
+                    case 10:
                         cout << "greedy= " << flush;
                         evaluate_policy(greedy_policy);
                         break;
-                    case 3:
+                    case 11:
                         evaluate_rollout_policy(greedy_policy, "greedy");
                         break;
-                    case 4:
+                    case 12:
                         evaluate_uct_policy(greedy_policy, "greedy");
                         break;
-                    case 5:
+                    case 13:
                         evaluate_ao2_policy(greedy_policy, "greedy");
                         break;
-                    case 6:
+                    case 14:
                         evaluate_ao3_policy(greedy_policy, "greedy");
                         break;
-                    case 7:
+                    case 15:
                         evaluate_ao4_policy(greedy_policy, "greedy");
                         break;
                 }
@@ -124,23 +124,23 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
                 cout << "<policy=" << policy << " is not available>" << endl;
             }
             break;
-        case 8:
+        case 20:
             cout << "random= " << flush;
             evaluate_policy(random_policy);
             break;
-        case 9:
+        case 21:
             evaluate_rollout_policy(random_policy, "random");
             break;
-        case 10:
+        case 22:
             evaluate_uct_policy(random_policy, "random");
             break;
-        case 11:
+        case 23:
             evaluate_ao2_policy(random_policy, "random");
             break;
-        case 12:
+        case 24:
             evaluate_ao3_policy(random_policy, "random");
             break;
-        case 13:
+        case 25:
             evaluate_ao4_policy(random_policy, "random");
             break;
     }
@@ -148,7 +148,11 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
 
 template<typename T>
 void evaluate_all_policies(const Problem::problem_t<T> &problem, const Problem::hash_t<T> *hash, const Heuristic::heuristic_t<T> *heuristic) {
-    for( unsigned policy = 1; policy < 14; ++policy ) {
+    evaluate_policy(1, problem, hash, heuristic);
+    for( unsigned policy = 10; policy <= 15; ++policy ) {
+        evaluate_policy(policy, problem, hash, heuristic);
+    }
+    for( unsigned policy = 20; policy <= 25; ++policy ) {
         evaluate_policy(policy, problem, hash, heuristic);
     }
 }

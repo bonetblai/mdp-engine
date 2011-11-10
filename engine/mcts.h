@@ -168,7 +168,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #ifdef DEBUG
         std::cout << std::setw(2*depth) << "" << "search_tree(" << s << "):";
 #endif
-        if( policy_t<T>::problem().terminal(s) ) {
+        if( (depth == depth_bound_) || policy_t<T>::problem().terminal(s) ) {
 #ifdef DEBUG
             std::cout << " end" << std::endl;
 #endif
@@ -176,6 +176,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
 
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
+
         if( it == table_.end() ) {
             std::vector<float> values(1 + policy_t<T>::problem().number_actions(), 0);
             std::vector<int> counts(1 + policy_t<T>::problem().number_actions(), 0);
@@ -185,13 +186,6 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
             float value = evaluate(s, depth);
             return value;
-        } else if( depth == depth_bound_ ) {
-#ifdef DEBUG
-            std::cout << " count=" << it->second.counts_[0]
-                      << " fetch " << it->second.values_[0]
-                      << " return" << std::endl;
-#endif
-            return 0;
         } else {
             // select action for this node and increase counts
             Problem::action_t a = select_action(s, it->second, depth, true);

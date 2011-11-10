@@ -1,6 +1,5 @@
-#include <cassert>
 #include <iostream>
-#include <iomanip>
+#include <vector>
 
 #include "puzzle.h"
 
@@ -103,7 +102,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 11 ) {
+    if( argc == 12 ) {
         rows = strtoul(argv[0], 0, 0);
         cols = strtoul(argv[1], 0, 0);
         policy = strtoul(argv[2], 0, 0);
@@ -115,12 +114,14 @@ int main(int argc, const char **argv) {
         uct_parameter = strtod(argv[8], 0);
         ao_width = strtoul(argv[9], 0, 0);
         ao_depth = strtoul(argv[10], 0, 0);
+        ao_parameter = strtod(argv[10], 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
+    cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     state_t init;
     init.set_goal(rows, cols);
@@ -145,7 +146,7 @@ int main(int argc, const char **argv) {
     if( !results.empty() ) {
         if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
         for( unsigned i = 0; i < results.size(); ++i ) {
-            //Dispatcher::print_result(cout, &results[i]);
+            Dispatcher::print_result(cout, &results[i]);
         }
     }
 
