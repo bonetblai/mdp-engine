@@ -67,17 +67,19 @@ void evaluate_ao2_policy(const Policy::policy_t<T> &base, const char *name) {
 }
 
 template<typename T>
-void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name) {
+void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name, const Problem::hash_t<T> *hash) {
     //Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
     Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, false); 
+    policy.optimal_ = hash;
     cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
 }
 
 template<typename T>
-void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name, bool delayed = true) {
+void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name, const Problem::hash_t<T> *hash, bool delayed = true) {
     Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, delayed); 
+    policy.optimal_ = hash;
     cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
     policy.stats(std::cout);
@@ -114,10 +116,10 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
                         evaluate_ao2_policy(greedy_policy, "greedy");
                         break;
                     case 14:
-                        evaluate_ao3_policy(greedy_policy, "greedy");
+                        evaluate_ao3_policy(greedy_policy, "greedy", hash);
                         break;
                     case 15:
-                        evaluate_ao4_policy(greedy_policy, "greedy");
+                        evaluate_ao4_policy(greedy_policy, "greedy", hash);
                         break;
                 }
             } else {
@@ -138,10 +140,10 @@ void evaluate_policy(unsigned policy, const Problem::problem_t<T> &problem, cons
             evaluate_ao2_policy(random_policy, "random");
             break;
         case 24:
-            evaluate_ao3_policy(random_policy, "random");
+            evaluate_ao3_policy(random_policy, "random", hash);
             break;
         case 25:
-            evaluate_ao4_policy(random_policy, "random");
+            evaluate_ao4_policy(random_policy, "random", hash);
             break;
     }
 }

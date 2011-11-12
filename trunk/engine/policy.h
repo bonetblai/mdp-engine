@@ -128,7 +128,7 @@ float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned m
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
-    while( !policy.problem().terminal(state) && (steps <= max_depth) ) {
+    while( (steps < max_depth) && !policy.problem().terminal(state) ) {
         Problem::action_t action = policy(state);
         assert(action != Problem::noop);
         assert(policy.problem().applicable(state, action));

@@ -11,13 +11,13 @@ tasks = [
 ]
 
 policies = [ 1, 10, 20, 12, 22, 14, 24, 15, 25 ]
-#policies = [ 15, 25 ]
-rollout_widths = [ 10, 25, 50, 100, 250, 500, 1000 ]
+#policies = [ 14, 24 ]
+rollout_widths = [ 10, 100 ]
 uct_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000 ]
-uct_parameters = [ 0, -2, -4, -6, -8, -10, -12, -14, -16, -18, -20, -22, -24, -26, -28, -30 ]
-ao_widths = [ 10, 25, 50, 100, 250, 500, 1000 ]
+uct_parameters = [ 0, -5, -10, -15, -20, -25, -30 ]
+ao_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500 ]
 #ao_widths = [ 2500, 5000, 10000 ]
-ao_parameters = [ 0.0, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0 ]
+ao_parameters = [ 0.0, 0.4, 0.8, 1.0 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')

@@ -1,6 +1,6 @@
 all:
 	@rm -f tasks.zip
-	@#./generate-sailing
+	@./generate-sailing
 	@#./generate-rect
 	@#./generate-wet
 	@#./generate-tree

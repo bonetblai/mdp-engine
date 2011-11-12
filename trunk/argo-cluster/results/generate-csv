@@ -1,0 +1,14 @@
+#!/bin/bash
+
+problems=`../print-problems`
+
+rm -fr data.csv data/*
+for p in $problems; do
+    echo "Extracting: $p"
+    ../extract-problem-data $p
+    ../extract-problem-csv $p
+done
+
+cat ../header.csv data.csv > csv
+mv csv data.csv
+
