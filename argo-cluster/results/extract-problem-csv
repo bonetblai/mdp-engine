@@ -9,6 +9,10 @@ for type in optimal greedy random; do
     fi
 done
 
+for f in data/$problem.rollout.*; do
+    cat $f | awk 'BEGIN { FS="[,=() ]" } { printf "%s,%s,%s,%s,NA,%s,%s,%s\n",problem,$1,$2,$4,$6,$9,$12; }' problem=$problem >> data.csv
+done
+
 for policy in uct ao3 ao4; do
     for f in data/$problem.$policy.*; do
         cat $f | awk 'BEGIN { FS="[,=() ]" } { printf "%s,%s,%s,%s,%s,%s,%s,%s\n",problem,$1,$2,$4,$6,$8,$11,$14; }' problem=$problem >> data.csv
