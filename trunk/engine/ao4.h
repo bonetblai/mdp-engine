@@ -191,8 +191,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
     float ao_parameter_;
     bool delayed_evaluation_;
     unsigned expansions_per_iteration_;
-    unsigned delayed_evaluation_nsamples_;
     unsigned leaf_nsamples_;
+    unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
     mutable ao4_state_node_t<T> *root_;
 #ifdef USE_PQ
@@ -205,20 +205,27 @@ template<typename T> class ao4_t : public improvement_t<T> {
     mutable ao4_table_t<T> table_;
     mutable float from_inside_;
     mutable float from_outside_;
-    mutable unsigned recompute_calls_;
-    mutable unsigned expansions_;
+    mutable unsigned total_number_expansions_;
+    mutable unsigned total_evaluations_;
 
   public:
     const Problem::hash_t<T> *optimal_;
-    ao4_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float ao_parameter, bool delayed_evaluation = true)
+    ao4_t(const policy_t<T> &base_policy,
+          unsigned width,
+          unsigned depth_bound,
+          float ao_parameter,
+          bool delayed_evaluation = true,
+          unsigned expansions_per_iteration = 100,
+          unsigned leaf_nsamples = 1,
+          unsigned delayed_evaluation_nsamples = 1)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
         ao_parameter_(ao_parameter),
         delayed_evaluation_(delayed_evaluation),
-        expansions_per_iteration_(50),
-        delayed_evaluation_nsamples_(1),
-        leaf_nsamples_(1),
+        expansions_per_iteration_(expansions_per_iteration),
+        leaf_nsamples_(leaf_nsamples),
+        delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         num_nodes_(0),
         root_(0),
         from_inside_(0),
@@ -227,8 +234,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
         best_inside_ = 0;
         best_outside_ = 0;
 #endif
-        recompute_calls_ = 0;
-        expansions_ = 0;
+        total_number_expansions_ = 0;
+        total_evaluations_ = 0;
     }
     virtual ~ao4_t() { }
 
@@ -263,8 +270,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
         if( from_inside_ + from_outside_ > 0 ) {
             os << "%in=" << from_inside_ / (from_inside_ + from_outside_)
                << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
-               << ", #recompute_calls=" << recompute_calls_
-               << ", #expansions=" << expansions_
+               << ", #expansions=" << total_number_expansions_
+               << ", #evaluations=" << total_evaluations_
                << std::endl;
         }
     }
@@ -316,7 +323,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     // expansion of state and action nodes. The binding of appropriate method
     // is done at run-time with virtual methods
     void expand(std::vector<ao4_node_t<T>*> &to_propagate) const {
-        ++expansions_;
+        ++total_number_expansions_;
         ao4_node_t<T> *node = select_from_priority_queue();
         node->expand(this, to_propagate);
     }
@@ -325,14 +332,12 @@ template<typename T> class ao4_t : public improvement_t<T> {
         std::vector<std::pair<T, float> > outcomes;
         policy_t<T>::problem_.next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
-        bool propagate_some_child = false;
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
             float prob = outcomes[i].second;
             std::pair<ao4_state_node_t<T>*, bool> p = fetch_node(state, 1 + a_node->parent_->depth_);
             if( p.second ) {
                 assert(p.first->is_leaf());
-                propagate_some_child = true;
                 to_propagate.push_back(p.first);
             }
             p.first->parents_.push_back(std::make_pair(i, a_node));
@@ -361,8 +366,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void expand(ao4_state_node_t<T> *s_node, std::vector<ao4_node_t<T>*> &to_propagate) const {
         assert(s_node->is_leaf());
-        s_node->children_.reserve(policy_t<T>::problem_.number_actions());
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        s_node->children_.reserve(policy_t<T>::problem_.number_actions(s_node->state_));
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s_node->state_); ++a ) {
             if( policy_t<T>::problem_.applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
@@ -422,7 +427,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
     // recompute delta values for nodes in top-down BFS manner
     void recompute_delta(ao4_state_node_t<T> *root) const {
         assert(!root->is_goal_);
-        ++recompute_calls_;
 
         std::deque<ao4_state_node_t<T>*> s_queue;
         bool expanding_from_s_queue = true;
@@ -540,6 +544,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
 
     // evaluate a state with base policy, and evaluate an action node by sampling states
     float evaluate(const T &s, unsigned depth) const {
+        total_evaluations_ += leaf_nsamples_;
         return depth < depth_bound_ ? evaluation(improvement_t<T>::base_policy_, s, leaf_nsamples_, depth_bound_ - depth) : 0;
     }
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {

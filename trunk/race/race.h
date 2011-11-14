@@ -102,6 +102,7 @@ class problem_t : public Problem::problem_t<state_t> {
         for( size_t i = 0; i < 9; ++i )
             delete[] ecache_[i];
     }
+
     virtual Problem::action_t number_actions() const { return 9; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {

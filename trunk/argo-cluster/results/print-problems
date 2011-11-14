@@ -3,7 +3,8 @@
 # locate files
 #echo phase0
 
-problems=`grep race raw/*/output.* | awk '{ print $9 }' | sort | uniq`
+domain=$1
+problems=`grep $domain raw/*/output.* | awk '{ print $9 }' | sort | uniq`
 
 if [ "$problems" == "" ]; then
     echo No files available

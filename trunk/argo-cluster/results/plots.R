@@ -10,6 +10,8 @@ makeplots = function (myplot.problem) {
     line_random = data.all[problem==myplot.problem & algorithm=="random", "quality"]
     line_greedy = data.all[problem==myplot.problem & algorithm=="greedy", "quality"]
     line_optimal = data.all[problem==myplot.problem & algorithm=="optimal", "quality"]
+    line_rollout = data.all[problem==myplot.problem & algorithm=="rollout" & base=="random", "quality"]
+    print(line_rollout)
     #line_optimal = 8.3747
 
     for( myplot.base in c("random", "greedy") ) {

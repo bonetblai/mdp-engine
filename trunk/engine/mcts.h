@@ -178,8 +178,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
 
         if( it == table_.end() ) {
-            std::vector<float> values(1 + policy_t<T>::problem().number_actions(), 0);
-            std::vector<int> counts(1 + policy_t<T>::problem().number_actions(), 0);
+            std::vector<float> values(1 + policy_t<T>::problem().number_actions(s), 0);
+            std::vector<int> counts(1 + policy_t<T>::problem().number_actions(s), 0);
             table_.insert(std::make_pair(std::make_pair(depth, s), data_t(values, counts)));
 #ifdef DEBUG
             std::cout << " insert 0" << std::endl;
@@ -218,7 +218,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
 
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
             if( policy_t<T>::problem_.applicable(state, a) ) {
                 // if this action has never been taken in this node, select it
                 if( data.counts_[1+a] == 0 ) {
@@ -268,7 +268,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
             typename mcts_hash_t<T>::const_iterator it = node->children_.find(std::make_pair(a, p.first));
             if( it == node->children_.end() ) {
                 ++number_nodes_;
-                node_t<T> *new_child = new node_t<T>(policy_t<T>::problem().number_actions());
+                node_t<T> *new_child = new node_t<T>(policy_t<T>::problem().number_actions(p.first));
                 node->children_.insert(std::make_pair(std::make_pair(a, p.first), new_child));
 #ifdef DEBUG
                 std::cout << " insert " << p.first << " w/ value=" << 0 << std::endl;
@@ -296,7 +296,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
     float SEARCH(const T &s) {
         typename mcts_hash_t<T>::const_iterator it = root_hash_.find(std::make_pair(0, s));
         if( it == root_hash_.end() ) {
-            node_t<T> *node = new node_t<T>(policy_t<T>::problem().number_actions());
+            node_t<T> *node = new node_t<T>(policy_t<T>::problem().number_actions(s));
             it = root_hash_.insert(std::make_pair(std::make_pair(0, s), node)).first;
         }
         return search(s, it->second, 0);

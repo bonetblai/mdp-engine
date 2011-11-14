@@ -192,11 +192,11 @@ template<typename T> class ao2_t : public improvement_t<T> {
         priority_queue_.pop();
         //std::cout << "pop " << node << " " << std::flush; node->print(std::cout, false); std::cout << std::endl;
         assert(node->children_.empty());
-        node->children_.reserve(policy_t<T>::problem_.number_actions());
+        node->children_.reserve(policy_t<T>::problem_.number_actions(node->state_));
 
         // expand node
         std::vector<std::pair<T, float> > outcomes;
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(node->state_); ++a ) {
             if( policy_t<T>::problem_.applicable(node->state_, a) ) {
                 // create action node for this action
                 unsigned priority = 0;//node->priority_ + (a == best_action ? 0 : 1);

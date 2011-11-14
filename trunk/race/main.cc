@@ -99,7 +99,8 @@ int main(int argc, const char **argv) {
         }
     }
 
-    if( argc == 11 ) {
+    CTP::graph_t graph;
+    if( (argc == 11) || (argc == 12) ) {
         is = fopen(argv[0], "r");
         policy = strtoul(argv[1], 0, 0);
         rollout_width = strtoul(argv[2], 0, 0);
@@ -111,6 +112,7 @@ int main(int argc, const char **argv) {
         ao_width = strtoul(argv[8], 0, 0);
         ao_depth = strtoul(argv[9], 0, 0);
         ao_parameter = strtod(argv[10], 0);
+        if( argc == 12 ) ao_expansions_per_iteration = strtod(argv[11], 0);
     } else {
         usage(cout);
         exit(-1);

@@ -62,8 +62,8 @@ template<typename T> class random_t : public policy_t<T> {
     virtual ~random_t() { }
     virtual Problem::action_t operator()(const T &s) const {
         std::vector<Problem::action_t> actions;
-        actions.reserve(policy_t<T>::problem_.number_actions());
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        actions.reserve(policy_t<T>::problem_.number_actions(s));
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
             if( policy_t<T>::problem_.applicable(s, a) ) {
                 actions.push_back(a);
             }
@@ -101,7 +101,7 @@ template<typename T> class greedy_t : public policy_t<T> {
         std::vector<std::pair<T, float> > outcomes;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
             if( policy_t<T>::problem_.applicable(s, a) ) {
                 float value = 0;
                 policy_t<T>::problem_.next(s, a, outcomes);

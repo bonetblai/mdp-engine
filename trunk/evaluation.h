@@ -24,6 +24,7 @@ float uct_parameter = -0.15;
 unsigned ao_width = 32;
 unsigned ao_depth = 50;
 float ao_parameter = 0.5;
+unsigned ao_expansions_per_iteration = 100;
 
 template<typename T>
 void evaluate_policy(const Policy::policy_t<T> &policy) {
@@ -48,7 +49,7 @@ void evaluate_hash_policy(const Problem::hash_t<T> *hash, const char *name) {
 template<typename T>
 void evaluate_rollout_policy(const Policy::policy_t<T> &base, const char *name) {
     Policy::nested_rollout_t<T> policy(base, rollout_width, rollout_depth, rollout_nesting);
-    cout << "nrollout(" << name << ",width=" << rollout_width << ",nesting=" << rollout_nesting << ")= " << flush;
+    cout << "nrollout(" << name << ",width=" << rollout_width << ",depth=" << rollout_depth << ",nesting=" << rollout_nesting << ")= " << flush;
     evaluate_policy(policy);
 }
 
@@ -69,7 +70,7 @@ void evaluate_ao2_policy(const Policy::policy_t<T> &base, const char *name) {
 template<typename T>
 void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name, const Problem::hash_t<T> *hash) {
     //Policy::ao3_t<T> policy(base, ao_width, ao_depth, ao_parameter); 
-    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, false); 
+    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, false, ao_expansions_per_iteration); 
     policy.optimal_ = hash;
     cout << "ao3(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
@@ -78,7 +79,7 @@ void evaluate_ao3_policy(const Policy::policy_t<T> &base, const char *name, cons
 
 template<typename T>
 void evaluate_ao4_policy(const Policy::policy_t<T> &base, const char *name, const Problem::hash_t<T> *hash, bool delayed = true) {
-    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, delayed); 
+    Policy::ao4_t<T> policy(base, ao_width, ao_depth, ao_parameter, delayed, ao_expansions_per_iteration); 
     policy.optimal_ = hash;
     cout << "ao4(" << name << ",width=" << ao_width << ",depth=" << ao_depth << ",p=" << ao_parameter << ")= " << flush;
     evaluate_policy(policy);
