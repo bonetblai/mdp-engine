@@ -181,7 +181,7 @@ void generate_space(const Problem::problem_t<T> &problem, const T &s, Problem::h
         open.pop_front();
         if( problem.terminal(n.first) ) continue;
 
-        for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < problem.number_actions(n.first); ++a ) {
             if( problem.applicable(n.first, a) ) {
                 problem.next(n.first, a, outcomes);
                 unsigned osize = outcomes.size();
@@ -207,6 +207,7 @@ size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem
     typedef typename Problem::hash_t<T>::iterator hash_iterator;
     generate_space(problem, s, hash);
 
+    std::cout << "state space = " << hash.size() << std::endl;
 #ifdef DEBUG
     std::cout << "state space = " << hash.size() << std::endl;
 #endif
@@ -690,7 +691,7 @@ bool ldfs(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash, const 
     // expansion
     bool flag = false;
     float bqv = std::numeric_limits<float>::max();
-    for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
+    for( Problem::action_t a = 0; a < problem.number_actions(s); ++a ) {
         if( problem.applicable(s, a) ) {
             problem.next(s, a, outcomes);
             unsigned osize = outcomes.size();

@@ -45,7 +45,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
             if( policy_t<T>::problem().applicable(s, a) ) {
                 float value = 0;
                 for( unsigned trial = 0; trial < width_; ++trial ) {

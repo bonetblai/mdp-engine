@@ -138,7 +138,7 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
     const eval_function_t *eval_function_;
 
     Hash::data_t* push(const T &s, Hash::data_t *d) {
-        std::pair<iterator, bool> p = insert(std::make_pair(s, d));
+        insert(std::make_pair(s, d));
         return d;
     }
 

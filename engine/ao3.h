@@ -312,11 +312,11 @@ template<typename T> class ao3_t : public improvement_t<T> {
         // get open node
         ao3_state_node_t<T> *node = select_from_priority_queue();
         assert(node->children_.empty());
-        node->children_.reserve(policy_t<T>::problem_.number_actions());
+        node->children_.reserve(policy_t<T>::problem_.number_actions(node->state_));
 
         // expand node
         std::vector<std::pair<T, float> > outcomes;
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(node->state_); ++a ) {
             if( policy_t<T>::problem_.applicable(node->state_, a) ) {
                 // create action node for this action
                 ++num_nodes_;

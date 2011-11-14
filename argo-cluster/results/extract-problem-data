@@ -1,11 +1,16 @@
 #!/bin/bash
 
-problem=$1
+domain=$1
+problem=$2
 
 
 # locate files
 #echo phase0
-FILES=`grep -l $problem raw/*/output.*`
+if [ "$domain" == "race" ]; then
+    FILES=`grep -l $problem raw/*/output.*`
+else
+    FILES=`grep $domain raw/*/output.* | awk '{ if( $9 == problem ) print $1; }' problem=$problem | cut -f1 -d:`
+fi
 
 if [ "$FILES" == "" ]; then
     echo No files for problem \'$problem\'
@@ -32,15 +37,15 @@ if [ "$files0" != "" ]; then
         printf "  %s:" $type
         files1=`grep -l $type $files0`
         if [ "$files1" != "" ]; then
-            widths=`grep ^$policy $files1 | cut -f2 -d, | sort | uniq`
+            widths=`grep -h ^$policy $files1 | cut -f2 -d, | sort | uniq`
             for width in $widths; do
                 printf " %s" $width
                 files2=`grep -l $width, $files1`
-                nestings=`grep ^$policy $files2 | awk 'BEGIN { FS="[,)=]"; } { print $5; }' | sort -nr | uniq`
+                nestings=`grep -h ^$policy $files2 | awk 'BEGIN { FS="[,)=]"; } { print $5; }' | sort -nr | uniq`
                 > data/$problem.rollout.$type.$width
                 for nesting in $nestings; do
                     files3=`grep -l nesting=$nesting $files2`
-                    grep ^nrollout $files3 >> data/$problem.rollout.$type.$width
+                    grep -h ^nrollout $files3 >> data/$problem.rollout.$type.$width
                 done
             done
             printf "\n"
@@ -61,15 +66,15 @@ for policy in uct ao3 ao4; do
             printf "  %s:" $type
             files1=`grep -l $type $files0`
             if [ "$files1" != "" ]; then
-                widths=`grep ^$policy $files1 | cut -f2 -d, | sort | uniq`
+                widths=`grep -h ^$policy $files1 | cut -f2 -d, | sort | uniq`
                 for width in $widths; do
                     printf " %s" $width
                     files2=`grep -l $width, $files1`
-                    pars=`grep ^$policy $files2 | awk 'BEGIN { FS="[,)=]"; } { print $7; }' | sort -nr | uniq`
+                    pars=`grep -h ^$policy $files2 | awk 'BEGIN { FS="[,)=]"; } { print $7; }' | sort -nr | uniq`
                     > data/$problem.$policy.$type.$width
                     for par in $pars; do
                         files3=`grep -l p=$par $files2`
-                        grep ^$policy $files3 >> data/$problem.$policy.$type.$width
+                        grep -h ^$policy $files3 >> data/$problem.$policy.$type.$width
                     done
                 done
                 printf "\n"
