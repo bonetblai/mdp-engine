@@ -106,7 +106,7 @@ class problem_t : public Problem::problem_t<state_t> {
     size_t size() const { return size_; }
     unsigned water(size_t x, size_t y) const { return water_[(x * size_) + y]; }
     const state_t& goal() const { return goal_; }
-    virtual Problem::action_t number_actions() const { return 5; }
+    virtual Problem::action_t number_actions(const state_t &s) const { return 5; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s ) const { return s == goal_; }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {

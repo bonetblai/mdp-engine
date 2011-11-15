@@ -9,8 +9,25 @@ tasks = [
     '-s 5427 100',
 ]
 
-def frange(start, end, step):
-    return map(lambda x: x*step, range(int(start*1./step), int(end*1./step)))
+policies = [
+    "optimal direct",
+    "greedy direct",
+    "random direct",
+    #"greedy rollout",
+    #"random rollout",
+    "greedy uct",
+    "random uct",
+    "greedy ao3",
+    "random ao3",
+    "greedy ao4",
+    "random ao4",
+]
+
+rollout_widths = [ 10, 100 ]
+uct_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000 ]
+uct_parameters = [ 0, -5, -10, -15, -20, -25, -30 ]
+ao_widths = [ 10, 25, 50, 100, 250, 500, 1000, 5000 ]
+ao_parameters = [ 0.5 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
@@ -30,25 +47,30 @@ def close_file(f):
     microtask_number += 1
 
 for t in tasks:
-    for p in range(1, 10):
-        if p == 1 or p == 2 or p == 6: # plain algorithms (1=optimal, 2=greedy, 6=random)
+    for p in policies:
+        if p == "optimal direct" or p == "greedy direct" or p == "random direct":
             f = open_file()
-            f.write(t + ' ' + str(p) + ' 0 0 0 0 0 0 50 50')
+            f.write(t + ' ' + p)
             close_file(f)
-        else:
-            for w in range(20, 220, 20):
-                if p == 3 or p == 7: # Rollout
-                    for nesting in range(1, 3):
+        elif p == "greedy rollout" or p == "random rollout":
+            for width in rollout_widths:
+                    for nesting in range(1, 2):
                         f = open_file()
-                        f.write(t + ' ' + str(p) + ' ' + str(w) + ' 50 ' + str(nesting) + ' 0 0 0 0 0')
+                        f.write(t + ' ' + p + ' ')
+                        f.write(str(width) + ' 50 0 ' + str(nesting))
                         close_file(f)
-                elif p == 4 or p == 8: # UCT
-                    for uct in frange(-.05, -1, -.1):
+        elif p == "greedy uct" or p == "random uct":
+            for width in uct_widths:
+                    for par in uct_parameters:
                         f = open_file()
-                        f.write(t + ' ' + str(p) + ' 0 0 0 ' + str(w) + ' 50 ' + str(uct) + ' 0 0')
+                        f.write(t + ' ' + p + ' ')
+                        f.write(str(width) + ' 50 ' + str(par))
                         close_file(f)
-                else: # AO
-                    f = open_file()
-                    f.write(t + ' ' + str(p) + ' 0 0 0 0 0 0 ' + str(w) + ' 50')
-                    close_file(f)
+        elif p == "greedy ao3" or p == "random ao3" or p == "greedy ao4" or p == "random ao4":
+            for width in ao_widths:
+                    for par in ao_parameters:
+                        f = open_file()
+                        f.write(t + ' ' + p + ' ')
+                        f.write(str(width) + ' 50 ' + str(par))
+                        close_file(f)
 

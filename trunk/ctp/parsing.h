@@ -13,6 +13,7 @@ struct open_list_cmp {
 struct graph_t {
     int num_nodes_;
     int num_edges_;
+    int shortcut_cost_;
     int *h_opt_;
 
     struct edge_t {
@@ -25,7 +26,7 @@ struct graph_t {
     std::vector<edge_t> edge_list_;
     std::vector<std::vector<int> > at_;
 
-    graph_t() : h_opt_(0) { }
+    graph_t(int shortcut_cost) : shortcut_cost_(shortcut_cost), h_opt_(0) { }
     ~graph_t() { delete[] h_opt_; }
 
     int from(int edge) const { return edge_list_[edge].from_; }
@@ -73,9 +74,9 @@ struct graph_t {
             return false;
         }
 
-        // insert (s,t) edge
+        // insert shortcut (s,t) edge
         int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
-        edge_list_.push_back(edge_t(from, to, 200000, 1));
+        edge_list_.push_back(edge_t(from, to, shortcut_cost_, 1));
         at_[from].push_back(e);
         at_[to].push_back(e);
         assert(edge_list_.size() == num_edges_);

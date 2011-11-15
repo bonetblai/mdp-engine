@@ -143,7 +143,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return r_ > 0.0 ? (noisy_.find(s) != noisy_.end()) : false;
     }
 
-    virtual Problem::action_t number_actions() const { return 2; }
+    virtual Problem::action_t number_actions(const state_t &s) const { return 2; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s.depth() == n_ - 1;

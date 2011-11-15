@@ -84,8 +84,9 @@ struct state_t {
         }
 
         // Dijsktra's with current node as seed
-        dist[current_] = 0;
-        queue.push(std::make_pair(current_, 0));
+        int goal = graph.num_nodes_ - 1;
+        dist[goal] = 0;
+        queue.push(std::make_pair(goal, 0));
         while( !queue.empty() ) {
             std::pair<int, int> p = queue.top();
             queue.pop();
@@ -95,17 +96,50 @@ struct state_t {
                 for( int i = 0, isz = graph.at_[p.first].size(); i < isz; ++i ) {
                     int j = graph.at_[p.first][i];
                     if( known(j) && traversable(j) ) {
+                        assert(j != graph.num_edges_ - 1);
                         const CTP::graph_t::edge_t &e = graph.edge_list_[j];
                         int cost = p.second + e.cost_;
-                        int from = p.first == e.to_ ? e.from_ : e.to_;
-                        //std::cout << "  cost=" << cost << ", to=" << from << std::endl;
-                        if( cost < dist[from] ) {
-                            dist[from] = cost;
-                            queue.push(std::make_pair(from, cost));
+                        int next = p.first == e.to_ ? e.from_ : e.to_;
+                        //std::cout << "  cost=" << cost << ", to=" << next << std::endl;
+                        if( cost < dist[next] ) {
+                            dist[next] = cost;
+                            queue.push(std::make_pair(next, cost));
                         }
                     }
                 }
             }
+        }
+    }
+
+    void print_path(const CTP::graph_t &graph, const std::vector<int> &dist) const {
+        int path_cost = 0;
+        std::cout << "path=<" << std::flush;
+        if( dist[current_] < std::numeric_limits<int>::max() ) {
+            int node = current_;
+            std::cout << "n=" << node << std::flush;
+            while( node != graph.num_nodes_ - 1 ) {
+                int best = -1, cost = std::numeric_limits<int>::max();
+                for( int i = 0, isz = graph.at_[node].size(); i < isz; ++i ) {
+                    int j = graph.at_[node][i];
+                    if( known(j) && traversable(j) ) {
+                        const CTP::graph_t::edge_t &e = graph.edge_list_[j];
+                        int next = node == e.to_ ? e.from_ : e.to_;
+                        if( dist[next] < cost ) {
+                            best = j;
+                            cost = dist[next];
+                        }
+                    } else {
+                        //std::cout << "edge " << j << " is unknown or non-traversable" << std::endl;
+                    }
+                }
+                const CTP::graph_t::edge_t &e = graph.edge_list_[best];
+                int next = node == e.to_ ? e.from_ : e.to_;
+                node = next;
+                path_cost += e.cost_;
+                std::cout << ",e=" << best << std::flush;
+                std::cout << ",n=" << node << std::flush;
+            }
+            std::cout << ">, cost=" << path_cost << std::endl;
         }
     }
 
@@ -232,39 +266,29 @@ class problem_with_hidden_state_t : public problem_t {
         next.current_ = to_node;
         outcomes.push_back(std::make_pair(next, 1));
     }
-
-    virtual state_t sample_weather() {
-        state_t state(0);
-        for( int e = 0; e < graph_.num_edges_ - 1; ++e ) {
-            float p = graph_.prob(e);
-            if( Random::real() < p ) {
-                state.set(e, 0);
-            } else {
-                state.set(e, 1);
-            }
-        }
-        state.set(graph_.num_edges_ - 1, 1);
-        return state;
-    }
 };
 
-float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
+inline state_t sample_weather(const CTP::graph_t &graph) {
+    state_t state(0);
+    for( int e = 0; e < graph.num_edges_ - 1; ++e ) {
+        float p = graph.prob(e);
+        if( Random::real() < p ) {
+            state.set(e, 0);
+        } else {
+            state.set(e, 1);
+        }
+    }
+    state.set(graph.num_edges_ - 1, 1);
+    return state;
+}
+
+inline float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
     std::vector<int> distances;
-    int start = 0, goal = graph.num_nodes_ - 1;
     float prob = 0;
     for( unsigned i = 0; i < nsamples; ++i ) {
-        state_t weather(start);
-        for( int e = 0; e < graph.num_edges_ - 1; ++e ) {
-            float p = graph.prob(e);
-            if( Random::real() < p ) {
-                weather.set(e, 0);
-            } else {
-                weather.set(e, 1);
-            }
-        }
-        weather.set(graph.num_edges_ - 1, 1);
+        state_t weather = sample_weather(graph);
         weather.compute_distances(graph, distances);
-        prob += distances[goal] < std::numeric_limits<int>::max() ? 0 : 1;
+        prob += distances[0] < std::numeric_limits<int>::max() ? 0 : 1;
     }
     return prob / nsamples;
 }
