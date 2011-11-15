@@ -80,8 +80,7 @@ struct graph_t {
         at_[to].push_back(e);
         assert(edge_list_.size() == num_edges_);
 
-        for( int n = 0; n < num_nodes_; ++n )
-            std::cout << "#neighbors[" << n << "]=" << at_[n].size() << std::endl;
+        //for( int n = 0; n < num_nodes_; ++n ) std::cout << "#neighbors[" << n << "]=" << at_[n].size() << std::endl;
 
         // compute optimistic shortest-paths to goal
         h_opt_ = new int[num_nodes_];

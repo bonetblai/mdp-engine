@@ -115,6 +115,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     problem_t problem(graph);
+    cout << "P(bad weather)=" << probability_bad_weather(graph, 1e6) << endl;
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -140,6 +141,52 @@ int main(int argc, const char **argv) {
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     evaluate_policy(policy, problem, hash, heuristic);
     //evaluate_all_policies(problem, hash, heuristic);
+
+    problem_with_hidden_state_t ph(graph);
+    Policy::random_t<state_t> random(problem);
+    Policy::greedy_t<state_t> greedy(problem, *heuristic);
+    Policy::ao4_t<state_t> pol(greedy, ao_width, ao_depth, ao_parameter, false, ao_expansions_per_iteration); 
+
+    float start_time = Utils::read_time_in_seconds();
+    float value = 0;
+    for( unsigned i = 0; i < evaluation_trials; ++i ) {
+        vector<int> distances;
+        state_t hidden = ph.sample_weather();
+        hidden.compute_distances(graph, distances);
+        while( distances[graph.num_nodes_ - 1] == numeric_limits<int>::max() ) {
+            state_t hidden = ph.sample_weather();
+            hidden.compute_distances(graph, distances);
+        }
+        cout << "dist=" << distances[graph.num_nodes_ - 1] << endl;
+        hidden.set(graph.num_edges_ - 1, 0);
+        ph.set_hidden(hidden);
+
+        state_t state = ph.init();
+        //cout << "init=" << state << endl;
+        size_t steps = 0;
+        float cost = 0;
+        float discount = 1;
+        while( (steps < evaluation_depth) && !ph.terminal(state) ) {
+            Problem::action_t action = pol(state);
+            assert(action != Problem::noop);
+            assert(policy.problem().applicable(state, action));
+            std::pair<state_t, bool> p = ph.sample(state, action);
+            if( ph.cost(state, action) > 200 ) cout << "large cost" << endl;
+            cost += discount * ph.cost(state, action);
+            discount *= DISCOUNT;
+            state = p.first;
+            ++steps;
+        }
+
+        cout << "steps=" << steps << ", cost=" << cost << endl;
+        value += cost;
+    }
+    value /= evaluation_trials;
+
+    cout << setprecision(5);
+    cout << value;
+    cout << setprecision(2);
+    cout << " ( " << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
 
     // free resources
     for( unsigned i = 0; i < results.size(); ++i ) {
