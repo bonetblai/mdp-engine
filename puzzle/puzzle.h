@@ -187,7 +187,7 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual ~problem_t() { }
 
-    virtual ::Problem::action_t number_actions() const { return 4; }
+    virtual ::Problem::action_t number_actions(const state_t &s) const { return 4; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s == goal_;

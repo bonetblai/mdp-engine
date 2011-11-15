@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <string>
 
 #include "race.h"
 
@@ -43,6 +44,10 @@ int main(int argc, const char **argv) {
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
+
+    string base_name;
+    string policy_type;
+    Evaluation::parameters_t par;
 
     cout << fixed;
     Algorithm::parameters_t parameters;
@@ -99,20 +104,14 @@ int main(int argc, const char **argv) {
         }
     }
 
-    CTP::graph_t graph;
-    if( (argc == 11) || (argc == 12) ) {
+    if( argc >= 3 ) {
         is = fopen(argv[0], "r");
-        policy = strtoul(argv[1], 0, 0);
-        rollout_width = strtoul(argv[2], 0, 0);
-        rollout_depth = strtoul(argv[3], 0, 0);
-        rollout_nesting = strtoul(argv[4], 0, 0);
-        uct_width = strtoul(argv[5], 0, 0);
-        uct_depth = strtoul(argv[6], 0, 0);
-        uct_parameter = strtod(argv[7], 0);
-        ao_width = strtoul(argv[8], 0, 0);
-        ao_depth = strtoul(argv[9], 0, 0);
-        ao_parameter = strtod(argv[10], 0);
-        if( argc == 12 ) ao_expansions_per_iteration = strtod(argv[11], 0);
+        base_name = argv[1];
+        policy_type = argv[2];
+        if( argc >= 4 ) par.width_ = strtoul(argv[3], 0, 0);
+        if( argc >= 5 ) par.depth_ = strtoul(argv[4], 0, 0);
+        if( argc >= 6 ) par.par1_ = strtod(argv[5], 0);
+        if( argc >= 7 ) par.par2_ = strtoul(argv[6], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -147,11 +146,25 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
+    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+
+    // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    evaluate_policy(policy, problem, hash, heuristic);
-    //evaluate_all_policies(problem, hash, heuristic);
+    Policy::hash_policy_t<state_t> optimal(*hash);
+    bases.push_back(make_pair(&optimal, "optimal"));
+    Policy::greedy_t<state_t> greedy(problem, *heuristic);
+    bases.push_back(make_pair(&greedy, "greedy"));
+    Policy::random_t<state_t> random(problem);
+    bases.push_back(make_pair(&random, "random"));
+
+    // evaluate
+    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
+    cout << policy.second << "= " << flush;
+    pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par);
+    cout << setprecision(5) << eval.first.first << " " << eval.first.second << setprecision(2) << " ( " << eval.second << " secs)" << endl;
 
     // free resources
+    delete policy.first;
     for( unsigned i = 0; i < results.size(); ++i ) {
         delete results[i].hash_;
     }

@@ -478,7 +478,7 @@ template<typename T> class ao3_t : public improvement_t<T> {
     }
 
     float evaluate(const T &s, unsigned depth) const {
-        return evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_ - depth);
+        return Evaluation::evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_ - depth);
     }
 };
 

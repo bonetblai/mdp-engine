@@ -207,7 +207,6 @@ size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem
     typedef typename Problem::hash_t<T>::iterator hash_iterator;
     generate_space(problem, s, hash);
 
-    std::cout << "state space = " << hash.size() << std::endl;
 #ifdef DEBUG
     std::cout << "state space = " << hash.size() << std::endl;
 #endif

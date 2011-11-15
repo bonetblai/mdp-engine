@@ -209,7 +209,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
     mutable unsigned total_evaluations_;
 
   public:
-    const Problem::hash_t<T> *optimal_;
     ao4_t(const policy_t<T> &base_policy,
           unsigned width,
           unsigned depth_bound,
@@ -238,6 +237,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
         total_evaluations_ = 0;
     }
     virtual ~ao4_t() { }
+    virtual const policy_t<T>* clone() const {
+        return new ao4_t(improvement_t<T>::base_policy_, width_, depth_bound_, ao_parameter_, delayed_evaluation_, expansions_per_iteration_, leaf_nsamples_, delayed_evaluation_nsamples_);
+    }
 
     virtual Problem::action_t operator()(const T &s) const {
         // initialize tree and priority queue
@@ -545,7 +547,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     // evaluate a state with base policy, and evaluate an action node by sampling states
     float evaluate(const T &s, unsigned depth) const {
         total_evaluations_ += leaf_nsamples_;
-        return depth < depth_bound_ ? evaluation(improvement_t<T>::base_policy_, s, leaf_nsamples_, depth_bound_ - depth) : 0;
+        return depth < depth_bound_ ? Evaluation::evaluation(improvement_t<T>::base_policy_, s, leaf_nsamples_, depth_bound_ - depth) : 0;
     }
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {
         float value = 0;

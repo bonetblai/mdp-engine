@@ -6,30 +6,41 @@ microtask_file = problem + "_mutask_"
 
 tasks = [
     #'tracks/tiny.track',
-    'tracks/barto-small.track',
-    'tracks/barto-big.track',
+    #'tracks/barto-small.track',
+    #'tracks/barto-big.track',
     #'tracks/hansen-bigger.track',
-    #'tracks/ring-1.track',
-    'tracks/ring-2.track',
+    'tracks/ring-1.track',
+    #'tracks/ring-2.track',
     #'tracks/ring-3.track',
     #'tracks/ring-4.track',
     #'tracks/ring-5.track',
     #'tracks/ring-6.track',
-    #'tracks/square-1.track',
-    'tracks/square-2.track',
+    'tracks/square-1.track',
+    #'tracks/square-2.track',
     #'tracks/square-3.track',
     #'tracks/square-4.track',
     #'tracks/square-5.track',
 ]
 
-policies = [ 1, 10, 20, 12, 22, 14, 24, 15, 25 ]
-#policies = [ 14, 24 ]
+policies = [
+    "optimal direct",
+    "greedy direct",
+    "random direct",
+    #"greedy rollout",
+    #"random rollout",
+    "greedy uct",
+    "random uct",
+    "greedy ao3",
+    "random ao3",
+    "greedy ao4",
+    "random ao4",
+]
+
 rollout_widths = [ 10, 100 ]
 uct_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000 ]
 uct_parameters = [ 0, -5, -10, -15, -20, -25, -30 ]
-ao_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500 ]
-#ao_widths = [ 2500, 5000, 10000 ]
-ao_parameters = [ 0.0, 0.4, 0.8, 1.0 ]
+ao_widths = [ 10, 25, 50, 100, 250, 500, 1000, 5000 ]
+ao_parameters = [ 0.5 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
@@ -50,50 +61,29 @@ def close_file(f):
 
 for t in tasks:
     for p in policies:
-        if p == 1 or p == 10 or p == 20: # Plain algorithms: 1=optimal, 10=greedy, 20=random
+        if p == "optimal direct" or p == "greedy direct" or p == "random direct":
             f = open_file()
-            f.write(t + ' ' + str(p) + ' ')
-            f.write('0 0 0   0 0 0   0 0 0')
+            f.write(t + ' ' + p)
             close_file(f)
-        elif p == 11 or p == 21: # Rollout: 11=greedy, 21=random
+        elif p == "greedy rollout" or p == "random rollout":
             for width in rollout_widths:
                     for nesting in range(1, 2):
                         f = open_file()
-                        f.write(t + ' ' + str(p) + ' ')
-                        f.write(str(width) + ' 50 ' + str(nesting))
-                        f.write('   0 0 0   0 0 0')
+                        f.write(t + ' ' + p + ' ')
+                        f.write(str(width) + ' 50 0 ' + str(nesting))
                         close_file(f)
-        elif p == 12 or p == 22: # UCT: 12=greedy, 22=random
+        elif p == "greedy uct" or p == "random uct":
             for width in uct_widths:
                     for par in uct_parameters:
                         f = open_file()
-                        f.write(t + ' ' + str(p) + ' ')
-                        f.write('0 0 0   ')
+                        f.write(t + ' ' + p + ' ')
                         f.write(str(width) + ' 50 ' + str(par))
-                        f.write('   0 0 0')
                         close_file(f)
-        elif p == 13 or p == 23: # AO2: 13=greedy, 23=random
+        elif p == "greedy ao3" or p == "random ao3" or p == "greedy ao4" or p == "random ao4":
             for width in ao_widths:
                     for par in ao_parameters:
                         f = open_file()
-                        f.write(t + ' ' + str(p) + ' ')
-                        f.write('0 0 0   0 0 0   ')
-                        f.write(str(width) + ' 50 ' + str(par))
-                        close_file(f)
-        elif p == 14 or p == 24: # AO3: 14=greedy, 24=random
-            for width in ao_widths:
-                    for par in ao_parameters:
-                        f = open_file()
-                        f.write(t + ' ' + str(p) + ' ')
-                        f.write('0 0 0   0 0 0   ')
-                        f.write(str(width) + ' 50 ' + str(par))
-                        close_file(f)
-        elif p == 15 or p == 25: # AO4: 15=greedy, 25=random
-            for width in ao_widths:
-                    for par in ao_parameters:
-                        f = open_file()
-                        f.write(t + ' ' + str(p) + ' ')
-                        f.write('0 0 0   0 0 0   ')
+                        f.write(t + ' ' + p + ' ')
                         f.write(str(width) + ' 50 ' + str(par))
                         close_file(f)
 

@@ -39,6 +39,11 @@ int main(int argc, const char **argv) {
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
+    int shortcut_cost = 200;
+
+    string base_name;
+    string policy_type;
+    Evaluation::parameters_t par;
 
     cout << fixed;
     Algorithm::parameters_t parameters;
@@ -56,6 +61,11 @@ int main(int argc, const char **argv) {
                 break;
             case 'b':
                 parameters.rtdp.bound_ = strtol(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'c':
+                shortcut_cost = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -90,22 +100,17 @@ int main(int argc, const char **argv) {
         }
     }
 
-    CTP::graph_t graph;
-    if( (argc == 11) || (argc == 12) ) {
+    CTP::graph_t graph(shortcut_cost);
+    if( argc >= 3 ) {
         ifstream is(argv[0], ifstream::in);
         if( !graph.parse(is) ) exit(-1);
         is.close();
-        policy = strtoul(argv[1], 0, 0);
-        rollout_width = strtoul(argv[2], 0, 0);
-        rollout_depth = strtoul(argv[3], 0, 0);
-        rollout_nesting = strtoul(argv[4], 0, 0);
-        uct_width = strtoul(argv[5], 0, 0);
-        uct_depth = strtoul(argv[6], 0, 0);
-        uct_parameter = strtod(argv[7], 0);
-        ao_width = strtoul(argv[8], 0, 0);
-        ao_depth = strtoul(argv[9], 0, 0);
-        ao_parameter = strtod(argv[10], 0);
-        if( argc == 12 ) ao_expansions_per_iteration = strtod(argv[11], 0);
+        base_name = argv[1];
+        policy_type = argv[2];
+        if( argc >= 4 ) par.width_ = strtoul(argv[3], 0, 0);
+        if( argc >= 5 ) par.depth_ = strtoul(argv[4], 0, 0);
+        if( argc >= 6 ) par.par1_ = strtod(argv[5], 0);
+        if( argc >= 7 ) par.par2_ = strtoul(argv[6], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -138,57 +143,79 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
+    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+
+    // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    evaluate_policy(policy, problem, hash, heuristic);
-    //evaluate_all_policies(problem, hash, heuristic);
-
-    problem_with_hidden_state_t ph(graph);
-    Policy::random_t<state_t> random(problem);
+    Policy::hash_policy_t<state_t> optimal(*hash);
+    bases.push_back(make_pair(&optimal, "optimal"));
     Policy::greedy_t<state_t> greedy(problem, *heuristic);
-    Policy::ao4_t<state_t> pol(greedy, ao_width, ao_depth, ao_parameter, false, ao_expansions_per_iteration); 
+    bases.push_back(make_pair(&greedy, "greedy"));
+    Policy::random_t<state_t> random(problem);
+    bases.push_back(make_pair(&random, "random"));
 
+    // evaluate
+    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
+    cout << policy.second << "= " << flush;
+
+    problem_with_hidden_state_t pwhs(graph);
+    vector<int> distances;
+    vector<float> values;
+    values.reserve(par.evaluation_trials_);
     float start_time = Utils::read_time_in_seconds();
-    float value = 0;
-    for( unsigned i = 0; i < evaluation_trials; ++i ) {
-        vector<int> distances;
-        state_t hidden = ph.sample_weather();
+    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+        // sample a good weather
+        state_t hidden = sample_weather(graph);
         hidden.compute_distances(graph, distances);
-        while( distances[graph.num_nodes_ - 1] == numeric_limits<int>::max() ) {
-            state_t hidden = ph.sample_weather();
+        while( distances[0] == numeric_limits<int>::max() ) {
+            hidden = sample_weather(graph);
             hidden.compute_distances(graph, distances);
         }
-        cout << "dist=" << distances[graph.num_nodes_ - 1] << endl;
         hidden.set(graph.num_edges_ - 1, 0);
-        ph.set_hidden(hidden);
+        pwhs.set_hidden(hidden);
 
-        state_t state = ph.init();
-        //cout << "init=" << state << endl;
+        // do evaluation from start node
         size_t steps = 0;
         float cost = 0;
         float discount = 1;
-        while( (steps < evaluation_depth) && !ph.terminal(state) ) {
-            Problem::action_t action = pol(state);
+        state_t state = pwhs.init();
+        while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
+            Problem::action_t action = (*policy.first)(state);
             assert(action != Problem::noop);
             assert(policy.problem().applicable(state, action));
-            std::pair<state_t, bool> p = ph.sample(state, action);
-            if( ph.cost(state, action) > 200 ) cout << "large cost" << endl;
-            cost += discount * ph.cost(state, action);
+            std::pair<state_t, bool> p = pwhs.sample(state, action);
+#if 0
+            if( pwhs.cost(state, action) == shortcut_cost ) {
+                cout << "large cost" << endl;
+            }
+#endif
+            cost += discount * pwhs.cost(state, action);
             discount *= DISCOUNT;
             state = p.first;
             ++steps;
         }
-
-        cout << "steps=" << steps << ", cost=" << cost << endl;
-        value += cost;
+        values.push_back(cost);
     }
-    value /= evaluation_trials;
 
-    cout << setprecision(5);
-    cout << value;
-    cout << setprecision(2);
-    cout << " ( " << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
+    // compute avg
+    float avg = 0;
+    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+        avg += values[i];
+    }
+    avg /= par.evaluation_trials_;
+
+    // compute stdev
+    float stdev = 0;
+    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+        stdev += (avg - values[i]) * (avg - values[i]);
+    }
+    stdev = sqrt(stdev) / (par.evaluation_trials_ - 1);
+
+    cout << setprecision(5) << avg << " " << stdev << setprecision(2)
+         << " ( " << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
 
     // free resources
+    delete policy.first;
     for( unsigned i = 0; i < results.size(); ++i ) {
         delete results[i].hash_;
     }

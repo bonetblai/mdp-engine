@@ -103,7 +103,7 @@ class problem_t : public Problem::problem_t<state_t> {
             delete[] ecache_[i];
     }
 
-    virtual Problem::action_t number_actions() const { return 9; }
+    virtual Problem::action_t number_actions(const state_t &s) const { return 9; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return (s != init_) && grid_.goal_pos(s.x(), s.y());
