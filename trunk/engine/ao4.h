@@ -27,10 +27,12 @@
 #include <vector>
 #include <queue>
 
-// TODO: implement bounded priority queue
-
 //#define DEBUG
 #define USE_PQ
+#define DEAD_END_VALUE  1e3
+
+// TODO: implement bounded priority queue
+// TODO: parametrize DEAD_END value
 
 namespace Policy {
 
@@ -90,28 +92,31 @@ template<typename T> struct ao4_action_node_t : public ao4_node_t<T> {
 template<typename T> struct ao4_state_node_t : public ao4_node_t<T> {
     const T state_;
     bool is_goal_;
+    bool is_dead_end_;
     unsigned depth_;
     int best_action_;
     std::vector<std::pair<int, ao4_action_node_t<T>*> > parents_;
     std::vector<ao4_action_node_t<T>*> children_;
 
     ao4_state_node_t(const T &state, unsigned depth = 0)
-      : state_(state), is_goal_(false), depth_(depth), best_action_(-1) { }
+      : state_(state), is_goal_(false), is_dead_end_(false), depth_(depth), best_action_(-1) { }
     virtual ~ao4_state_node_t() { }
 
     Problem::action_t best_action() const {
         return best_action_ == -1 ? Problem::noop : children_[best_action_]->action_;
     }
 
-    bool is_leaf() const { return !is_goal_ && children_.empty(); }
+    bool is_leaf() const { return is_dead_end_ || (!is_goal_ && children_.empty()); }
     void update_value() {
         assert(!is_goal_);
-        ao4_node_t<T>::value_ = std::numeric_limits<float>::max();
-        for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
-            float child_value = children_[i]->value_;
-            if( child_value < ao4_node_t<T>::value_ ) {
-                ao4_node_t<T>::value_ = child_value;
-                best_action_ = i;
+        if( !is_dead_end_ ) {
+            ao4_node_t<T>::value_ = std::numeric_limits<float>::max();
+            for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
+                float child_value = children_[i]->value_;
+                if( child_value < ao4_node_t<T>::value_ ) {
+                    ao4_node_t<T>::value_ = child_value;
+                    best_action_ = i;
+                }
             }
         }
     }
@@ -303,6 +308,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
             if( policy_t<T>::problem_.terminal(state) ) {
                 node->value_ = 0;
                 node->is_goal_ = true;
+            } else if( policy_t<T>::problem_.dead_end(state) ) {
+                node->value_ = DEAD_END_VALUE;
+                node->is_dead_end_ = true;
             } else {
                 node->value_ = evaluate(state, depth);
                 node->nsamples_ = leaf_nsamples_;
@@ -310,7 +318,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             return std::make_pair(node, false);
         } else {
             bool re_evaluated = false;
-            if( it->second->is_leaf() ) {
+            if( it->second->is_leaf() && !it->second->is_dead_end_ ) {
                 // resample: throw another rollout to get more accurate estimation
                 float oval = it->second->value_;
                 float nval = oval * it->second->nsamples_ + evaluate(state, depth);
@@ -331,6 +339,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void expand(ao4_action_node_t<T> *a_node, std::vector<ao4_node_t<T>*> &to_propagate, bool picked_from_queue = true) const {
         assert(a_node->is_leaf());
+        assert(!a_node->parent_->is_dead_end_);
         std::vector<std::pair<T, float> > outcomes;
         policy_t<T>::problem_.next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
@@ -368,6 +377,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void expand(ao4_state_node_t<T> *s_node, std::vector<ao4_node_t<T>*> &to_propagate) const {
         assert(s_node->is_leaf());
+        assert(!s_node->is_dead_end_);
         s_node->children_.reserve(policy_t<T>::problem_.number_actions(s_node->state_));
         for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s_node->state_); ++a ) {
             if( policy_t<T>::problem_.applicable(s_node->state_, a) ) {
@@ -429,6 +439,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     // recompute delta values for nodes in top-down BFS manner
     void recompute_delta(ao4_state_node_t<T> *root) const {
         assert(!root->is_goal_);
+        assert(!root->is_dead_end_);
 
         std::deque<ao4_state_node_t<T>*> s_queue;
         bool expanding_from_s_queue = true;
@@ -466,9 +477,10 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void recompute(ao4_state_node_t<T> *s_node, std::deque<ao4_action_node_t<T>*> &a_queue) const {
         assert(!s_node->is_goal_);
+        assert(!s_node->is_dead_end_);
         if( s_node->is_leaf() ) {
             // insert tip node into priority queue
-            if( s_node->depth_ < depth_bound_ ) {
+            if( !s_node->is_dead_end_ && (s_node->depth_ < depth_bound_) ) {
                 insert_into_priority_queue(s_node);
             }
         } else {
@@ -523,7 +535,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         } else {
             for( int i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
                 ao4_state_node_t<T> *s_node = a_node->children_[i].second;
-                if( !s_node->in_queue_ && !s_node->is_goal_ ) {
+                if( !s_node->in_queue_ && !s_node->is_goal_ && !s_node->is_dead_end_ ) {
                     float delta = std::numeric_limits<float>::max();
                     bool in_best_policy = false;
                     for( int j = 0, jsz = s_node->parents_.size(); j < jsz; ++j ) {

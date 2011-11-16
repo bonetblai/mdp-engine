@@ -10,16 +10,16 @@ tasks = [
     #'tracks/barto-big.track',
     #'tracks/hansen-bigger.track',
     'tracks/ring-1.track',
-    #'tracks/ring-2.track',
-    #'tracks/ring-3.track',
-    #'tracks/ring-4.track',
-    #'tracks/ring-5.track',
+    'tracks/ring-2.track',
+    'tracks/ring-3.track',
+    'tracks/ring-4.track',
+    'tracks/ring-5.track',
     #'tracks/ring-6.track',
     'tracks/square-1.track',
-    #'tracks/square-2.track',
-    #'tracks/square-3.track',
-    #'tracks/square-4.track',
-    #'tracks/square-5.track',
+    'tracks/square-2.track',
+    'tracks/square-3.track',
+    'tracks/square-4.track',
+    'tracks/square-5.track',
 ]
 
 policies = [
@@ -39,7 +39,7 @@ policies = [
 rollout_widths = [ 10, 100 ]
 uct_widths = [ 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000 ]
 uct_parameters = [ 0, -5, -10, -15, -20, -25, -30 ]
-ao_widths = [ 10, 25, 50, 100, 250, 500, 1000, 5000 ]
+ao_widths = [ 10, 25, 50, 100, 250, 500, 1000 ]
 ao_parameters = [ 0.5 ]
 
 def open_file():
@@ -84,6 +84,6 @@ for t in tasks:
                     for par in ao_parameters:
                         f = open_file()
                         f.write(t + ' ' + p + ' ')
-                        f.write(str(width) + ' 50 ' + str(par))
+                        f.write(str(width) + ' 50 ' + str(par) + ' 100')
                         close_file(f)
 

@@ -135,13 +135,19 @@ namespace Evaluation {
 
 template<typename T>
 inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned max_depth) {
+  begin_evaluation:
     T state = s;
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
+        //std::cout << state << std::endl;
         Problem::action_t action = policy(state);
-        assert(action != Problem::noop);
+        if( action == Problem::noop ) {
+            // assume we had bad luck, begin evaluation trial again
+            //std::cout << "resetting evaluation trial" << std::endl;
+            goto begin_evaluation;
+        }
         assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
         cost += discount * policy.problem().cost(state, action);

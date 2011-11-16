@@ -108,6 +108,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool terminal(const state_t &s) const {
         return (s != init_) && grid_.goal_pos(s.x(), s.y());
     }
+    virtual bool dead_end(const state_t &s) const { return false; }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return (a == 0) || (s != init_);
     }

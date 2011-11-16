@@ -111,9 +111,9 @@ template<typename T> class policy_graph_t {
 
         // unmark nodes
         for( list_iterator si = nodes_.begin(); si != nodes_.end(); ++si )
-            (*si).second->unmark();
+            si->second->unmark();
         for( list_iterator si = tips_.begin(); si != tips_.end(); ++si )
-            (*si).second->unmark();
+            si->second->unmark();
     }
 
     void postorder_dfs(const T &s, std::list<std::pair<T, Hash::data_t*> > &visited) {
@@ -151,13 +151,13 @@ template<typename T> class policy_graph_t {
 
         // unmark nodes
         for( list_iterator si = visited.begin(); si != visited.end(); ++si )
-            (*si).second->unmark();
+            si->second->unmark();
     }
 
     void update(std::list<std::pair<T, Hash::data_t*> > &visited) {
         for( list_iterator si = visited.begin(); si != visited.end(); ++si ) {
-            std::pair<Problem::action_t, float> p = hash_.bestQValue((*si).first);
-            (*si).second->update(p.second);
+            std::pair<Problem::action_t, float> p = hash_.bestQValue(si->first);
+            si->second->update(p.second);
             hash_.inc_updates();
         }
     }
@@ -217,16 +217,16 @@ size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem
         if( iters > parameters.vi.max_number_iterations_ ) break;
         residual = 0;
         for( hash_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
-            float hv = (*hi).second->value();
-            std::pair<Problem::action_t, float> p = hash.bestQValue((*hi).first);
+            float hv = hi->second->value();
+            std::pair<Problem::action_t, float> p = hash.bestQValue(hi->first);
             float res = (float)fabs(p.second - hv);
             residual = Utils::max(residual, res);
-            (*hi).second->update(p.second);
+            hi->second->update(p.second);
             hash.inc_updates();
 
 #ifdef DEBUG
             if( res > parameters.epsilon_ ) {
-                std::cout << "value for " << (*hi).first
+                std::cout << "value for " << hi->first
                           << " changed from " << hv << " to "
                           << p.second << std::endl;
             }
@@ -239,6 +239,32 @@ size_t value_iteration(const Problem::problem_t<T> &problem, const T &s, Problem
 #endif
     }
     return iters;
+}
+
+template<typename T>
+size_t dijkstra(const Problem::problem_t<T> &problem, const T &s, Problem::hash_t<T> &hash, const parameters_t &parameters) {
+    typedef typename Problem::hash_t<T>::iterator hash_iterator;
+    generate_space(problem, s, hash);
+
+#ifdef DEBUG
+    std::cout << "state space = " << hash.size() << std::endl;
+#endif
+
+    // set initial values (0 for terminal states, infinity for others)
+    // and initialize queue
+    for( hash_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
+        if( problem.terminal(hi->first) ) {
+            hi->second->update(0);
+            //queue.insert(hi);
+        } else {
+            hi->second->update(std::numeric_limits<float>::max());
+        }
+    }
+
+    // apply dijkstra's algorithm (need regression?)
+
+
+    return 0;
 }
 
 template<typename T>
@@ -408,10 +434,10 @@ size_t improved_lao(const Problem::problem_t<T> &problem, const T &s, Problem::h
     while( residual > parameters.epsilon_ ) {
         residual = 0.0;
         for( list_const_iterator si = graph.nodes().begin(); si != graph.nodes().end(); ++si ) {
-            float hv = (*si).second->value();
-            std::pair<Problem::action_t, float> p = hash.bestQValue((*si).first);
+            float hv = si->second->value();
+            std::pair<Problem::action_t, float> p = hash.bestQValue(si->first);
             residual = Utils::max(residual, (float)fabs(p.second - hv));
-            (*si).second->update(p.second);
+            si->second->update(p.second);
             hash.inc_updates();
         }
         graph.recompute();
