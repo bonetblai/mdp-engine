@@ -120,7 +120,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     problem_t problem(graph);
-    cout << "P(bad weather)=" << probability_bad_weather(graph, 1e6) << endl;
+    //cout << "P(bad weather)=" << probability_bad_weather(graph, 1e6) << endl;
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -147,10 +147,14 @@ int main(int argc, const char **argv) {
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    Policy::hash_policy_t<state_t> optimal(*hash);
-    bases.push_back(make_pair(&optimal, "optimal"));
-    Policy::greedy_t<state_t> greedy(problem, *heuristic);
-    bases.push_back(make_pair(&greedy, "greedy"));
+    if( hash != 0 ) {
+        Policy::hash_policy_t<state_t> optimal(*hash);
+        bases.push_back(make_pair(optimal.clone(), "optimal"));
+    }
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        bases.push_back(make_pair(greedy.clone(), "greedy"));
+    }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
@@ -177,7 +181,6 @@ int main(int argc, const char **argv) {
         // do evaluation from start node
         size_t steps = 0;
         float cost = 0;
-        float discount = 1;
         state_t state = pwhs.init();
         while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
             Problem::action_t action = (*policy.first)(state);
@@ -189,8 +192,7 @@ int main(int argc, const char **argv) {
                 cout << "large cost" << endl;
             }
 #endif
-            cost += discount * pwhs.cost(state, action);
-            discount *= DISCOUNT;
+            cost += pwhs.cost(state, action);
             state = p.first;
             ++steps;
         }
