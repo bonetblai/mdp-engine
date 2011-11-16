@@ -529,7 +529,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
         if( a_node->is_leaf() ) {
             // insert tip node into priority queue
             if( a_node->parent_->depth_ < depth_bound_ ) {
-                assert(0);
                 insert_into_priority_queue(a_node);
             }
         } else {

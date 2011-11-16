@@ -1,6 +1,7 @@
 #!/bin/bash
 
 problem=$1
+echo $problem
 
 grep -h "secs)" raw/*/output.${problem}_* |
   awk 'BEGIN { FS="[=,() ]"; } \

@@ -13,13 +13,13 @@ tasks = [
     'tracks/ring-2.track',
     'tracks/ring-3.track',
     'tracks/ring-4.track',
-    'tracks/ring-5.track',
+    #'tracks/ring-5.track',
     #'tracks/ring-6.track',
     'tracks/square-1.track',
     'tracks/square-2.track',
     'tracks/square-3.track',
     'tracks/square-4.track',
-    'tracks/square-5.track',
+    #'tracks/square-5.track',
 ]
 
 policies = [
