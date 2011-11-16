@@ -100,7 +100,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    CTP::graph_t graph(shortcut_cost);
+    CTP::graph_t graph(false, shortcut_cost);
     if( argc >= 3 ) {
         ifstream is(argv[0], ifstream::in);
         if( !graph.parse(is) ) exit(-1);
@@ -170,12 +170,13 @@ int main(int argc, const char **argv) {
     for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
         // sample a good weather
         state_t hidden = sample_weather(graph);
-        hidden.compute_distances(graph, distances);
-        while( distances[0] == numeric_limits<int>::max() ) {
+        hidden.preprocess(graph);
+        while( hidden.is_dead_end_ ) {
             hidden = sample_weather(graph);
             hidden.compute_distances(graph, distances);
+            hidden.preprocess(graph);
         }
-        hidden.set(graph.num_edges_ - 1, 0);
+        if( graph.with_shortcut_ ) hidden.set(graph.num_edges_ - 1, 0);
         pwhs.set_hidden(hidden);
 
         // do evaluation from start node
@@ -185,7 +186,7 @@ int main(int argc, const char **argv) {
         while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
             Problem::action_t action = (*policy.first)(state);
             assert(action != Problem::noop);
-            assert(policy.problem().applicable(state, action));
+            assert(problem.applicable(state, action));
             std::pair<state_t, bool> p = pwhs.sample(state, action);
 #if 0
             if( pwhs.cost(state, action) == shortcut_cost ) {

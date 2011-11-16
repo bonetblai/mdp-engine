@@ -21,10 +21,11 @@ struct state_t {
     int current_;
     unsigned long known_;
     unsigned long blocked_;
+    bool is_dead_end_;
 
   public:
-    state_t(int current = -1) : current_(current), known_(0), blocked_(0) { }
-    state_t(const state_t &s) : current_(s.current_), known_(s.known_), blocked_(s.blocked_) { }
+    state_t(int current = -1) : current_(current), known_(0), blocked_(0), is_dead_end_(false) { }
+    state_t(const state_t &s) : current_(s.current_), known_(s.known_), blocked_(s.blocked_), is_dead_end_(s.is_dead_end_) { }
     ~state_t() { }
 
     size_t hash() const { return current_ + (known_ ^ blocked_); }
@@ -45,11 +46,17 @@ struct state_t {
         else
             blocked_ &= ~mask;
     }
+    void preprocess(const CTP::graph_t &graph) {
+        std::vector<int> distances;
+        compute_distances(graph, distances, true);
+        is_dead_end_ = distances[current_] == std::numeric_limits<int>::max();
+    }
 
     const state_t& operator=(const state_t &s) {
         current_ = s.current_;
         known_ = s.known_;
         blocked_ = s.blocked_;
+        is_dead_end_ = s.is_dead_end_;
         return *this;
     }
     bool operator==(const state_t &s) const {
@@ -67,40 +74,37 @@ struct state_t {
         os << "("
            << current_
            << "," << known_
-           << "," << blocked_
-           << ")";
+           << "," << blocked_;
+        if( is_dead_end_ ) os << ",DE";
+        os << ")";
     }
 
-    void compute_distances(const CTP::graph_t &graph, std::vector<int> &dist) const {
+    void compute_distances(const CTP::graph_t &graph, std::vector<int> &dist, bool optimistic = false) const {
         dist.clear();
         dist.reserve(graph.num_nodes_);
 
-        // compute all shortest-paths from current in known graph.
+        // compute all shortest-paths from current node in known (or optimistic) graph.
         std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, CTP::open_list_cmp> queue;
 
-        // Initialization of values
+        // initialization of values
         for( int n = 0; n < graph.num_nodes_; ++n ) {
             dist.push_back(std::numeric_limits<int>::max());
         }
 
-        // Dijsktra's with current node as seed
+        // Dijsktra's with goal node as seed
         int goal = graph.num_nodes_ - 1;
         dist[goal] = 0;
         queue.push(std::make_pair(goal, 0));
         while( !queue.empty() ) {
             std::pair<int, int> p = queue.top();
             queue.pop();
-            //std::cout << "best of q=" << p.first << " with cost " << p.second << std::endl;
             if( p.second <= dist[p.first] ) {
-                //std::cout << "  expanding it..." << std::endl;
                 for( int i = 0, isz = graph.at_[p.first].size(); i < isz; ++i ) {
                     int j = graph.at_[p.first][i];
-                    if( known(j) && traversable(j) ) {
-                        assert(j != graph.num_edges_ - 1);
+                    if( (known(j) && traversable(j)) || (optimistic && !known(j)) ) {
                         const CTP::graph_t::edge_t &e = graph.edge_list_[j];
                         int cost = p.second + e.cost_;
                         int next = p.first == e.to_ ? e.from_ : e.to_;
-                        //std::cout << "  cost=" << cost << ", to=" << next << std::endl;
                         if( cost < dist[next] ) {
                             dist[next] = cost;
                             queue.push(std::make_pair(next, cost));
@@ -173,14 +177,15 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const { return s.current_ == goal_; }
+    virtual bool dead_end(const state_t &s) const { return s.is_dead_end_; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return s.current_ == -1 ? 0 : graph_.cost(graph_.at_[s.current_][a]);
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
+        //std::cout << "next" << s << " w/ a=" << a << " is:" << std::endl;
+
         ++expansions_;
         outcomes.clear();
-
-        //std::cout << "next" << s << " w a=" << a << " is:" << std::endl;
 
         int to_node = -1;
         if( s.current_ == -1 ) {
@@ -218,8 +223,9 @@ class problem_t : public Problem::problem_t<state_t> {
             }
             next.current_ = to_node;
             if( p > 0 ) {
-                //std::cout << "    " << next << " w.p. " << p << std::endl;
+                next.preprocess(graph_);
                 outcomes.push_back(std::make_pair(next, p));
+                //std::cout << "    " << next << " w.p. " << p << std::endl;
             }
         }
     }
@@ -270,7 +276,8 @@ class problem_with_hidden_state_t : public problem_t {
 
 inline state_t sample_weather(const CTP::graph_t &graph) {
     state_t state(0);
-    for( int e = 0; e < graph.num_edges_ - 1; ++e ) {
+    int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
+    for( int e = 0; e < num_edges; ++e ) {
         float p = graph.prob(e);
         if( Random::real() < p ) {
             state.set(e, 0);
@@ -278,7 +285,7 @@ inline state_t sample_weather(const CTP::graph_t &graph) {
             state.set(e, 1);
         }
     }
-    state.set(graph.num_edges_ - 1, 1);
+    if( graph.with_shortcut_ ) state.set(graph.num_edges_ - 1, 1);
     return state;
 }
 

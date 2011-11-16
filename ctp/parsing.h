@@ -5,7 +5,7 @@
 namespace CTP {
 
 struct open_list_cmp {
-    bool operator()(const std::pair<int, int> &p1, const std::pair<int, int> &p2 ) {
+    bool operator()(const std::pair<int, int> &p1, const std::pair<int, int> &p2) {
         return p1.second > p2.second;
     }
 };
@@ -13,6 +13,7 @@ struct open_list_cmp {
 struct graph_t {
     int num_nodes_;
     int num_edges_;
+    bool with_shortcut_;
     int shortcut_cost_;
     int *h_opt_;
 
@@ -26,7 +27,8 @@ struct graph_t {
     std::vector<edge_t> edge_list_;
     std::vector<std::vector<int> > at_;
 
-    graph_t(int shortcut_cost) : shortcut_cost_(shortcut_cost), h_opt_(0) { }
+    graph_t(bool with_shortcut = false, int shortcut_cost = 1000)
+      : with_shortcut_(with_shortcut), shortcut_cost_(shortcut_cost), h_opt_(0) { }
     ~graph_t() { delete[] h_opt_; }
 
     int from(int edge) const { return edge_list_[edge].from_; }
@@ -75,13 +77,13 @@ struct graph_t {
         }
 
         // insert shortcut (s,t) edge
-        int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
-        edge_list_.push_back(edge_t(from, to, shortcut_cost_, 1));
-        at_[from].push_back(e);
-        at_[to].push_back(e);
-        assert(edge_list_.size() == num_edges_);
-
-        //for( int n = 0; n < num_nodes_; ++n ) std::cout << "#neighbors[" << n << "]=" << at_[n].size() << std::endl;
+        if( with_shortcut_ ) {
+            std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
+            int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
+            edge_list_.push_back(edge_t(from, to, shortcut_cost_, 1));
+            at_[from].push_back(e);
+            at_[to].push_back(e);
+        }
 
         // compute optimistic shortest-paths to goal
         h_opt_ = new int[num_nodes_];
