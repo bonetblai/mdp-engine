@@ -4,7 +4,7 @@
 #include <vector>
 #include <limits>
 
-//#define  DISCOUNT  .99
+//#define  DISCOUNT  .95
 #define  DISCOUNT  1
 
 #include "parsing.h"
