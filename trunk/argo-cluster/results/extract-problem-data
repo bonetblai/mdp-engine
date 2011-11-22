@@ -3,7 +3,6 @@
 domain=$1
 problem=$2
 
-
 # locate files
 #echo phase0
 if [ "$domain" == "race" ]; then

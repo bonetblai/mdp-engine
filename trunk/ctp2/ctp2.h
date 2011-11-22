@@ -22,12 +22,13 @@ struct state_t {
     unsigned long known_;
     unsigned long blocked_;
     unsigned long visited_;
-    bool is_dead_end_;
     std::vector<int> distances_;
+    int heuristic_;
 
   public:
     state_t(int current = -1)
-      : current_(current), known_(0), blocked_(0), visited_(0), is_dead_end_(false) { }
+      : current_(current), known_(0), blocked_(0), visited_(0),
+        heuristic_(std::numeric_limits<int>::max()) { }
     state_t(const state_t &s) { *this = s; }
     ~state_t() { }
 
@@ -52,6 +53,8 @@ struct state_t {
         return !visited(n) && reachable(n);
     }
     int distance_to(int n) const { return distances_[n]; }
+    bool is_dead_end() const {
+        return (current_) != -1 && (heuristic_ == std::numeric_limits<int>::max()); }
 
     void move_to(int n) {
         int mask = 1 << n;
@@ -70,7 +73,7 @@ struct state_t {
         std::vector<int> distances;
         compute_distances(graph);
         compute_distances(graph, distances, true);
-        is_dead_end_ = distances[graph.num_nodes_ - 1] == std::numeric_limits<int>::max();
+        heuristic_ = distances[graph.num_nodes_ - 1];
     }
 
     const state_t& operator=(const state_t &s) {
@@ -78,7 +81,7 @@ struct state_t {
         known_ = s.known_;
         blocked_ = s.blocked_;
         visited_ = s.visited_;
-        is_dead_end_ = s.is_dead_end_;
+        heuristic_ = s.heuristic_;
         distances_ = s.distances_;
         return *this;
     }
@@ -102,7 +105,7 @@ struct state_t {
            << "," << known_
            << "," << blocked_
            << "," << visited_;
-        if( is_dead_end_ ) os << ",DE";
+        if( is_dead_end() ) os << ",DE";
         os << ")";
     }
 
@@ -206,7 +209,7 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const { return s.current_ == goal_; }
-    virtual bool dead_end(const state_t &s) const { return s.is_dead_end_; }
+    virtual bool dead_end(const state_t &s) const { return s.is_dead_end(); }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return s.current_ == -1 ? 0 : s.distance_to(a);
     }
@@ -325,4 +328,17 @@ inline float probability_bad_weather(const CTP::graph_t &graph, unsigned nsample
     }
     return prob / nsamples;
 }
+
+class min_min_t : public Heuristic::heuristic_t<state_t> {
+  public:
+    min_min_t() { }
+    virtual ~min_min_t() { }
+    virtual float value(const state_t &s) const { return (float)s.heuristic_; }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
 

@@ -4,7 +4,11 @@
 #echo phase0
 
 domain=$1
-problems=`grep $domain raw/*/output.* | awk '{ print $9 }' | sort | uniq`
+if [ "$domain" == "ctp" -o "$domain" == "ctp2" ]; then
+    problems=`grep -h $domain raw/*/output.* | awk '{ print $7 }' | sort | uniq`
+else
+    problems=`grep -h $domain raw/*/output.* | awk '{ print $9 }' | sort | uniq`
+fi
 
 if [ "$problems" == "" ]; then
     echo No files available
