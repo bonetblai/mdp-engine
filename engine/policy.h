@@ -29,6 +29,7 @@
 #include <vector>
 
 //#define DEBUG
+#define DEAD_END_VALUE 1e3
 
 namespace Policy {
 
@@ -135,18 +136,17 @@ namespace Evaluation {
 
 template<typename T>
 inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned max_depth) {
-  begin_evaluation:
     T state = s;
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
-        //std::cout << state << std::endl;
+        //std::cout << "s=" << state << std::flush;
         Problem::action_t action = policy(state);
+        //std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
-            // assume we had bad luck, begin evaluation trial again
-            //std::cout << "resetting evaluation trial" << std::endl;
-            goto begin_evaluation;
+            //std::cout << "no applicable action" << std::endl;
+            return DEAD_END_VALUE; // TODO: which value to return DEAD_END_VALUE
         }
         assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
@@ -194,6 +194,7 @@ inline std::pair<float, float> evaluation_with_stdev(const Policy::policy_t<T> &
 }; // namespace Evaluation
 
 #undef DEBUG
+#undef DEAD_END_VALUE
 
 #endif
 

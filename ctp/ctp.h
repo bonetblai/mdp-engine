@@ -68,7 +68,7 @@ struct state_t {
     bool operator<(const state_t &s) const {
         return (current_ < s.current_) ||
                ((current_ == s.current_) && (known_ < s.known_)) ||
-               ((current_ == s.current_) && (known_ == s.known_) && (blocked_ == s.blocked_));
+               ((current_ == s.current_) && (known_ == s.known_) && (blocked_ < s.blocked_));
     }
     void print(std::ostream &os) const {
         os << "("

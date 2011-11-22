@@ -683,6 +683,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
 }; // namespace Policy
 
 #undef DEBUG
+#undef DEAD_END_VALUE
 
 #endif
 

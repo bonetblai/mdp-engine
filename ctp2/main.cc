@@ -125,7 +125,7 @@ int main(int argc, const char **argv) {
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 1 ) {
-        heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
+        heuristic = new min_min_t;
     } else if( h == 2 ) {
         //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
     }
@@ -162,59 +162,62 @@ int main(int argc, const char **argv) {
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
     cout << policy.second << "= " << flush;
 
-    problem_with_hidden_state_t pwhs(graph);
-    vector<int> distances;
-    vector<float> values;
-    values.reserve(par.evaluation_trials_);
-    float start_time = Utils::read_time_in_seconds();
-    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
-        // sample a good weather
-        state_t hidden = sample_weather(graph);
-        hidden.preprocess(graph);
-        while( hidden.is_dead_end_ ) {
-            hidden = sample_weather(graph);
+    if( policy.first != 0 ) {
+        problem_with_hidden_state_t pwhs(graph);
+        vector<int> distances;
+        vector<float> values;
+        values.reserve(par.evaluation_trials_);
+        float start_time = Utils::read_time_in_seconds();
+        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+            // sample a good weather
+            state_t hidden = sample_weather(graph);
             hidden.preprocess(graph);
-        }
-        if( graph.with_shortcut_ ) hidden.set_edge_status(graph.num_edges_ - 1, false);
-        pwhs.set_hidden(hidden);
-
-        // do evaluation from start node
-        size_t steps = 0;
-        float cost = 0;
-        state_t state = pwhs.init();
-        while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
-            Problem::action_t action = (*policy.first)(state);
-            assert(action != Problem::noop);
-            assert(problem.applicable(state, action));
-            std::pair<state_t, bool> p = pwhs.sample(state, action);
-#if 0
-            if( pwhs.cost(state, action) == shortcut_cost ) {
-                cout << "large cost" << endl;
+            while( hidden.is_dead_end() ) {
+                hidden = sample_weather(graph);
+                hidden.preprocess(graph);
             }
+            if( graph.with_shortcut_ ) hidden.set_edge_status(graph.num_edges_ - 1, false);
+            pwhs.set_hidden(hidden);
+
+            // do evaluation from start node
+            size_t steps = 0;
+            float cost = 0;
+            state_t state = pwhs.init();
+            while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
+                Problem::action_t action = (*policy.first)(state);
+                assert(action != Problem::noop);
+                assert(problem.applicable(state, action));
+                std::pair<state_t, bool> p = pwhs.sample(state, action);
+#if 1
+                if( pwhs.cost(state, action) == shortcut_cost ) {
+                    cout << "large cost" << endl;
+                }
 #endif
-            cost += pwhs.cost(state, action);
-            state = p.first;
-            ++steps;
+                cost += pwhs.cost(state, action);
+                state = p.first;
+                ++steps;
+            }
+            values.push_back(cost);
         }
-        values.push_back(cost);
-    }
 
-    // compute avg
-    float avg = 0;
-    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
-        avg += values[i];
-    }
-    avg /= par.evaluation_trials_;
+        // compute avg
+        float avg = 0;
+        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+            avg += values[i];
+        }
+        avg /= par.evaluation_trials_;
 
-    // compute stdev
-    float stdev = 0;
-    for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
-        stdev += (avg - values[i]) * (avg - values[i]);
-    }
-    stdev = sqrt(stdev) / (par.evaluation_trials_ - 1);
+        // compute stdev
+        float stdev = 0;
+        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+            stdev += (avg - values[i]) * (avg - values[i]);
+        }
+        stdev = sqrt(stdev) / (par.evaluation_trials_ - 1);
 
-    cout << setprecision(5) << avg << " " << stdev << setprecision(2)
-         << " ( " << Utils::read_time_in_seconds() - start_time << " secs)" << endl;
+        cout << setprecision(5) << avg << " " << stdev << setprecision(2)
+             << " ( " << Utils::read_time_in_seconds() - start_time << " secs)";
+    }
+    cout << std::endl;
 
     // free resources
     delete policy.first;

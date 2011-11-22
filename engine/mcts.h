@@ -22,12 +22,14 @@
 #include "policy.h"
 
 #include <iostream>
+#include <iomanip>
 #include <cassert>
 #include <limits>
 #include <vector>
 #include <math.h>
 
 //#define DEBUG
+#define DEAD_END_VALUE  1e3
 
 namespace Policy {
 
@@ -178,6 +180,10 @@ template<typename T> class mcts_t : public improvement_t<T> {
             return 0;
         }
 
+        if( policy_t<T>::problem().dead_end(s) ) {
+            return DEAD_END_VALUE;
+        }
+
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
 
         if( it == table_.end() ) {
@@ -260,6 +266,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
             std::cout << " end" << std::endl;
 #endif
             return 0;
+        } else if( policy_t<T>::problem().dead_end(s) ) {
+            assert(0);
         } else {
             // select action for this node and increase counts
             Problem::action_t a = node->select_action2(policy_t<T>::problem(), uct_parameter_);
@@ -324,6 +332,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 }; // namespace Policy
 
 #undef DEBUG
+#undef DEAD_END_VALUE
 
 #endif
 
