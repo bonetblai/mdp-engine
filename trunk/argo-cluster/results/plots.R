@@ -1,11 +1,11 @@
 data.all = read.csv("data.csv", header=T, sep=",")
 attach(data.all)
 
-makeplots = function (myplot.problem) {
+makeplots = function (myplot.domain, myplot.problem) {
 
     par(lwd=1.5, lty=1)
     #par(mfrow=c(1,3))
-    par(mfrow=c(2,1))
+    par(mfcol=c(2,2))
     colors = 2 + (1:5)
 
     #line_random = data.all[problem==myplot.problem & algorithm=="random", "quality.avg"]
@@ -13,27 +13,37 @@ makeplots = function (myplot.problem) {
     #line_optimal = data.all[problem==myplot.problem & algorithm=="optimal", "quality.avg"]
     #line_rollout = data.all[problem==myplot.problem & algorithm=="rollout" & base=="random", "quality.avg"]
 
-    #for( myplot.base in c("random", "greedy") ) {
-    for( myplot.base in c("greedy") ) {
-        yrange = range(data.all[problem==myplot.problem & base==myplot.base & algorithm!="random", "quality.avg"], na.rm=TRUE)
+    for( myplot.base in c("random", "greedy") ) {
+    #for( myplot.base in c("greedy") ) {
+        yrange = range(data.all[domain==myplot.domain & problem==myplot.problem & base==myplot.base & algorithm!="random", "quality.avg"], na.rm=TRUE)
         #yrange=c(100,200)
         #for( myplot.algorithm in c("uct", "ao3", "ao4") ) {
         for( myplot.algorithm in c("uct", "ao3") ) {
-            parameters = unique(data.all[algorithm==myplot.algorithm & base==myplot.base, c("par")])
+            if( myplot.algorithm == "uct" ) {
+                parameters = c(0,-100,-250,-500,-1000)
+            } else {
+                parameters = c(0.5)
+            }
+            #parameters = unique(data.all[domain==myplot.domain & problem==myplot.problem & algorithm==myplot.algorithm & base==myplot.base, c("par")])
+#print(myplot.algorithm)
+#print(parameters)
     
             for( i in 1:length(parameters) ) {
                 # extract data
                 p = parameters[i]
-                data.plot = data.all[problem==myplot.problem &
+                data.plot = data.all[domain==myplot.domain &
+                                     problem==myplot.problem &
                                      #depth==100 &
                                      algorithm==myplot.algorithm &
                                      base==myplot.base &
                                      data.all$par==p,
-                                     c("width", "quality.avg", "quality.stdev", "time")]
+                                     c("base", "width", "quality.avg", "quality.stdev", "time")]
                 data.plot = data.plot[order(data.plot$width),]
+#print(p)
+#print(data.plot)
                 par(col=colors[i])
                 if( i == 1 ) {
-                    plot(log(data.plot$width), data.plot$quality.avg, type='l', ylim=yrange, frame.plot=FALSE, ylab="quality", xlab="width")
+                    plot(log(data.plot$width), data.plot$quality.avg, type='l', xlim=c(0,10), ylim=yrange, frame.plot=FALSE, ylab="quality", xlab="width")
                 } else {
                     lines(log(data.plot$width), data.plot$quality.avg, type='l')
                 }
