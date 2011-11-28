@@ -21,11 +21,11 @@ fi
 grep -h "secs)" $FILES |
   awk 'BEGIN { FS="[=,() ]"; } \
              { if( $1 == "optimal" || $1 == "greedy" || $1 == "random" ) {
-                   printf "%s,%s,NA,NA,NA,NA,%s,%s,%s\n",problem,$1,$3,$4,$7;
+                   printf "%s,%s,%s,NA,NA,NA,NA,%s,%s,%s\n",domain,problem,$1,$3,$4,$7;
                } else if( $1 == "ao3" || $1 == "ao4" ) {
-                   printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",problem,$1,$2,$4,$6,$8,$13,$14,$17;
+                   printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",domain,problem,$1,$2,$4,$6,$8,$13,$14,$17;
                } else {
-                   printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",problem,$1,$2,$4,$6,$8,$11,$12,$15;
+                   printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",domain,problem,$1,$2,$4,$6,$8,$11,$12,$15;
                }
-             }' problem=$problem > data/$problem.csv
+             }' domain=$domain problem=$problem >> data/$problem.csv
 
