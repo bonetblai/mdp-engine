@@ -32,19 +32,20 @@ struct theory_t {
         ncells_ = rows_ * cols_;
 
         // fill adjacent cells for inner cells
-        adjacent_ = vector<vector<int> >(ncells_, vector<int>(8, 0));
+        adjacent_ = vector<vector<int> >(ncells_, vector<int>(9, 0));
         for( int r = 1; r < rows_ - 1; ++r ) {
             for( int c = 1; c < cols_ - 1; ++c ) {
                 int p = cell(r, c);
-                assert(adjacent_[p].size() == 8);
+                assert(adjacent_[p].size() == 9);
                 adjacent_[p][0] = cell(r-1, c-1);
                 adjacent_[p][1] = cell(r-1, c);
                 adjacent_[p][2] = cell(r-1, c+1);
                 adjacent_[p][3] = cell(r, c-1);
-                adjacent_[p][4] = cell(r, c+1);
-                adjacent_[p][5] = cell(r+1, c-1);
-                adjacent_[p][6] = cell(r+1, c);
-                adjacent_[p][7] = cell(r+1, c+1);
+                adjacent_[p][4] = cell(r, c);
+                adjacent_[p][5] = cell(r, c+1);
+                adjacent_[p][6] = cell(r+1, c-1);
+                adjacent_[p][7] = cell(r+1, c);
+                adjacent_[p][8] = cell(r+1, c+1);
             }
         }
 
@@ -90,11 +91,11 @@ struct theory_t {
     // propositional variables: bomb(b,p), hasbomb(p), T(p,n), count(p,n)
     int bomb(int b, int p) const { return 0 /*b * ncells_ + p*/; }
     //int tuple(int p, int n) const { return bomb(bombs_, 0) + p * 256 + n; }
-    //int hasbomb(int p) const { return tuple(ncells_, 0) + bomb(bombs_, 0) + p; }
-    int tuple(int p, int n) const { return bomb(bombs_, 0) + p * 257 + n; }
-    int hasbomb(int p) const { return tuple(p, 256); }
+    int tuple(int p, int n) const { return bomb(bombs_, 0) + p * 512 + n; }
+    int hasbomb(int p) const { return tuple(ncells_, 0) + p; }
+    //int hasbomb(int p) const { return tuple(p, 256); }
     //int count(int p, int n) const { return tuple(ncells_, 0) + p * 10 + n; }
-    int num_vars() const { return tuple(ncells_, 0) /*count(ncells_, 0)*/; }
+    int num_vars() const { return hasbomb(ncells_); }
 
     void push(int var, bool sign) {
         clause_.push_back(sign ? 1+var : -(1+var));
@@ -107,11 +108,12 @@ struct theory_t {
 
     void cell_theory(int p, int n) {
         assert(inner(p));
+
         // terms: T(p,n) iff the binary encoding of the 8 hashbomb(p')
         // variables (for p' adjacent to p) is equal to n
 
         // forward implication (=>)
-        for( int i = 0; i < 8; ++i ) {
+        for( int i = 0; i < 9; ++i ) {
             int q = adjacent_[p][i];
             if( (n >> i) & 1 ) {
                 push(tuple(p, n), false);
@@ -125,7 +127,7 @@ struct theory_t {
         }
 
         // backward implication (<=)
-        for( int i = 0; i < 8; ++i ) {
+        for( int i = 0; i < 9; ++i ) {
             int q = adjacent_[p][i];
             if( (n >> i) & 1 ) {
                 push(hasbomb(q), false);
@@ -139,7 +141,7 @@ struct theory_t {
 
     void cell_theory(int p) {
         assert(inner(p));
-        for( int n = 0; n < 256; ++n ) {
+        for( int n = 0; n < 512; ++n ) {
             cell_theory(p, n);
         }
     }
@@ -276,7 +278,7 @@ struct theory_t {
                 push(hasbomb(p), false);
                 insert();
 
-                for( int n = 0; n < 256; ++n ) {
+                for( int n = 0; n < 512; ++n ) {
                     push(tuple(p, n), false);
                     insert();
                 }
@@ -326,31 +328,40 @@ struct theory_t {
         delete cnf;
     }
 
-    void extract_derived_literals(const std::set<int> &literals, std::vector<int> &derived_literals) {
+    void extract_derived_literals(const std::set<int> &base_literals, const std::set<int> &literals, std::vector<int> &derived_literals) {
         for( int var = 1; var <= num_vars(); ++var ) {
             int value = cnf_manager_->value(var);
             if( value != 2 ) {
                 int lit = value == 0 ? -var : var;
-                if( literals.find(lit) == literals.end() )
+                if( (literals.find(lit) == literals.end()) && (base_literals.find(lit) == base_literals.end()) )
                     derived_literals.push_back(lit);
             }
         }
     }
 
-    void deduction(const std::set<int> &literals, std::set<int> &new_literals) {
-        for( std::set<int>::const_iterator it = literals.begin(); it != literals.end(); ++it ) {
-            assert(*it != 0);
-            int var = *it < 0 ? -*it : *it ;
+    void deduction(const std::set<int> &base_literals, const std::set<int> &literals, std::set<int> &new_literals) {
+        for( std::set<int>::const_iterator it = base_literals.begin(); it != base_literals.end(); ++it ) {
+            int lit = *it;
+            assert(lit != 0);
+            int var = lit < 0 ? -lit : lit ;
             if( cnf_manager_->value(var) == 2 ) {
-                //std::cout << "decide: " << (*it < 0 ? "-" : "+") << "(cell=" << (var/257) << ",n=" << (var%257) << ")=" << *it << std::endl;
-                cnf_manager_->decide(*it);
+                cnf_manager_->decide(lit);
+            }
+        }
+
+        for( std::set<int>::const_iterator it = literals.begin(); it != literals.end(); ++it ) {
+            int lit = *it;
+            assert(lit != 0);
+            int var = lit < 0 ? -lit : lit ;
+            if( cnf_manager_->value(var) == 2 ) {
+                cnf_manager_->decide(lit);
             }
         }
 
         // extract literals asserted by UP
         std::vector<int> derived_literals;
         derived_literals.reserve(num_vars());
-        extract_derived_literals(literals, derived_literals);
+        extract_derived_literals(base_literals, literals, derived_literals);
         //std::cout << "derived literals:";
         for( unsigned i = 0, isz = derived_literals.size(); i < isz; ++i ) {
             int lit = derived_literals[i];
@@ -364,55 +375,6 @@ struct theory_t {
         cnf_manager_->backtrack(0);
     }
 };
-
-#if 0
-int main(int argc, const char **argv) {
-    ++argv;
-    int rows = atoi(*argv++);
-    int cols = atoi(*argv++);
-    int obs = atoi(*argv++);
-
-    unsigned short useed[3];
-    useed[0] = useed[1] = useed[2] = 0;
-    if( argc > 4 ) {
-        useed[0] = useed[1] = useed[2] = atoi(*argv++);
-    }
-    seed48(useed);
-
-    //int bombs = atoi(argv[3]);
-    //cerr << "rows=" << rows << ", cols=" << cols << ", bombs=" << bombs << std::endl;
-
-    cerr << "seed=" << useed[0] << std::endl;
-    cerr << "rows=" << rows << ", cols=" << cols << ", obs=" << obs << std::endl;
-    theory_t theory(rows, cols);
-    theory.theory();
-
-    for( int i = 0; i < obs; ++i ) {
-        int r = atoi(*argv++); //lrand48() % rows;
-        int c = atoi(*argv++); //lrand48() % cols;
-        int p = theory.cell(1+r, 1+c);
-        int count = atoi(*argv++);
-#if 0
-        int count = 0;
-        if( theory.corner(p) ) {
-            count = lrand48() % 4;
-        } else if( theory.side(p) ) {
-            count = lrand48() % 6;
-        } else {
-            count = lrand48() % 9;
-        }
-#endif
-        cerr << "obs: (" << r << "," << c << ")=" << count << std::endl;
-        theory.obs_theory(p, count);
-    }
-    theory.set_unused_vars();
-
-    std::cout << "c seed " << useed[0] << std::endl;
-    theory.print(std::cout);
-    return 0;
-}
-#endif
-
 
 #endif
 

@@ -141,11 +141,11 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
     float cost = 0;
     float discount = 1;
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
-        //std::cout << "s=" << state << std::flush;
+        std::cout << "s=" << state << std::flush;
         Problem::action_t action = policy(state);
-        //std::cout << ", a=" << action << std::endl;
+        std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
-            //std::cout << "no applicable action" << std::endl;
+            std::cout << "no applicable action" << std::endl;
             return DEAD_END_VALUE; // TODO: which value to return DEAD_END_VALUE
         }
         assert(policy.problem().applicable(state, action));
