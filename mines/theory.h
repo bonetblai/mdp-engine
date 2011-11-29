@@ -26,12 +26,13 @@ struct theory_t {
 
     theory_t(int rows, int cols, int bombs = 0)
         : rows_(rows), cols_(cols), bombs_(bombs), cnf_manager_(0) {
+
         rows_ += 2; // 2 extra (boundary) rows
         cols_ += 2; // 2 extra (boundary) cols
         ncells_ = rows_ * cols_;
 
         // fill adjacent cells for inner cells
-        adjacent_ = std::vector<std::vector<int> >(ncells_, std::vector<int>(8, 0));
+        adjacent_ = vector<vector<int> >(ncells_, vector<int>(8, 0));
         for( int r = 1; r < rows_ - 1; ++r ) {
             for( int c = 1; c < cols_ - 1; ++c ) {
                 int p = cell(r, c);
@@ -47,7 +48,7 @@ struct theory_t {
             }
         }
 
-        // fill bitsums for inner cells
+        // fill bitsums
         bitsums_ = std::vector<std::vector<int> >(9, std::vector<int>());
         for( int n = 0; n < 256; ++n ) {
             int count = 0, aux = n;
@@ -56,6 +57,7 @@ struct theory_t {
             }
             bitsums_[count].push_back(n);
         }
+
 #if 0
         for( int count = 0; count <= 8; ++count ) {
             std::cout << "bitsums[" << count << "] = {";
@@ -142,8 +144,8 @@ struct theory_t {
         }
     }
 
+#if 0
     void obs_theory(int p, int count) {
-        assert(inner(p));
         cell_theory(p);
         if( count == 9 ) {
             push(hasbomb(p), true);
@@ -166,6 +168,7 @@ struct theory_t {
             }
         }
     }
+#endif
 
     void theory() {
 #if 0
@@ -261,7 +264,6 @@ struct theory_t {
         }
 #endif
 
-#if 0
         // phase 5: set value for boundary cells
         for( int p = 0; p < ncells_; ++p ) {
             if( !inner(p) ) {
@@ -287,13 +289,10 @@ struct theory_t {
 #endif
             }
         }
-#endif
 
         // phase 6: set hasbomb(b) as used vars
         for( int p = 0; p < ncells_; ++p ) {
-            if( inner(p) ) {
-                used_vars_.insert(hasbomb(p));
-            }
+            used_vars_.insert(hasbomb(p));
         }
     }
 
@@ -318,10 +317,11 @@ struct theory_t {
         int clause_index = 0;
         for( std::list<std::vector<int> >::const_iterator it = clauses_.begin(); it != clauses_.end(); ++it ) {
             std::vector<int> literals = *it;
-            clause_index = cnf->add_clause(clause_index, &literals[0], literals.size());
-            assert(literals.size() > 1);
+            literals.push_back(0);
             //std::cout << "add clause: "; print(std::cout, literals);
+            clause_index = cnf->add_clause(clause_index, &literals[0], literals.size());
         }
+        cnf->no_more_clauses(clause_index);
         cnf_manager_ = new CnfManager(*cnf);
         delete cnf;
     }
@@ -340,22 +340,25 @@ struct theory_t {
     void deduction(const std::set<int> &literals, std::set<int> &new_literals) {
         for( std::set<int>::const_iterator it = literals.begin(); it != literals.end(); ++it ) {
             assert(*it != 0);
-            cnf_manager_->decide(*it);
-            //int var = *it < 0 ? -*it - 1 : *it - 1;
-            //std::cout << "decide: " << (*it < 0 ? "-" : "+") << "(cell=" << (var/257) << ",n=" << (var%257) << ")=" << *it << std::endl;
+            int var = *it < 0 ? -*it : *it ;
+            if( cnf_manager_->value(var) == 2 ) {
+                //std::cout << "decide: " << (*it < 0 ? "-" : "+") << "(cell=" << (var/257) << ",n=" << (var%257) << ")=" << *it << std::endl;
+                cnf_manager_->decide(*it);
+            }
         }
 
         // extract literals asserted by UP
         std::vector<int> derived_literals;
         derived_literals.reserve(num_vars());
         extract_derived_literals(literals, derived_literals);
-        std::cout << "derived literals:";
+        //std::cout << "derived literals:";
         for( unsigned i = 0, isz = derived_literals.size(); i < isz; ++i ) {
             int lit = derived_literals[i];
             new_literals.insert(lit);
-            std::cout << " " << lit;
+            //int var = lit < 0 ? -lit - 1 : lit - 1;
+            //std::cout << " " << (lit < 0 ? "-" : "+") << "(cell=" << (var/257) << ",n=" << (var%257) << ")" << std::endl;
         }
-        std::cout << std::endl;
+        //std::cout << std::endl;
 
         // undecide decisions
         cnf_manager_->backtrack(0);
