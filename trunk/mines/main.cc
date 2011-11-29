@@ -114,7 +114,6 @@ int main(int argc, const char **argv) {
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     problem_t problem(size, nbombs);
-    std::cout << "hola" << std::endl;
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;

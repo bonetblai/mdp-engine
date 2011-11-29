@@ -41,6 +41,21 @@ std::vector<float> tag_probability_;
 std::vector<std::vector<int> > supported_obs_;
 std::vector<std::vector<int> > refuted_obs_;
 
+inline int pcell_2_cnfcell(int cell) {
+    int c = cell % 2, r = cell / 2;
+    return (r+1) * (2 + 2) + (c+1);
+}
+
+inline int cnfcell_2_pcell(int cell) {
+    int c = cell % (2 + 2), r = cell / (2 + 2);
+    return (r-1) * 2 + (c-1);
+}
+
+inline int valid_pcell(int cell) {
+    int c = cell % (2 + 2), r = cell / (2 + 2);
+    return (r > 0) && (r < (2 + 2) - 1) && (c > 0) && (c < (2 + 2) - 1);
+}
+
 struct state_t {
     int nbombs_;
     bool dead_;
@@ -82,10 +97,11 @@ struct state_t {
         int mask = cell & 1 ? 0xF : 0XF0;
         obs_[index] = (obs_[index] & mask) | (obs << shift);
         if( act == OPEN_CELL ) {
+            //std::cout << "Open: (cell=" << cell << ",obs=" << obs << ")" << std::endl;
             for( unsigned i = 0, isz = refuted_tags->size(); i < isz; ++i ) {
-                int tag = 257 * cell + (*refuted_tags)[i];
+                int tag = 257 * pcell_2_cnfcell(cell) + (*refuted_tags)[i];
                 literals_.insert(-(1+tag));
-                //std::cout << "force literal: -(cell=" << cell << ",tag=" << (*refuted_tags)[i] << ")=" << -(1+tag) << std::endl;
+                //std::cout << "  force literal: -(cell=" << cell << ",t=" << (*refuted_tags)[i] << ")=" << -(1+tag) << std::endl;
             }
         }
         incremental_preprocess();
@@ -148,10 +164,11 @@ struct state_t {
     }
 
     void incremental_preprocess() {
-        //std::cout << "begin: incremental preprocess" << std::endl;
+        //std::cout << "begin: incremental preprocess: " << literals_.size() << std::endl;
 
         std::set<int> new_literals;
         theory->deduction(literals_, new_literals);
+        literals_.insert(new_literals.begin(), new_literals.end());
 
         // adjust probabilities given new implied literals: first process
         // negative literals that reduce support and then positive literals
@@ -161,37 +178,48 @@ struct state_t {
         for( std::set<int>::const_iterator it = new_literals.begin(); it != new_literals.end(); ++it ) {
             int lit = *it;
             assert(lit != 0);
-            if( lit < 0 ) {
-                int tag = -lit - 1;
-                float p = tag_probability_[tag];
-                for( unsigned i = 0, isz = supported_obs_[tag].size(); i < isz; ++i ) {
-                    int obs = supported_obs_[tag][i];
-                    prob_obs_[obs] -= p;
-                    std::cout << "reducing support: obs=" << obs << ", new-p=" << prob_obs_[obs] << std::endl;
+            int tag = lit < 0 ? -lit - 1 : lit - 1;
+            if( valid_pcell(tag / 257) ) {
+                int cell = cnfcell_2_pcell(tag / 257);
+                int t = tag % 257;
+                if( lit < 0 ) {
+                    float p = tag_probability_[t];
+                    //std::cout << "reducing support: t=" << t << ", p=" << p << std::endl;
+                    assert(p > 0);
+                    for( unsigned i = 0, isz = supported_obs_[t].size(); i < isz; ++i ) {
+                        int n = supported_obs_[t][i];
+                        prob_obs_[10*cell + n] -= p;
+                        //std::cout << "    (cell=" << cell << ",n=" << n << "), tag=" << t << ", new-p=" << prob_obs_[10*cell + n] << std::endl;
+                        assert(prob_obs_[10*cell + n] >= 0);
+                    }
+                } else {
                 }
             }
         }
 
+#if 0
         // positive literals: assert observations
         for( std::set<int>::const_iterator it = new_literals.begin(); it != new_literals.end(); ++it ) {
             int lit = *it;
             assert(lit != 0);
             if( lit > 0 ) {
                 int tag = lit - 1;
-                for( unsigned i = 0, isz = supported_obs_[tag].size(); i < isz; ++i ) {
-                    int obs = supported_obs_[tag][i];
-                    prob_obs_[obs] = 1;
+                int cell = tag / 257;
+                int t = tag % 257;
+                for( unsigned i = 0, isz = supported_obs_[t].size(); i < isz; ++i ) {
+                    int obs = supported_obs_[t][i];
+                    prob_obs_[10*cell + obs] = 1;
                     std::cout << "set support: obs=" << obs << ", new-p=1.0" << std::endl;
                 }
-                for( unsigned i = 0, isz = refuted_obs_[tag].size(); i < isz; ++i ) {
-                    int obs = refuted_obs_[tag][i];
-                    prob_obs_[obs] = 0;
+                for( unsigned i = 0, isz = refuted_obs_[t].size(); i < isz; ++i ) {
+                    int obs = refuted_obs_[t][i];
+                    prob_obs_[10*cell + obs] = 0;
                     std::cout << "set support: obs=" << obs << ", new-p=0.0" << std::endl;
                 }
             }
         }
+#endif
 
-        literals_.insert(new_literals.begin(), new_literals.end());
         //std::cout << "end: incremental preprocess" << std::endl;
     }
 };
@@ -216,6 +244,8 @@ class problem_t : public Problem::problem_t<state_t> {
         // refuted/support tags for observations
         refuted_tags_ = std::vector<std::vector<int> >(10, std::vector<int>());
         support_tags_ = std::vector<std::vector<int> >(10, std::vector<int>());
+        supported_obs_ = std::vector<std::vector<int> >(257, std::vector<int>());
+        refuted_obs_ = std::vector<std::vector<int> >(257, std::vector<int>());
         for( int t = 0; t < 256; ++t ) {
             refuted_tags_[9].push_back(t);
             int nbits_in_tag = 0;
@@ -224,12 +254,16 @@ class problem_t : public Problem::problem_t<state_t> {
             }
             assert(nbits_in_tag <= 8);
             support_tags_[nbits_in_tag].push_back(t);
+            supported_obs_[t].push_back(nbits_in_tag);
             for( int obs = 0; obs < 9; ++obs ) {
-                if( obs != nbits_in_tag ) refuted_tags_[obs].push_back(t);
+                if( obs != nbits_in_tag ) {
+                    refuted_tags_[obs].push_back(t);
+                }
             }
         }
 
         support_tags_[9].push_back(256);
+        supported_obs_[256].push_back(9);
         for( int obs = 0; obs < 8; ++obs ) {
             refuted_tags_[obs].push_back(256);
         }
@@ -244,12 +278,10 @@ class problem_t : public Problem::problem_t<state_t> {
 
         // set (global) tag probability
         tag_probability_ = std::vector<float>(257, 0);
-        for( int t = 0; t < 255; ++t ) tag_probability_[t] = 1.0 / 256.0;
+        for( int t = 0; t < 256; ++t ) tag_probability_[t] = 1.0 / 512.0;
         tag_probability_[256] = 0.5;
 
         // set (global) supported/refuted obs
-        supported_obs_ = std::vector<std::vector<int> >(5000, std::vector<int>(0, 0));
-        refuted_obs_ = std::vector<std::vector<int> >(5000, std::vector<int>(0, 0));
 
         // create logical theory
         theory = new theory_t(2, 2, nbombs_);
