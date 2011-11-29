@@ -34,11 +34,41 @@
 #define OBS_DEAD  9
 #define OBS_FLAG 10
 
+#define INNER     0
+#define CORNER1   1
+#define CORNER2   2
+#define CORNER3   3
+#define CORNER4   4
+#define SIDE1     5
+#define SIDE2     6
+#define SIDE3     7
+#define SIDE4     8
+#define NTYPES    9
+
 theory_t *theory = 0;
 
 std::vector<float> default_probabilities_;
-std::vector<float> tag_probability_;
-std::vector<std::vector<int> > supported_obs_;
+std::vector<float> tag_probability_[NTYPES];
+std::vector<std::vector<int> > supported_obs_[NTYPES];
+std::list<std::pair<int, std::vector<int> > > initially_refuted_tags_;
+
+inline int cell_type(int cell) {
+    int c = cell % 2, r = cell / 2;
+    if( (r > 0) && (r < 2 - 1) && (c > 0) && (c < 2 - 1) ) {
+        return INNER;
+    } else if( (r == 0) || (r == 2 - 1) ) {
+        if( c == 0 ) {
+            return r == 0 ? CORNER1 : CORNER3;
+        } else if( c == 2 - 1 ) {
+            return r == 0 ? CORNER2 : CORNER4;
+        } else {
+            return r == 0 ? SIDE1 : SIDE4;
+        }
+    } else {
+        assert((c == 0) || (c == 2 - 1));
+        return c == 0 ? SIDE2 : SIDE3;
+    }
+}
 
 inline int pcell_2_cnfcell(int cell) {
     int c = cell % 2, r = cell / 2;
@@ -96,15 +126,8 @@ struct state_t {
         int shift = cell & 1 ? 4 : 0;
         int mask = cell & 1 ? 0xF : 0XF0;
         obs_[index] = (obs_[index] & mask) | (obs << shift);
-        if( act == OPEN_CELL ) {
-            //std::cout << "Open: (cell=" << cell << ",obs=" << obs << ")" << std::endl;
-            for( unsigned i = 0, isz = refuted_tags->size(); i < isz; ++i ) {
-                int tag = 257 * pcell_2_cnfcell(cell) + (*refuted_tags)[i];
-                literals_.insert(-(1+tag));
-                //std::cout << "  force literal: -(cell=" << cell << ",t=" << (*refuted_tags)[i] << ")=" << -(1+tag) << std::endl;
-            }
-        }
-        incremental_preprocess();
+        //std::cout << "computing apply for obs=" << obs << std::endl;
+        incremental_preprocess(cell, refuted_tags);
     }
     float cost(int act, int cell) const {
         float p = probability(OPEN_CELL, cell, OBS_DEAD);
@@ -144,10 +167,17 @@ struct state_t {
         os << "(" << nbombs_
            << ",<";
         for( unsigned i = 0; i < obs_.size(); ++i ) {
-            if( (obs_[i] & 0xF) != 0xF )
-                os << 2*i << ":" << (obs_[i] & 0xF) << ",";
-            if( (obs_[i] >> 4) != 0xF )
-                os << 2*i+1 << ":" << (obs_[i] >> 4) << ",";
+            if( (obs_[i] & 0xF) != 0xF ) {
+                int obs = obs_[i] & 0xF;
+                 char c_obs = obs == 10 ? 'F' : (obs == 9 ? 'X' : (char)(obs+'0')); 
+                os << 2*i << ":" << c_obs << ",";
+            }
+            if( (obs_[i] >> 4) != 0xF ) {
+                int obs = obs_[i] >> 4;
+                 char c_obs = obs == 10 ? 'F' : (obs == 9 ? 'X' : (char)(obs+'0')); 
+                //os << 2*i+1 << ":" << (char)(obs+'0') << ",";
+                os << 2*i+1 << ":" << c_obs << ",";
+            }
         }
         os << ">)";
     }
@@ -157,18 +187,51 @@ struct state_t {
     }
 
     void initial_preprocess() {
-        //std::cout << "begin: initial preprocess" << std::endl;
+        std::cout << "begin: initial preprocess" << std::endl;
         set_default_probabilities();
-        incremental_preprocess();
-        //std::cout << "end: initial preprocess" << std::endl;
+
+        std::cout << "dump1:" << std::endl;
+        for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
+            for( int obs = 0; obs < 10; ++obs ) {
+                if( prob_obs_[10*cell + obs] > 0 )
+                    std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
+            }
+        }
+
+        for( std::list<std::pair<int, std::vector<int> > >::const_iterator it = initially_refuted_tags_.begin(); it != initially_refuted_tags_.end(); ++it ) {
+            incremental_preprocess(it->first, &it->second);
+        }
+
+        std::cout << "dump2:" << std::endl;
+        for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
+            for( int obs = 0; obs < 10; ++obs ) {
+                if( prob_obs_[10*cell + obs] > 0 )
+                    std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
+            }
+        }
+
+        std::cout << "end: initial preprocess" << std::endl;
     }
 
-    void incremental_preprocess() {
+    void incremental_preprocess(int cell = -1, const std::vector<int> *refuted_tags = 0) {
         //std::cout << "begin: incremental preprocess: " << literals_.size() << std::endl;
 
-        std::set<int> new_literals;
-        theory->deduction(literals_, new_literals);
+        std::set<int> extra_literals, new_literals;
+        if( refuted_tags != 0 ) {
+            assert(cell >= 0);
+            for( unsigned i = 0, isz = refuted_tags->size(); i < isz; ++i ) {
+                int t = (*refuted_tags)[i];
+                //std::cout << "    tag t=" << t << " refuted by obs" << std::endl;
+                int tag = (pcell_2_cnfcell(cell) << 9) + t;
+                extra_literals.insert(-(1+tag));
+            }
+        }
+
+        theory->deduction(literals_, extra_literals, new_literals);
+        literals_.insert(extra_literals.begin(), extra_literals.end());
         literals_.insert(new_literals.begin(), new_literals.end());
+
+        //std::cout << "       new-literals: " << new_literals.size() << std::endl;
 
         // adjust probabilities given new implied literals: first process
         // negative literals that reduce support and then positive literals
@@ -179,18 +242,20 @@ struct state_t {
             int lit = *it;
             assert(lit != 0);
             int tag = lit < 0 ? -lit - 1 : lit - 1;
-            if( valid_pcell(tag / 257) ) {
-                int cell = cnfcell_2_pcell(tag / 257);
-                int t = tag % 257;
+            if( valid_pcell(tag >> 9) ) {
+                int cell = cnfcell_2_pcell(tag >> 9);
+                int type = cell_type(cell);
+                int t = tag % 0b111111111;
                 if( lit < 0 ) {
-                    float p = tag_probability_[t];
-                    //std::cout << "reducing support: t=" << t << ", p=" << p << std::endl;
-                    assert(p > 0);
-                    for( unsigned i = 0, isz = supported_obs_[t].size(); i < isz; ++i ) {
-                        int n = supported_obs_[t][i];
-                        prob_obs_[10*cell + n] -= p;
-                        //std::cout << "    (cell=" << cell << ",n=" << n << "), tag=" << t << ", new-p=" << prob_obs_[10*cell + n] << std::endl;
-                        assert(prob_obs_[10*cell + n] >= 0);
+                    float p = tag_probability_[type][t];
+                    if( p > 0 ) {
+                        std::cout << "    new literal: (cell=" << cell << ",t=" << t << "), p=" << p << std::endl;
+                        for( unsigned i = 0, isz = supported_obs_[type][t].size(); i < isz; ++i ) {
+                            int n = supported_obs_[type][t][i];
+                            std::cout << "    cell=" << cell << ", obs=" << n << ", prob=" << prob_obs_[10*cell + n] << std::endl;
+                            prob_obs_[10*cell + n] -= p;
+                            assert(prob_obs_[10*cell + n] >= 0);
+                        }
                     }
                 } else {
                 }
@@ -220,14 +285,16 @@ struct state_t {
         }
 #endif
 
-#if 0
+#if 1
         // normalize probabilities
         for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
             float mass = 0;
             for( int obs = 0; obs < 10; ++obs )
                 mass += prob_obs_[10*cell + obs];
-            for( int obs = 0; obs < 10; ++obs )
-                prob_obs_[10*cell + obs] /= mass;
+            if( mass > 0 ) {
+                for( int obs = 0; obs < 10; ++obs )
+                    prob_obs_[10*cell + obs] /= mass;
+            }
         }
 #endif
 
@@ -245,55 +312,136 @@ class problem_t : public Problem::problem_t<state_t> {
     int size_;
     int nbombs_;
     state_t *init_;
-    std::vector<std::vector<int> > refuted_tags_;
+    std::vector<std::vector<int> > tags_for_type_;
+    std::vector<std::vector<int> > refuted_tags_[NTYPES];
 
   public:
     problem_t(int size, int nbombs)
       : size_(size), nbombs_(nbombs), init_(0) {
 
-        // refuted/support tags for observations
-        std::vector<std::vector<int> > support_tags(10, std::vector<int>());
-        refuted_tags_ = std::vector<std::vector<int> >(10, std::vector<int>());
-        supported_obs_ = std::vector<std::vector<int> >(257, std::vector<int>());
-        for( int t = 0; t < 256; ++t ) {
-            refuted_tags_[9].push_back(t);
-            int nbits_in_tag = 0;
-            for( int aux = t; aux != 0; aux = aux >> 1 ) {
-                if( (aux & 1) != 0 ) ++nbits_in_tag;
+        // calculate the tags applicable to each cell type
+std::cout << "calculate applicable tags" << std::endl;
+        tags_for_type_.reserve(NTYPES);
+        for( int type = 0; type < NTYPES; ++type ) {
+            std::set<int> tags;
+            for( int t = 0; t < 512; ++t ) {
+                int tag = t;
+                if( type == CORNER1 ) {
+                    tag = t & 0b110110000;
+                } else if( type == CORNER2 ) {
+                    tag = t & 0b011011000;
+                } else if( type == CORNER3 ) {
+                    tag = t & 0b000110110;
+                } else if( type == CORNER4 ) {
+                    tag = t & 0b000011011;
+                } else if( type == SIDE1 ) {
+                    tag = t & 0b111111000;
+                } else if( type == SIDE2 ) {
+                    tag = t & 0b110110110;
+                } else if( type == SIDE3 ) {
+                    tag = t & 0b011011011;
+                } else if( type == SIDE4 ) {
+                    tag = t & 0b000111111;
+                }
+                tags.insert(tag);
             }
-            assert(nbits_in_tag <= 8);
-            support_tags[nbits_in_tag].push_back(t);
-            supported_obs_[t].push_back(nbits_in_tag);
-            for( int obs = 0; obs < 9; ++obs ) {
-                if( obs != nbits_in_tag ) {
-                    refuted_tags_[obs].push_back(t);
+            std::vector<int> unique_tags;
+            unique_tags.reserve(tags.size());
+            for( std::set<int>::const_iterator it = tags.begin(); it != tags.end(); ++it )
+                unique_tags.push_back(*it);
+            tags_for_type_.push_back(unique_tags);
+        }
+
+std::cout << "calculate refuted/support tags" << std::endl;
+        // refuted/support tags for observations
+        std::vector<std::vector<int> > support_tags[NTYPES];
+        for( int type = 0; type < NTYPES; ++type ) {
+            support_tags[type] = std::vector<std::vector<int> >(10, std::vector<int>());
+            supported_obs_[type] = std::vector<std::vector<int> >(512, std::vector<int>());
+            refuted_tags_[type] = std::vector<std::vector<int> >(10, std::vector<int>());
+            for( int i = 0, isz = tags_for_type_[type].size(); i < isz; ++i ) {
+                int t = tags_for_type_[type][i];
+                refuted_tags_[type][9].push_back(t);
+                int nbits_in_tag = 0;
+                for( int aux = t; aux != 0; aux = aux >> 1 ) {
+                    if( (aux & 1) != 0 ) ++nbits_in_tag;
+                }
+                assert(nbits_in_tag <= 9);
+                if( (t >> 4) & 1 ) {
+                    support_tags[type][9].push_back(t);
+                    supported_obs_[type][t].push_back(9);
+                    for( int obs = 0; obs < 9; ++obs ) {
+                        refuted_tags_[type][obs].push_back(t);
+                    }
+                } else {
+                    support_tags[type][nbits_in_tag].push_back(t);
+                    supported_obs_[type][t].push_back(nbits_in_tag);
+                    for( int obs = 0; obs < 10; ++obs ) {
+                        if( obs != nbits_in_tag ) {
+                            refuted_tags_[type][obs].push_back(t);
+                        }
+                    }
                 }
             }
         }
 
-        support_tags[9].push_back(256);
-        supported_obs_[256].push_back(9);
-        for( int obs = 0; obs < 8; ++obs ) {
-            refuted_tags_[obs].push_back(256);
+std::cout << "calculate probability of tags" << std::endl;
+        // set (global) probabilities for tags
+        for( int type = 0; type < NTYPES; ++type ) {
+            float p = 1.0 / 512.0;
+            if( (type > 0) && (type < SIDE1) ) {
+                p = 1.0 / 16.0;
+            } else if( type >= SIDE1 ) {
+                p = 1.0 / 64.0;
+            }
+            tag_probability_[type] = std::vector<float>(512, 0.0);
+            for( int i = 0, isz = tags_for_type_[type].size(); i < isz; ++i ) {
+                int t = tags_for_type_[type][i];
+                tag_probability_[type][t] = p;
+            }
         }
 
-        // set (global) default probabilities
+std::cout << "calculate default probabilities for obs" << std::endl;
+        // set (global) default probabilities for obs
         default_probabilities_ = std::vector<float>(10 * size_, 0);
         for( int cell = 0; cell < size_; ++cell ) {
-            for( int obs = 0; obs < 9; ++obs )
-                default_probabilities_[10*cell + obs] = (float)support_tags[obs].size() / 512.0;
-            default_probabilities_[10*cell + 9] = 0.5;
+            float mass = 0;
+            int type = cell_type(cell);
+            for( int obs = 0; obs < 10; ++obs ) {
+                for( int i = 0, isz = support_tags[type][obs].size(); i < isz; ++i ) {
+                    int t = support_tags[type][obs][i];
+                    float p = tag_probability_[type][t];
+                    default_probabilities_[10*cell + obs] += p;
+                    mass += p;
+                }
+            }
+            assert(mass == 1.0);
         }
 
-        // set (global) tag probability
-        tag_probability_ = std::vector<float>(257, 0);
-        for( int t = 0; t < 256; ++t ) tag_probability_[t] = 1.0 / 512.0;
-        tag_probability_[256] = 0.5;
+std::cout << "calculate initial refuted tags given knowledge about #bombs" << std::endl;
+        if( nbombs_ < 8 ) {
+            // no observation with more than nbombs is possible,
+            // so remove all tags incompatible with this number
+            for( int cell = 0; cell < size_; ++cell ) {
+                std::vector<int> refuted;
+                int type = cell_type(cell);
+                for( int obs = 1 + nbombs_; obs < 10; ++obs ) {
+                    for( int i = 0, isz = support_tags[type][obs].size(); i < isz; ++i ) {
+                        int t = support_tags[type][obs][i];
+                        refuted.push_back(t);
+std::cout << "    tag (cell=" << cell << ",t=" << t << ") is refuted at init by #bombs=" << nbombs_ << std::endl;
+                    }
+                }
+                initially_refuted_tags_.push_back(std::make_pair(cell, refuted));
+            }
+        }
 
+std::cout << "create logical theory" << std::endl;
         // create logical theory
         theory = new theory_t(2, 2, nbombs_);
         theory->create_manager();
 
+std::cout << "create initial state" << std::endl;
         // create initial state
         init_ = new state_t(size_, nbombs_);
     }
@@ -319,6 +467,7 @@ class problem_t : public Problem::problem_t<state_t> {
 
         int cell = a >> 1;
         int act = a & 1;
+        int type = cell_type(cell);
         std::cout << "next" << s << " w/ a=(" << (act == FLAG_CELL ? "flag:" : "open:") << cell << ") is:" << std::endl;
 
         float mass = 0;
@@ -339,7 +488,7 @@ class problem_t : public Problem::problem_t<state_t> {
                 float p = s.probability(act, cell, obs);
                 if( p > 0 ) {
                     state_t next = s;
-                    next.apply(act, cell, obs, &refuted_tags_[obs]);
+                    next.apply(act, cell, obs, &refuted_tags_[type][obs]);
                     outcomes.push_back(std::make_pair(next, p));
                     std::cout << "    " << next << " w.p. " << p << std::endl;
                     mass += p;
