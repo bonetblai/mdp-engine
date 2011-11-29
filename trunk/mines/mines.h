@@ -39,7 +39,6 @@ theory_t *theory = 0;
 std::vector<float> default_probabilities_;
 std::vector<float> tag_probability_;
 std::vector<std::vector<int> > supported_obs_;
-std::vector<std::vector<int> > refuted_obs_;
 
 inline int pcell_2_cnfcell(int cell) {
     int c = cell % 2, r = cell / 2;
@@ -78,6 +77,7 @@ struct state_t {
     bool terminal() const { return nbombs_ == 0; }
     bool is_dead_end() const { return dead_; }
     bool applicable(int act, int cell) const {
+        if( (act == FLAG_CELL) && (nbombs_ == 0) ) return false;
         int index = cell >> 1;
         int shift = cell & 1 ? 4 : 0;
         int obs = (obs_[index] >> shift) & 0xF;
@@ -220,6 +220,17 @@ struct state_t {
         }
 #endif
 
+#if 0
+        // normalize probabilities
+        for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
+            float mass = 0;
+            for( int obs = 0; obs < 10; ++obs )
+                mass += prob_obs_[10*cell + obs];
+            for( int obs = 0; obs < 10; ++obs )
+                prob_obs_[10*cell + obs] /= mass;
+        }
+#endif
+
         //std::cout << "end: incremental preprocess" << std::endl;
     }
 };
@@ -235,17 +246,15 @@ class problem_t : public Problem::problem_t<state_t> {
     int nbombs_;
     state_t *init_;
     std::vector<std::vector<int> > refuted_tags_;
-    std::vector<std::vector<int> > support_tags_;
 
   public:
     problem_t(int size, int nbombs)
       : size_(size), nbombs_(nbombs), init_(0) {
 
         // refuted/support tags for observations
+        std::vector<std::vector<int> > support_tags(10, std::vector<int>());
         refuted_tags_ = std::vector<std::vector<int> >(10, std::vector<int>());
-        support_tags_ = std::vector<std::vector<int> >(10, std::vector<int>());
         supported_obs_ = std::vector<std::vector<int> >(257, std::vector<int>());
-        refuted_obs_ = std::vector<std::vector<int> >(257, std::vector<int>());
         for( int t = 0; t < 256; ++t ) {
             refuted_tags_[9].push_back(t);
             int nbits_in_tag = 0;
@@ -253,7 +262,7 @@ class problem_t : public Problem::problem_t<state_t> {
                 if( (aux & 1) != 0 ) ++nbits_in_tag;
             }
             assert(nbits_in_tag <= 8);
-            support_tags_[nbits_in_tag].push_back(t);
+            support_tags[nbits_in_tag].push_back(t);
             supported_obs_[t].push_back(nbits_in_tag);
             for( int obs = 0; obs < 9; ++obs ) {
                 if( obs != nbits_in_tag ) {
@@ -262,7 +271,7 @@ class problem_t : public Problem::problem_t<state_t> {
             }
         }
 
-        support_tags_[9].push_back(256);
+        support_tags[9].push_back(256);
         supported_obs_[256].push_back(9);
         for( int obs = 0; obs < 8; ++obs ) {
             refuted_tags_[obs].push_back(256);
@@ -270,18 +279,16 @@ class problem_t : public Problem::problem_t<state_t> {
 
         // set (global) default probabilities
         default_probabilities_ = std::vector<float>(10 * size_, 0);
-        for( int p = 0; p < size_; ++p ) {
+        for( int cell = 0; cell < size_; ++cell ) {
             for( int obs = 0; obs < 9; ++obs )
-                default_probabilities_[10*p + obs] = (float)support_tags_[obs].size() / 512.0;
-            default_probabilities_[10*p + 9] = 0.5;
+                default_probabilities_[10*cell + obs] = (float)support_tags[obs].size() / 512.0;
+            default_probabilities_[10*cell + 9] = 0.5;
         }
 
         // set (global) tag probability
         tag_probability_ = std::vector<float>(257, 0);
         for( int t = 0; t < 256; ++t ) tag_probability_[t] = 1.0 / 512.0;
         tag_probability_[256] = 0.5;
-
-        // set (global) supported/refuted obs
 
         // create logical theory
         theory = new theory_t(2, 2, nbombs_);
@@ -305,17 +312,18 @@ class problem_t : public Problem::problem_t<state_t> {
         return s.cost(a & 1, a >> 1);
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
-        std::cout << "next" << s << " w/ a=" << a << " is:" << std::endl;
+        assert(s.nbombs_ >= 0);
 
         ++expansions_;
         outcomes.clear();
 
         int cell = a >> 1;
         int act = a & 1;
+        std::cout << "next" << s << " w/ a=(" << (act == FLAG_CELL ? "flag:" : "open:") << cell << ") is:" << std::endl;
 
         float mass = 0;
         if( act == FLAG_CELL ) {
-            // this is a flag action, it has only 1 outcome
+            // this is a FLAG action, it has only 1 outcome
             outcomes.reserve(1);
             state_t next = s;
             next.apply(act, cell, OBS_FLAG);
@@ -323,7 +331,7 @@ class problem_t : public Problem::problem_t<state_t> {
             std::cout << "    " << next << " w.p. " << 1.0 << std::endl;
             mass += 1;
         } else {
-            // this is an open action, it has 10 possible outcomes:
+            // this is an OPEN action, it has 10 possible outcomes:
             // observing a number between 0..8 and DEAD. The possible
             // outcomes are those with non-zero probability
             outcomes.reserve(10);
@@ -331,7 +339,6 @@ class problem_t : public Problem::problem_t<state_t> {
                 float p = s.probability(act, cell, obs);
                 if( p > 0 ) {
                     state_t next = s;
-                    //std::cout << "obs=" << obs << ", rt.sz=" << refuted_tags_[obs].size() << std::endl;
                     next.apply(act, cell, obs, &refuted_tags_[obs]);
                     outcomes.push_back(std::make_pair(next, p));
                     std::cout << "    " << next << " w.p. " << p << std::endl;
@@ -339,9 +346,9 @@ class problem_t : public Problem::problem_t<state_t> {
                 }
             }
         }
-        std::cout << "done with expansion: mass=" << mass << std::endl;
+        //std::cout << "done with expansion: mass=" << mass << std::endl;
         assert(!outcomes.empty());
-        assert(mass == 1.0);
+        assert(fabs(mass - 1.0) < 0.00001);
     }
     virtual void print(std::ostream &os) const { }
 };
