@@ -49,9 +49,10 @@ struct theory_t {
             }
         }
 
+#if 0
         // fill bitsums
-        bitsums_ = std::vector<std::vector<int> >(9, std::vector<int>());
-        for( int n = 0; n < 256; ++n ) {
+        bitsums_ = std::vector<std::vector<int> >(10, std::vector<int>());
+        for( int n = 0; n < 512; ++n ) {
             int count = 0, aux = n;
             for( ; aux != 0; aux = aux >> 1 ) {
                 if( aux & 1 ) ++count;
@@ -59,7 +60,6 @@ struct theory_t {
             bitsums_[count].push_back(n);
         }
 
-#if 0
         for( int count = 0; count <= 8; ++count ) {
             std::cout << "bitsums[" << count << "] = {";
             for( int i = 0; i < bitsums_[count].size(); ++i ) {

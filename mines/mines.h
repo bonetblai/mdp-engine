@@ -193,7 +193,7 @@ struct state_t {
         std::cout << "dump1:" << std::endl;
         for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
             for( int obs = 0; obs < 10; ++obs ) {
-                if( prob_obs_[10*cell + obs] > 0 )
+                if( prob_obs_[10*cell + obs] > 0 && cell == 3 )
                     std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
             }
         }
@@ -205,7 +205,7 @@ struct state_t {
         std::cout << "dump2:" << std::endl;
         for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
             for( int obs = 0; obs < 10; ++obs ) {
-                if( prob_obs_[10*cell + obs] > 0 )
+                if( prob_obs_[10*cell + obs] > 0 && cell == 3 )
                     std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
             }
         }
@@ -216,12 +216,14 @@ struct state_t {
     void incremental_preprocess(int cell = -1, const std::vector<int> *refuted_tags = 0) {
         //std::cout << "begin: incremental preprocess: " << literals_.size() << std::endl;
 
+assert(cell == cnfcell_2_pcell(pcell_2_cnfcell(cell)));
+
         std::set<int> extra_literals, new_literals;
         if( refuted_tags != 0 ) {
             assert(cell >= 0);
             for( unsigned i = 0, isz = refuted_tags->size(); i < isz; ++i ) {
                 int t = (*refuted_tags)[i];
-                //std::cout << "    tag t=" << t << " refuted by obs" << std::endl;
+                if( cell == 3 ) std::cout << "    tag t=" << t << " refuted by obs" << std::endl;
                 int tag = (pcell_2_cnfcell(cell) << 9) + t;
                 extra_literals.insert(-(1+tag));
             }
@@ -245,14 +247,15 @@ struct state_t {
             if( valid_pcell(tag >> 9) ) {
                 int cell = cnfcell_2_pcell(tag >> 9);
                 int type = cell_type(cell);
-                int t = tag % 0b111111111;
+                int t = tag & 0b111111111;
+                assert((t >= 0) && (t < 512));
                 if( lit < 0 ) {
                     float p = tag_probability_[type][t];
+                    if( cell == 3 ) std::cout << "    new literal: (cell=" << cell << ",t=" << t << "), p=" << p << std::endl;
                     if( p > 0 ) {
-                        std::cout << "    new literal: (cell=" << cell << ",t=" << t << "), p=" << p << std::endl;
                         for( unsigned i = 0, isz = supported_obs_[type][t].size(); i < isz; ++i ) {
                             int n = supported_obs_[type][t][i];
-                            std::cout << "    cell=" << cell << ", obs=" << n << ", prob=" << prob_obs_[10*cell + n] << std::endl;
+                            if( cell == 3 ) std::cout << "    cell=" << cell << ", obs=" << n << ", prob=" << prob_obs_[10*cell + n] << std::endl;
                             prob_obs_[10*cell + n] -= p;
                             assert(prob_obs_[10*cell + n] >= 0);
                         }
@@ -361,7 +364,6 @@ std::cout << "calculate refuted/support tags" << std::endl;
             refuted_tags_[type] = std::vector<std::vector<int> >(10, std::vector<int>());
             for( int i = 0, isz = tags_for_type_[type].size(); i < isz; ++i ) {
                 int t = tags_for_type_[type][i];
-                refuted_tags_[type][9].push_back(t);
                 int nbits_in_tag = 0;
                 for( int aux = t; aux != 0; aux = aux >> 1 ) {
                     if( (aux & 1) != 0 ) ++nbits_in_tag;
@@ -395,10 +397,13 @@ std::cout << "calculate probability of tags" << std::endl;
                 p = 1.0 / 64.0;
             }
             tag_probability_[type] = std::vector<float>(512, 0.0);
+            float mass = 0;
             for( int i = 0, isz = tags_for_type_[type].size(); i < isz; ++i ) {
                 int t = tags_for_type_[type][i];
                 tag_probability_[type][t] = p;
+                mass += p;
             }
+            assert(mass == 1);
         }
 
 std::cout << "calculate default probabilities for obs" << std::endl;
@@ -425,13 +430,26 @@ std::cout << "calculate initial refuted tags given knowledge about #bombs" << st
             for( int cell = 0; cell < size_; ++cell ) {
                 std::vector<int> refuted;
                 int type = cell_type(cell);
-                for( int obs = 1 + nbombs_; obs < 10; ++obs ) {
+                for( int obs = 1 + nbombs_; obs < 9; ++obs ) {
                     for( int i = 0, isz = support_tags[type][obs].size(); i < isz; ++i ) {
                         int t = support_tags[type][obs][i];
                         refuted.push_back(t);
-std::cout << "    tag (cell=" << cell << ",t=" << t << ") is refuted at init by #bombs=" << nbombs_ << std::endl;
+if( cell == 3 ) std::cout << "    tag (cell=" << cell << ",t=" << t << ") is refuted at init by #bombs=" << nbombs_ << std::endl;
                     }
                 }
+                for( int i = 0, isz = support_tags[type][9].size(); i < isz; ++i ) {
+                    int t = support_tags[type][9][i];
+                    assert(t & 0b000010000);
+                    int nbits = 0;
+                    for( int aux = t; aux != 0; aux = aux >> 1 ) {
+                        nbits += aux & 1 ? 1 : 0;
+                    }
+                    if( nbits > nbombs_ ) {
+                        refuted.push_back(t);
+if( cell == 3 ) std::cout << "    tag (cell=" << cell << ",t=" << t << ") is refuted at init by #bombs=" << nbombs_ << std::endl;
+                    }
+                }
+                refuted.push_back(0);
                 initially_refuted_tags_.push_back(std::make_pair(cell, refuted));
             }
         }
