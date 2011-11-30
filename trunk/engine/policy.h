@@ -65,6 +65,7 @@ template<typename T> class random_t : public policy_t<T> {
     virtual const policy_t<T>* clone() const { return new random_t(policy_t<T>::problem_); }
 
     virtual Problem::action_t operator()(const T &s) const {
+        if( policy_t<T>::problem_.dead_end(s) ) return Problem::noop;
         std::vector<Problem::action_t> actions;
         actions.reserve(policy_t<T>::problem_.number_actions(s));
         for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
@@ -141,9 +142,9 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
     float cost = 0;
     float discount = 1;
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
-        std::cout << "s=" << state << std::flush;
+        //std::cout << "s=" << state << std::flush;
         Problem::action_t action = policy(state);
-        std::cout << ", a=" << action << std::endl;
+        //std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
             std::cout << "no applicable action" << std::endl;
             return DEAD_END_VALUE; // TODO: which value to return DEAD_END_VALUE

@@ -179,7 +179,9 @@ struct state_t {
                 os << 2*i+1 << ":" << c_obs << ",";
             }
         }
-        os << ">)";
+        os << ">";
+        if( dead_ ) os << ",DE";
+        os << ")";
     }
 
     void set_default_probabilities() {
@@ -187,9 +189,10 @@ struct state_t {
     }
 
     void initial_preprocess() {
-        std::cout << "begin: initial preprocess" << std::endl;
+        //std::cout << "begin: initial preprocess" << std::endl;
         set_default_probabilities();
 
+#if 0
         std::cout << "dump1:" << std::endl;
         for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
             for( int obs = 0; obs < 10; ++obs ) {
@@ -197,11 +200,13 @@ struct state_t {
                     std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
             }
         }
+#endif
 
         for( std::list<std::pair<int, std::vector<int> > >::const_iterator it = initially_refuted_tags_.begin(); it != initially_refuted_tags_.end(); ++it ) {
             incremental_preprocess(it->first, &it->second);
         }
 
+#if 0
         std::cout << "dump2:" << std::endl;
         for( int cell = 0, sz = prob_obs_.size() / 10; cell < sz; ++cell ) {
             for( int obs = 0; obs < 10; ++obs ) {
@@ -209,8 +214,9 @@ struct state_t {
                     std::cout << "P(obs(cell=" << cell << ")=" << obs << ")=" << prob_obs_[10*cell + obs] << std::endl;
             }
         }
+#endif
 
-        std::cout << "end: initial preprocess" << std::endl;
+        //std::cout << "end: initial preprocess" << std::endl;
     }
 
     void incremental_preprocess(int cell = -1, const std::vector<int> *refuted_tags = 0) {
@@ -223,14 +229,14 @@ assert(cell == cnfcell_2_pcell(pcell_2_cnfcell(cell)));
             assert(cell >= 0);
             for( unsigned i = 0, isz = refuted_tags->size(); i < isz; ++i ) {
                 int t = (*refuted_tags)[i];
-                if( cell == 3 ) std::cout << "    tag t=" << t << " refuted by obs" << std::endl;
+                //if( cell == 3 ) std::cout << "    tag t=" << t << " refuted by obs" << std::endl;
                 int tag = (pcell_2_cnfcell(cell) << 9) + t;
                 extra_literals.insert(-(1+tag));
             }
         }
 
         theory->deduction(literals_, extra_literals, new_literals);
-        literals_.insert(extra_literals.begin(), extra_literals.end());
+        //literals_.insert(extra_literals.begin(), extra_literals.end());
         literals_.insert(new_literals.begin(), new_literals.end());
 
         //std::cout << "       new-literals: " << new_literals.size() << std::endl;
@@ -251,11 +257,11 @@ assert(cell == cnfcell_2_pcell(pcell_2_cnfcell(cell)));
                 assert((t >= 0) && (t < 512));
                 if( lit < 0 ) {
                     float p = tag_probability_[type][t];
-                    if( cell == 3 ) std::cout << "    new literal: (cell=" << cell << ",t=" << t << "), p=" << p << std::endl;
                     if( p > 0 ) {
+                        //if( cell == 3 ) std::cout << "    new literal: (cell=" << cell << ",t=" << t << "), p=" << p << std::endl;
                         for( unsigned i = 0, isz = supported_obs_[type][t].size(); i < isz; ++i ) {
                             int n = supported_obs_[type][t][i];
-                            if( cell == 3 ) std::cout << "    cell=" << cell << ", obs=" << n << ", prob=" << prob_obs_[10*cell + n] << std::endl;
+                            //if( cell == 3 ) std::cout << "    cell=" << cell << ", obs=" << n << ", prob=" << prob_obs_[10*cell + n] << std::endl;
                             prob_obs_[10*cell + n] -= p;
                             assert(prob_obs_[10*cell + n] >= 0);
                         }
@@ -475,6 +481,7 @@ std::cout << "create initial state" << std::endl;
     virtual bool terminal(const state_t &s) const { return s.terminal(); }
     virtual bool dead_end(const state_t &s) const { return s.is_dead_end(); }
     virtual float cost(const state_t &s, Problem::action_t a) const {
+        //std::cout << "cost(a=" << a << ",s=" << s << ")=" << s.cost(a&1,a>>1) << std::endl;
         return s.cost(a & 1, a >> 1);
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
@@ -486,7 +493,7 @@ std::cout << "create initial state" << std::endl;
         int cell = a >> 1;
         int act = a & 1;
         int type = cell_type(cell);
-        std::cout << "next" << s << " w/ a=(" << (act == FLAG_CELL ? "flag:" : "open:") << cell << ") is:" << std::endl;
+        std::cout << "next" << s << " w/ a=(" << (act == FLAG_CELL ? "FLAG:" : "OPEN:") << cell << ") is:" << std::endl;
 
         float mass = 0;
         if( act == FLAG_CELL ) {
@@ -525,12 +532,11 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
     return os;
 }
 
-#if 0
 class min_min_t : public Heuristic::heuristic_t<state_t> {
   public:
     min_min_t() { }
     virtual ~min_min_t() { }
-    virtual float value(const state_t &s) const { return (float)s.heuristic_; }
+    virtual float value(const state_t &s) const { return (float)s.nbombs_; }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
     virtual float eval_time() const { return 0; }
@@ -538,5 +544,4 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
     virtual void dump(std::ostream &os) const { }
     float operator()(const state_t &s) const { return value(s); }
 };
-#endif
 

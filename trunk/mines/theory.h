@@ -3,12 +3,13 @@
 
 #include <iostream>
 #include <stdlib.h>
+#include <algorithm>
 #include <list>
 #include <set>
 #include <vector>
 #include <cassert>
 
-#include <CnfManager.h>
+#include <CnfManager.h> // Jinbo Huang's SAT engine, tinisat
 
 struct theory_t {
     int rows_;
@@ -89,12 +90,10 @@ struct theory_t {
     }
 
     // propositional variables: bomb(b,p), hasbomb(p), T(p,n), count(p,n)
-    int bomb(int b, int p) const { return 0 /*b * ncells_ + p*/; }
-    //int tuple(int p, int n) const { return bomb(bombs_, 0) + p * 256 + n; }
-    int tuple(int p, int n) const { return bomb(bombs_, 0) + p * 512 + n; }
+    // Note: T(p,n) must be first variables to match indices used in mines.h
+    int tuple(int p, int n) const { return p * 512 + n; }
     int hasbomb(int p) const { return tuple(ncells_, 0) + p; }
-    //int hasbomb(int p) const { return tuple(p, 256); }
-    //int count(int p, int n) const { return tuple(ncells_, 0) + p * 10 + n; }
+    int bomb(int b, int p) const { return 0; }
     int num_vars() const { return hasbomb(ncells_); }
 
     void push(int var, bool sign) {
@@ -227,12 +226,10 @@ struct theory_t {
         }
 #endif
 
-#if 1
         // phase 3: tuples
         for( int p = 0; p < ncells_; ++p ) {
             if( inner(p) ) cell_theory(p);
         }
-#endif
 
 #if 0
         // phase 4: count(p,n) iff there are n bombs adjacent to the cell
@@ -320,26 +317,27 @@ struct theory_t {
         for( std::list<std::vector<int> >::const_iterator it = clauses_.begin(); it != clauses_.end(); ++it ) {
             std::vector<int> literals = *it;
             literals.push_back(0);
-            //std::cout << "add clause: "; print(std::cout, literals);
             clause_index = cnf->add_clause(clause_index, &literals[0], literals.size());
+            //std::cout << "add clause: "; print(std::cout, literals);
         }
         cnf->no_more_clauses(clause_index);
         cnf_manager_ = new CnfManager(*cnf);
         delete cnf;
     }
 
-    void extract_derived_literals(const std::set<int> &base_literals, const std::set<int> &literals, std::vector<int> &derived_literals) {
+    void extract_derived_literals(const std::set<int> &base_literals, std::set<int> &derived_literals) {
         for( int var = 1; var <= num_vars(); ++var ) {
             int value = cnf_manager_->value(var);
             if( value != 2 ) {
                 int lit = value == 0 ? -var : var;
-                if( (literals.find(lit) == literals.end()) && (base_literals.find(lit) == base_literals.end()) )
-                    derived_literals.push_back(lit);
+                if( base_literals.find(lit) == base_literals.end() )
+                    derived_literals.insert(lit);
             }
         }
     }
 
     void deduction(const std::set<int> &base_literals, const std::set<int> &literals, std::set<int> &new_literals) {
+        // decide literals in base
         for( std::set<int>::const_iterator it = base_literals.begin(); it != base_literals.end(); ++it ) {
             int lit = *it;
             assert(lit != 0);
@@ -349,6 +347,7 @@ struct theory_t {
             }
         }
 
+        // decide literals
         for( std::set<int>::const_iterator it = literals.begin(); it != literals.end(); ++it ) {
             int lit = *it;
             assert(lit != 0);
@@ -359,19 +358,10 @@ struct theory_t {
         }
 
         // extract literals asserted by UP
-        std::vector<int> derived_literals;
-        derived_literals.reserve(num_vars());
-        extract_derived_literals(base_literals, literals, derived_literals);
-        //std::cout << "derived literals:";
-        for( unsigned i = 0, isz = derived_literals.size(); i < isz; ++i ) {
-            int lit = derived_literals[i];
-            new_literals.insert(lit);
-            //int var = lit < 0 ? -lit - 1 : lit - 1;
-            //std::cout << " " << (lit < 0 ? "-" : "+") << "(cell=" << (var/257) << ",n=" << (var%257) << ")" << std::endl;
-        }
-        //std::cout << std::endl;
+        new_literals.clear();
+        extract_derived_literals(base_literals, new_literals);
 
-        // undecide decisions
+        // backtrack to dlevel 0; i.e., un-decide decisions
         cnf_manager_->backtrack(0);
     }
 };
