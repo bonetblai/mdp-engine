@@ -109,7 +109,7 @@ template<typename T> class problem_t {
     mutable size_t expansions_;
 
   public:
-    problem_t(float discount, float dead_end_value)
+    problem_t(float discount = 1.0, float dead_end_value = 1e3)
       : discount_(discount), dead_end_value_(dead_end_value), expansions_(0) { }
     virtual ~problem_t() { }
 
