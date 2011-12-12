@@ -109,6 +109,11 @@ struct graph_t {
                 }
             }
         }
+
+        // print node degrees
+        for( int n = 0; n < num_nodes_; ++n ) {
+        }
+
         return true;
     }
 };

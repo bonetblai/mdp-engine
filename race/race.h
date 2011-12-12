@@ -3,8 +3,6 @@
 #include <map>
 #include <vector>
 
-#define  DISCOUNT  .95
-
 #include "parsing.h"
 #include "algorithm.h"
 #include "parameters.h"
@@ -14,6 +12,8 @@
 #include "rollout.h"
 #include "mcts.h"
 #include "dispatcher.h"
+
+#define DISCOUNT 0.95
 
 class state_t {
     short x_;
@@ -84,7 +84,8 @@ class problem_t : public Problem::problem_t<state_t> {
 
   public:
     problem_t(grid_t &grid, float p = 1.0)
-      : grid_(grid), p_(p), rows_(grid.rows()), cols_(grid.cols()),
+      : Problem::problem_t<state_t>(DISCOUNT),
+        grid_(grid), p_(p), rows_(grid.rows()), cols_(grid.cols()),
         init_(std::numeric_limits<short>::max(), std::numeric_limits<short>::max(),
               std::numeric_limits<short>::max(), std::numeric_limits<short>::max()) {
         for( size_t i = 0; i < grid_.starts().size(); ++i ) {
