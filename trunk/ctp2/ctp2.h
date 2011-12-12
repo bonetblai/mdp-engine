@@ -4,9 +4,6 @@
 #include <vector>
 #include <limits>
 
-//#define  DISCOUNT  .95
-#define  DISCOUNT  1
-
 #include "parsing.h"
 #include "algorithm.h"
 #include "parameters.h"
@@ -16,6 +13,8 @@
 #include "rollout.h"
 #include "mcts.h"
 #include "dispatcher.h"
+
+#define DISCOUNT 1.00
 
 struct state_t {
     int current_;
@@ -198,7 +197,9 @@ class problem_t : public Problem::problem_t<state_t> {
     int start_, goal_;
 
   public:
-    problem_t(CTP::graph_t &graph) : graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1) { }
+    problem_t(CTP::graph_t &graph)
+      : Problem::problem_t<state_t>(DISCOUNT, 1e3), // change dead_end_value
+        graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1) { }
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions(const state_t &s) const {

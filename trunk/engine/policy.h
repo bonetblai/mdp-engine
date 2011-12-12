@@ -159,21 +159,27 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
 }
 
 template<typename T>
-inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth) {
+inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth, bool verbose = false) {
     float value = 0;
+    if( verbose ) std::cout << "#trials=" << number_trials << ":";
     for( unsigned i = 0; i < number_trials; ++i ) {
+        if( verbose ) std::cout << " " << i << std::flush;
         value += evaluation_trial(policy, s, max_depth);
     }
+    if( verbose ) std::cout << std::endl;
     return value / number_trials;
 }
 
 template<typename T>
-inline std::pair<float, float> evaluation_with_stdev(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth) {
+inline std::pair<float, float> evaluation_with_stdev(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth, bool verbose = false) {
     std::vector<float> values;
     values.reserve(number_trials);
+    if( verbose ) std::cout << "#trials=" << number_trials << ":";
     for( unsigned i = 0; i < number_trials; ++i ) {
+        if( verbose ) std::cout << " " << i << std::flush;
         values.push_back(evaluation_trial(policy, s, max_depth));
     }
+    if( verbose ) std::cout << std::endl;
 
     // compute average
     float avg = 0;

@@ -160,7 +160,6 @@ int main(int argc, const char **argv) {
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
-    cout << policy.second << "= " << flush;
 
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph);
@@ -168,7 +167,9 @@ int main(int argc, const char **argv) {
         vector<float> values;
         values.reserve(par.evaluation_trials_);
         float start_time = Utils::read_time_in_seconds();
+        cout << "#trials=" << par.evaluation_trials_ << ":";
         for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+            cout << " " << i << flush;
             // sample a good weather
             state_t hidden = sample_weather(graph);
             hidden.preprocess(graph);
@@ -199,6 +200,7 @@ int main(int argc, const char **argv) {
             }
             values.push_back(cost);
         }
+        cout << endl;
 
         // compute avg
         float avg = 0;
@@ -214,10 +216,11 @@ int main(int argc, const char **argv) {
         }
         stdev = sqrt(stdev) / (par.evaluation_trials_ - 1);
 
+        cout << policy.second << "= " << flush;
         cout << setprecision(5) << avg << " " << stdev << setprecision(2)
              << " ( " << Utils::read_time_in_seconds() - start_time << " secs)";
+        cout << std::endl;
     }
-    cout << std::endl;
 
     // free resources
     delete policy.first;

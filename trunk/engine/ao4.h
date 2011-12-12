@@ -20,6 +20,7 @@
 #define AO4_H
 
 #include "policy.h"
+#include "bdd_priority_queue.h"
 
 #include <iostream>
 #include <cassert>
@@ -29,6 +30,7 @@
 
 //#define DEBUG
 #define USE_PQ
+#define USE_BDD_PQ
 
 // TODO: implement bounded priority queue
 
@@ -178,11 +180,20 @@ template<typename T> class ao4_table_t : public std::tr1::unordered_map<std::pai
 
 template<typename T> struct ao4_min_priority_t {
     bool operator()(const ao4_node_t<T> *n1, const ao4_node_t<T> *n2) {
+        //std::cout << "n1=" << n1 << std::flush << ", n1->delta=" << n1->delta_ << std::endl;
+        //std::cout << "n2=" << n2 << std::flush << ", n2->delta=" << n2->delta_ << std::endl;
+        //std::cout << "rv=" << (fabs(n1->delta_) > fabs(n2->delta_) ? 1 : 0) << std::endl;
         return fabs(n1->delta_) > fabs(n2->delta_);
     }
 };
 
 template<typename T> class ao4_priority_queue_t : public std::priority_queue<ao4_node_t<T>*, std::vector<ao4_node_t<T>*>, ao4_min_priority_t<T> > {
+};
+
+template<typename T> class ao4_bdd_priority_queue_t : public std::bdd_priority_queue<ao4_node_t<T>*, ao4_min_priority_t<T> > {
+  public:
+    ao4_bdd_priority_queue_t(unsigned capacity)
+      : std::bdd_priority_queue<ao4_node_t<T>*, ao4_min_priority_t<T> >(capacity) { }
 };
 
 ////////////////////////////////////////////////
@@ -201,6 +212,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
     mutable ao4_priority_queue_t<T> inside_priority_queue_;
     mutable ao4_priority_queue_t<T> outside_priority_queue_;
+
+#ifdef USE_BDD_PQ
+    mutable ao4_bdd_priority_queue_t<T> inside_bdd_priority_queue_;
+    mutable ao4_bdd_priority_queue_t<T> outside_bdd_priority_queue_;
+#endif
 #else
     mutable ao4_node_t<T> *best_inside_;
     mutable ao4_node_t<T> *best_outside_;
@@ -230,6 +246,10 @@ template<typename T> class ao4_t : public improvement_t<T> {
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         num_nodes_(0),
         root_(0),
+#ifdef USE_BDD_PQ
+        inside_bdd_priority_queue_(expansions_per_iteration),
+        outside_bdd_priority_queue_(expansions_per_iteration),
+#endif
         from_inside_(0),
         from_outside_(0) {
 #ifndef USE_PQ
@@ -596,6 +616,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
         clear(inside_priority_queue_);
         clear(outside_priority_queue_);
+        //std::cout << "about to clear..." << std::flush;
+        inside_bdd_priority_queue_.clear();
+        //std::cout << "done!" << std::endl;
 #else
         if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
         best_inside_ = 0;
@@ -607,6 +630,14 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
         inside_priority_queue_.push(node);
         node->in_pq_ = true;
+        //std::cout << "about to push..." << std::flush;
+        inside_bdd_priority_queue_.push(node);
+        //std::cout << "done!" << std::endl;
+
+        ao4_node_t<T> *n1 = inside_priority_queue_.top();
+        ao4_node_t<T> *n2 = inside_bdd_priority_queue_.top();
+        std::cout << "n1->delta=" << n1->delta_ << std::endl;
+        std::cout << "n2->delta=" << n2->delta_ << std::endl;
 #else
         if( (best_inside_ == 0) || ao4_min_priority_t<T>()(best_inside_, node) ) {
             if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
@@ -629,17 +660,26 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void insert_into_priority_queue(ao4_node_t<T> *node) const {
         if( !node->in_pq_ ) {
+            std::cout << "push "; node->print(std::cout, false); std::cout << std::endl;
             if( node->delta_ >= 0 )
                 insert_into_inside_priority_queue(node);
             else
                 insert_into_outside_priority_queue(node);
-            //std::cout << "push "; node->print(std::cout, false); std::cout << std::endl;
         }
     }
     ao4_node_t<T>* select_from_inside() const {
 #ifdef USE_PQ
         ao4_node_t<T> *node = inside_priority_queue_.top();
         inside_priority_queue_.pop();
+        //std::cout << "about to top..." << std::flush;
+        ao4_node_t<T> *aux = inside_bdd_priority_queue_.top();
+        std::cout << "node->delta=" << node->delta_ << std::endl;
+        std::cout << "aux->delta=" << aux->delta_ << std::endl;
+        assert(node->delta_ == aux->delta_);
+        //std::cout << "done!" << std::endl;
+        //std::cout << "about to pop..." << std::flush;
+        inside_bdd_priority_queue_.pop();
+        //std::cout << "done!" << std::endl;
 #else
         ao4_node_t<T> *node = best_inside_;
         best_inside_ = 0;
@@ -673,7 +713,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
                 node = select_from_outside();
             }
         }
-        //std::cout << "pop "; node->print(std::cout, false); std::cout << std::endl;
+        std::cout << "pop "; node->print(std::cout, false); std::cout << std::endl;
         return node;
     }
 };

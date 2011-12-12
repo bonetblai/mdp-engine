@@ -1,1 +1,6 @@
-- Add discount factor in a nice manner
+- Change name of algorithms: ao3 and ao4
+- Delete ao1 and ao2 (?)
+- Rename UCT correctly
+- Implement better print out
+- Implement better revision strategy for ao4 to increase convergence time
+- Move evaluation.h to engine
