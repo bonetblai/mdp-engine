@@ -38,7 +38,8 @@ template<typename T> struct ao3_node_t {
     float delta_;
     bool in_best_policy_;
 
-    ao3_node_t(float value = 0, float delta = 0) : value_(value), delta_(delta), in_best_policy_(false) { }
+    ao3_node_t(float value = 0, float delta = 0)
+      : value_(value), delta_(delta), in_best_policy_(false) { }
     virtual ~ao3_node_t() { }
 };
 
@@ -52,12 +53,12 @@ template<typename T> struct ao3_action_node_t : public ao3_node_t<T> {
     ao3_action_node_t(Problem::action_t action) : action_(action) { }
     virtual ~ao3_action_node_t() { }
 
-    void update_value() {
+    void update_value(float discount) {
         ao3_node_t<T>::value_ = 0;
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
             ao3_node_t<T>::value_ += children_[i].first * children_[i].second->value_;
         }
-        ao3_node_t<T>::value_ = action_cost_ + DISCOUNT * ao3_node_t<T>::value_;
+        ao3_node_t<T>::value_ = action_cost_ + discount * ao3_node_t<T>::value_;
     }
 
     void print(std::ostream &os, bool indent = true) const {
@@ -203,7 +204,7 @@ template<typename T> class ao3_t : public improvement_t<T> {
             //std::cout << "root->value=" << root_->value_ << std::endl;
         }
         assert((width_ == 0) ||
-               ((root_ != 0) && policy_t<T>::problem_.applicable(s, root_->best_action())));
+               ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action())));
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action();
@@ -312,21 +313,21 @@ template<typename T> class ao3_t : public improvement_t<T> {
         // get open node
         ao3_state_node_t<T> *node = select_from_priority_queue();
         assert(node->children_.empty());
-        node->children_.reserve(policy_t<T>::problem_.number_actions(node->state_));
+        node->children_.reserve(policy_t<T>::problem().number_actions(node->state_));
 
         // expand node
         std::vector<std::pair<T, float> > outcomes;
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(node->state_); ++a ) {
-            if( policy_t<T>::problem_.applicable(node->state_, a) ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(node->state_); ++a ) {
+            if( policy_t<T>::problem().applicable(node->state_, a) ) {
                 // create action node for this action
                 ++num_nodes_;
                 ao3_action_node_t<T> *a_node = new ao3_action_node_t<T>(a);
-                a_node->action_cost_ = policy_t<T>::problem_.cost(node->state_, a);
+                a_node->action_cost_ = policy_t<T>::problem().cost(node->state_, a);
                 a_node->parent_ = node;
                 node->children_.push_back(a_node);
 
                 // generate successor states
-                policy_t<T>::problem_.next(node->state_, a, outcomes);
+                policy_t<T>::problem().next(node->state_, a, outcomes);
                 a_node->children_.reserve(outcomes.size());
                 assert(a_node->children_.empty());
                 for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
@@ -337,7 +338,7 @@ template<typename T> class ao3_t : public improvement_t<T> {
                     a_node->children_.push_back(std::make_pair(prob, s_node));
                     a_node->value_ += prob * s_node->value_;
                 }
-                a_node->value_ = a_node->action_cost_ + DISCOUNT * a_node->value_;
+                a_node->value_ = a_node->action_cost_ + policy_t<T>::problem().discount() * a_node->value_;
             }
         }
         return node;
@@ -359,7 +360,7 @@ template<typename T> class ao3_t : public improvement_t<T> {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
                     ao3_action_node_t<T> *a_node = s_node->parents_[i].second;
                     float old_value = a_node->value_;
-                    a_node->update_value();
+                    a_node->update_value(policy_t<T>::problem().discount());
                     assert(a_node->parent_ != 0);
                     if( !a_node->parent_->in_queue_ && (a_node->value_ != old_value) ) {
                         queue.push_back(a_node->parent_);
@@ -464,7 +465,7 @@ template<typename T> class ao3_t : public improvement_t<T> {
                     ao3_action_node_t<T> *parent = s_node->parents_[j].second;
                     assert(parent->children_[child_index].second == s_node);
                     float d = parent->delta_ /
-                              (DISCOUNT * parent->children_[child_index].first);
+                              (policy_t<T>::problem().discount() * parent->children_[child_index].first);
                     delta = Utils::min(delta, fabsf(d));
                     in_best_policy = in_best_policy || parent->in_best_policy_;
                 }

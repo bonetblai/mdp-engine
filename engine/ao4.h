@@ -29,10 +29,8 @@
 
 //#define DEBUG
 #define USE_PQ
-#define DEAD_END_VALUE  1e3
 
 // TODO: implement bounded priority queue
-// TODO: parametrize DEAD_END value
 
 namespace Policy {
 
@@ -68,12 +66,12 @@ template<typename T> struct ao4_action_node_t : public ao4_node_t<T> {
     virtual ~ao4_action_node_t() { }
 
     bool is_leaf() const { return children_.empty(); }
-    void update_value() {
+    void update_value(float discount) {
         ao4_node_t<T>::value_ = 0;
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
             ao4_node_t<T>::value_ += children_[i].first * children_[i].second->value_;
         }
-        ao4_node_t<T>::value_ = action_cost_ + DISCOUNT * ao4_node_t<T>::value_;
+        ao4_node_t<T>::value_ = action_cost_ + discount * ao4_node_t<T>::value_;
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
@@ -267,7 +265,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             //std::cout << "root->value=" << root_->value_ << std::endl;
             i += expanded;
         }
-        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem_.applicable(s, root_->best_action())));
+        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action())));
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action();
@@ -305,11 +303,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
             ++num_nodes_;
             ao4_state_node_t<T> *node = new ao4_state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth), node));
-            if( policy_t<T>::problem_.terminal(state) ) {
+            if( policy_t<T>::problem().terminal(state) ) {
                 node->value_ = 0;
                 node->is_goal_ = true;
-            } else if( policy_t<T>::problem_.dead_end(state) ) {
-                node->value_ = DEAD_END_VALUE;
+            } else if( policy_t<T>::problem().dead_end(state) ) {
+                node->value_ = policy_t<T>::problem().dead_end_value();
                 node->is_dead_end_ = true;
             } else {
                 node->value_ = evaluate(state, depth);
@@ -341,7 +339,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         assert(a_node->is_leaf());
         assert(!a_node->parent_->is_dead_end_);
         std::vector<std::pair<T, float> > outcomes;
-        policy_t<T>::problem_.next(a_node->parent_->state_, a_node->action_, outcomes);
+        policy_t<T>::problem().next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
@@ -355,7 +353,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             a_node->children_.push_back(std::make_pair(prob, p.first));
             a_node->value_ += prob * p.first->value_;
         }
-        a_node->value_ = a_node->action_cost_ + DISCOUNT * a_node->value_;
+        a_node->value_ = a_node->action_cost_ + policy_t<T>::problem().discount() * a_node->value_;
         to_propagate.push_back(a_node);
 
         // re-sample sibling action nodes that are still leaves
@@ -365,11 +363,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
             for( int i = 0, isz = a_node->parent_->children_.size(); i < isz; ++i ) {
                 ao4_action_node_t<T> *sibling = a_node->parent_->children_[i];
                 if( sibling->is_leaf() ) {
-                    float oval = (sibling->value_ - sibling->action_cost_) / DISCOUNT;
+                    float oval = (sibling->value_ - sibling->action_cost_) / policy_t<T>::problem().discount();
                     float eval = evaluate(state, sibling->action_, depth);
                     float nval = oval * sibling->nsamples_ + eval;
                     sibling->nsamples_ += delayed_evaluation_nsamples_ * leaf_nsamples_;
-                    sibling->value_ = sibling->action_cost_ + DISCOUNT * nval / sibling->nsamples_;
+                    sibling->value_ = sibling->action_cost_ + policy_t<T>::problem().discount() * nval / sibling->nsamples_;
                     //std::cout << "sibling re-sampled: num=" << sibling->nsamples_ << std::endl;
                 }
             }
@@ -378,13 +376,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
     void expand(ao4_state_node_t<T> *s_node, std::vector<ao4_node_t<T>*> &to_propagate) const {
         assert(s_node->is_leaf());
         assert(!s_node->is_dead_end_);
-        s_node->children_.reserve(policy_t<T>::problem_.number_actions(s_node->state_));
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s_node->state_); ++a ) {
-            if( policy_t<T>::problem_.applicable(s_node->state_, a) ) {
+        s_node->children_.reserve(policy_t<T>::problem().number_actions(s_node->state_));
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s_node->state_); ++a ) {
+            if( policy_t<T>::problem().applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
                 ao4_action_node_t<T> *a_node = new ao4_action_node_t<T>(a);
-                a_node->action_cost_ = policy_t<T>::problem_.cost(s_node->state_, a);
+                a_node->action_cost_ = policy_t<T>::problem().cost(s_node->state_, a);
                 a_node->parent_ = s_node;
                 s_node->children_.push_back(a_node);
 
@@ -395,7 +393,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
                     // instead of full-width expansion to calculate value, estimate it
                     // by sampling states and applying rollouts of base policy
                     float eval = evaluate(s_node->state_, a, 1 + s_node->depth_);
-                    a_node->value_ = a_node->action_cost_ + DISCOUNT * eval;
+                    a_node->value_ = a_node->action_cost_ + policy_t<T>::problem().discount() * eval;
                     a_node->nsamples_ = delayed_evaluation_nsamples_ * leaf_nsamples_;
                 }
             }
@@ -425,7 +423,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
                     ao4_action_node_t<T> *a_node = s_node->parents_[i].second;
                     float old_value = a_node->value_;
-                    a_node->update_value();
+                    a_node->update_value(policy_t<T>::problem().discount());
                     assert(a_node->parent_ != 0);
                     if( !a_node->parent_->in_queue_ && (a_node->value_ != old_value) ) {
                         queue.push_back(a_node->parent_);
@@ -542,7 +540,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
                         ao4_action_node_t<T> *parent = s_node->parents_[j].second;
                         assert(parent->children_[child_index].second == s_node);
                         float d = parent->delta_ /
-                                  (DISCOUNT * parent->children_[child_index].first);
+                                  (policy_t<T>::problem().discount() * parent->children_[child_index].first);
                         delta = Utils::min(delta, fabsf(d));
                         in_best_policy = in_best_policy || parent->in_best_policy_;
                     }
@@ -563,7 +561,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {
         float value = 0;
         for( unsigned i = 0; i < delayed_evaluation_nsamples_; ++i ) {
-            std::pair<T, bool> sample = policy_t<T>::problem_.sample(state, action);
+            std::pair<T, bool> sample = policy_t<T>::problem().sample(state, action);
             value += evaluate(sample.first, depth);
         }
         return value / delayed_evaluation_nsamples_;
@@ -683,7 +681,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
 }; // namespace Policy
 
 #undef DEBUG
-#undef DEAD_END_VALUE
 
 #endif
 

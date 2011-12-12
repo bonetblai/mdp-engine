@@ -29,7 +29,6 @@
 #include <vector>
 
 //#define DEBUG
-#define DEAD_END_VALUE 1e3
 
 namespace Policy {
 
@@ -62,14 +61,14 @@ template<typename T> class random_t : public policy_t<T> {
   public:
     random_t(const Problem::problem_t<T> &problem) : policy_t<T>(problem) { }
     virtual ~random_t() { }
-    virtual const policy_t<T>* clone() const { return new random_t(policy_t<T>::problem_); }
+    virtual const policy_t<T>* clone() const { return new random_t(policy_t<T>::problem()); }
 
     virtual Problem::action_t operator()(const T &s) const {
-        if( policy_t<T>::problem_.dead_end(s) ) return Problem::noop;
+        if( policy_t<T>::problem().dead_end(s) ) return Problem::noop;
         std::vector<Problem::action_t> actions;
-        actions.reserve(policy_t<T>::problem_.number_actions(s));
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
-            if( policy_t<T>::problem_.applicable(s, a) ) {
+        actions.reserve(policy_t<T>::problem().number_actions(s));
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
+            if( policy_t<T>::problem().applicable(s, a) ) {
                 actions.push_back(a);
             }
         }
@@ -90,7 +89,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
 
     virtual Problem::action_t operator()(const T &s) const {
         std::pair<Problem::action_t, float> p = hash_.bestQValue(s);
-        assert(policy_t<T>::problem_.applicable(s, p.first));
+        assert(policy_t<T>::problem().applicable(s, p.first));
         return p.first;
     }
 };
@@ -104,20 +103,20 @@ template<typename T> class greedy_t : public policy_t<T> {
       : policy_t<T>(problem), heuristic_(heuristic) {
     }
     virtual ~greedy_t() { }
-    virtual const policy_t<T>* clone() const { return new greedy_t(policy_t<T>::problem_, heuristic_); }
+    virtual const policy_t<T>* clone() const { return new greedy_t(policy_t<T>::problem(), heuristic_); }
 
     virtual Problem::action_t operator()(const T &s) const {
         std::vector<std::pair<T, float> > outcomes;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
-            if( policy_t<T>::problem_.applicable(s, a) ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
+            if( policy_t<T>::problem().applicable(s, a) ) {
                 float value = 0;
-                policy_t<T>::problem_.next(s, a, outcomes);
+                policy_t<T>::problem().next(s, a, outcomes);
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
                     value += outcomes[i].second * heuristic_.value(outcomes[i].first);
                 }
-                value += policy_t<T>::problem_.cost(s, a);
+                value += policy_t<T>::problem().cost(s, a);
 
                 if( value < best_value ) {
                     best_value = value;
@@ -146,13 +145,13 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
         Problem::action_t action = policy(state);
         //std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
-            std::cout << "no applicable action" << std::endl;
-            return DEAD_END_VALUE; // TODO: which value to return DEAD_END_VALUE
+            //std::cout << "no applicable action" << std::endl;
+            return policy.problem().dead_end_value();
         }
         assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
         cost += discount * policy.problem().cost(state, action);
-        discount *= DISCOUNT;
+        discount *= policy.problem().discount();
         state = p.first;
         ++steps;
     }
@@ -195,7 +194,6 @@ inline std::pair<float, float> evaluation_with_stdev(const Policy::policy_t<T> &
 }; // namespace Evaluation
 
 #undef DEBUG
-#undef DEAD_END_VALUE
 
 #endif
 

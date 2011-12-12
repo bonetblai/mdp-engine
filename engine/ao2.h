@@ -159,7 +159,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
             recompute_delta(root_, std::numeric_limits<float>::max(), true);
             //std::cout << "root->value=" << root_->value_ << std::endl;
         }
-        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem_.applicable(s, root_->best_action())));
+        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action())));
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action();
@@ -192,12 +192,12 @@ template<typename T> class ao2_t : public improvement_t<T> {
         priority_queue_.pop();
         //std::cout << "pop " << node << " " << std::flush; node->print(std::cout, false); std::cout << std::endl;
         assert(node->children_.empty());
-        node->children_.reserve(policy_t<T>::problem_.number_actions(node->state_));
+        node->children_.reserve(policy_t<T>::problem().number_actions(node->state_));
 
         // expand node
         std::vector<std::pair<T, float> > outcomes;
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(node->state_); ++a ) {
-            if( policy_t<T>::problem_.applicable(node->state_, a) ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(node->state_); ++a ) {
+            if( policy_t<T>::problem().applicable(node->state_, a) ) {
                 // create action node for this action
                 unsigned priority = 0;//node->priority_ + (a == best_action ? 0 : 1);
                 ao2_action_node_t<T> *a_node = new ao2_action_node_t<T>(a, node->depth_, priority, node);
@@ -205,7 +205,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
                 ++num_nodes_;
 
                 // generate successor states
-                policy_t<T>::problem_.next(node->state_, a, outcomes);
+                policy_t<T>::problem().next(node->state_, a, outcomes);
                 a_node->children_.reserve(outcomes.size());
                 a_node->probability_.reserve(outcomes.size());
                 for( unsigned i = 0, isz = outcomes.size(); i < isz; ++i ) {
@@ -230,7 +230,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
                 }
 
                 // set value for new action node
-                a_node->value_ = policy_t<T>::problem_.cost(node->state_, a) + DISCOUNT * a_node->value_;
+                a_node->value_ = policy_t<T>::problem().cost(node->state_, a) + policy_t<T>::problem().discount() * a_node->value_;
                 //std::cout << "child: a=" << a << ", value=" << a_node->value_ << std::endl;
             }
         }
@@ -257,7 +257,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
                 }
                 assert(a_node->parent_ != 0);
                 s_node = static_cast<const ao2_state_node_t<T>*>(a_node->parent_);
-                a_node->value_ = policy_t<T>::problem_.cost(s_node->state_, a_node->action_) + DISCOUNT * value;
+                a_node->value_ = policy_t<T>::problem().cost(s_node->state_, a_node->action_) + policy_t<T>::problem().discount() * value;
             } else {
                 s_node = 0;
             }
@@ -319,7 +319,7 @@ template<typename T> class ao2_t : public improvement_t<T> {
                 //std::cout << std::setw(2*s_node->depth_) << "" << "case3: ndelta=" << ndelta << std::endl;
                 assert(ndelta <= 0);
             }
-            ndelta = ndelta / (DISCOUNT * prob);
+            ndelta = ndelta / (policy_t<T>::problem().discount() * prob);
             s_node->delta_ = ndelta;
             recompute_delta(s_node, ndelta, in_best_policy);
         }
