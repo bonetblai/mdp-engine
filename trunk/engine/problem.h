@@ -104,11 +104,17 @@ template<typename T> class min_hash_t : public hash_t<T> {
 template<typename T> class problem_t {
 
   protected:
+    float discount_;
+    float dead_end_value_;
     mutable size_t expansions_;
 
   public:
-    problem_t() : expansions_(0) { }
+    problem_t(float discount, float dead_end_value)
+      : discount_(discount), dead_end_value_(dead_end_value), expansions_(0) { }
     virtual ~problem_t() { }
+
+    float discount() const { return discount_; }
+    float dead_end_value() const { return dead_end_value_; }
 
     size_t expansions() const {
         return expansions_;
@@ -223,7 +229,7 @@ inline float hash_t<T>::QValue(const T &s, action_t a) const {
     for( unsigned i = 0; i < osize; ++i ) {
         qv += outcomes[i].second * value(outcomes[i].first);
     }
-    return problem_.cost(s, a) + DISCOUNT * qv;
+    return problem_.cost(s, a) + problem_.discount() * qv;
 }
 
 template<typename T>

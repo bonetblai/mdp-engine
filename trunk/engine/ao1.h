@@ -76,7 +76,7 @@ template<typename T> struct ao1_action_node_t : public ao1_node_t<T> {
         }
         assert(ao1_node_t<T>::parent_ != 0);
         const T &s = static_cast<const ao1_state_node_t<T>*>(ao1_node_t<T>::parent_)->state_;
-        ao1_node_t<T>::value_ = problem.cost(s, action_) + DISCOUNT * value;
+        ao1_node_t<T>::value_ = problem.cost(s, action_) + problem.discount() * value;
         static_cast<const ao1_state_node_t<T>*>(ao1_node_t<T>::parent_)->propagate(problem);
     }
 
@@ -168,9 +168,9 @@ template<typename T> class ao1_t : public improvement_t<T> {
         for( unsigned i = 0; (i < width_) && !priority_queue_.empty(); ++i ) {
             const ao1_state_node_t<T> *node = expand();
             if( node == 0 ) break;
-            node->propagate(policy_t<T>::problem_);
+            node->propagate(policy_t<T>::problem());
         }
-        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem_.applicable(s, root_->best_action_)));
+        assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action_)));
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action_;
@@ -203,15 +203,15 @@ template<typename T> class ao1_t : public improvement_t<T> {
         //std::cout << "pri=" << node->priority_ << std::endl;
         assert(node->children_.empty());
         if( node->priority_ > discrepancy_bound_ ) return 0;
-        node->children_.reserve(policy_t<T>::problem_.number_actions());
+        node->children_.reserve(policy_t<T>::problem().number_actions());
 
         // compute best action for this node according to base policy
         Problem::action_t best_action = improvement_t<T>::base_policy_(node->state_);
 
         // expand node
         std::vector<std::pair<T, float> > outcomes;
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(); ++a ) {
-            if( policy_t<T>::problem_.applicable(node->state_, a) ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(); ++a ) {
+            if( policy_t<T>::problem().applicable(node->state_, a) ) {
                 //std::cout << "action=" << a << std::endl;
                 // create action node for this action
                 unsigned priority = node->priority_ + (a == best_action ? 0 : 1);
@@ -220,7 +220,7 @@ template<typename T> class ao1_t : public improvement_t<T> {
                 ++num_nodes_;
 
                 // generate successor states
-                policy_t<T>::problem_.next(node->state_, a, outcomes);
+                policy_t<T>::problem().next(node->state_, a, outcomes);
                 a_node->children_.reserve(outcomes.size());
                 a_node->probability_.reserve(outcomes.size());
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
@@ -243,7 +243,7 @@ template<typename T> class ao1_t : public improvement_t<T> {
                 }
 
                 // set value for new action node
-                a_node->value_ = policy_t<T>::problem_.cost(node->state_, a) + DISCOUNT * a_node->value_;
+                a_node->value_ = policy_t<T>::problem().cost(node->state_, a) + policy_t<T>::problem().discount() * a_node->value_;
             }
         }
         return node;

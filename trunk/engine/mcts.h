@@ -29,7 +29,6 @@
 #include <math.h>
 
 //#define DEBUG
-#define DEAD_END_VALUE  1e3
 
 namespace Policy {
 
@@ -150,7 +149,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
         Problem::action_t action = select_action(s, it->second, 0, false);
-        assert(policy_t<T>::problem_.applicable(s, action));
+        assert(policy_t<T>::problem().applicable(s, action));
         return action;
     }
 
@@ -181,7 +180,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         }
 
         if( policy_t<T>::problem().dead_end(s) ) {
-            return DEAD_END_VALUE;
+            return policy_t<T>::problem().dead_end_value();
         }
 
         typename mcts_table_t<T>::iterator it = table_.find(std::make_pair(depth, s));
@@ -216,7 +215,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
             // do recursion and update value
             float &old_value = it->second.values_[1+a];
             float n = it->second.counts_[1+a];
-            float new_value = cost + DISCOUNT * search_tree(p.first, 1 + depth);
+            float new_value = cost + policy_t<T>::problem().discount() * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
             return old_value;
         }
@@ -228,7 +227,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         float best_value = std::numeric_limits<float>::max();
 
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
-            if( policy_t<T>::problem_.applicable(state, a) ) {
+            if( policy_t<T>::problem().applicable(state, a) ) {
                 // if this action has never been taken in this node, select it
                 if( data.counts_[1+a] == 0 ) {
 #ifdef DEBUG
@@ -295,7 +294,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 #endif
 
                 // do recursion and update value
-                float new_value = cost + DISCOUNT * search(p.first, child, 1+depth);
+                float new_value = cost + policy_t<T>::problem().discount() * search(p.first, child, 1+depth);
                 float &old_value = node->values_[1+a];
                 old_value += (new_value - old_value) / (float)node->counts_[1+a];
                 return old_value;
@@ -332,7 +331,6 @@ template<typename T> class mcts_t : public improvement_t<T> {
 }; // namespace Policy
 
 #undef DEBUG
-#undef DEAD_END_VALUE
 
 #endif
 

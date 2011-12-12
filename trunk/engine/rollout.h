@@ -48,12 +48,12 @@ template<typename T> class rollout_t : public improvement_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem_.number_actions(s); ++a ) {
+        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
             if( policy_t<T>::problem().applicable(s, a) ) {
                 float value = 0;
                 for( unsigned trial = 0; trial < width_; ++trial ) {
-                    std::pair<T, bool> p = policy_t<T>::problem_.sample(s, a);
-                    value += policy_t<T>::problem_.cost(s, a) + DISCOUNT * evaluate(p.first);
+                    std::pair<T, bool> p = policy_t<T>::problem().sample(s, a);
+                    value += policy_t<T>::problem().cost(s, a) + policy_t<T>::problem().discount() * evaluate(p.first);
                 }
                 value /= width_;
                 if( value < best_value ) {
@@ -79,7 +79,7 @@ template<typename T> class nested_rollout_t : public policy_t<T> {
 
   public:
     nested_rollout_t(const policy_t<T> *base_policy, const policy_t<T> *nested_policy, int nesting_level)
-      : policy_t<T>(policy_t<T>::problem_) {
+      : policy_t<T>(policy_t<T>::problem()) {
         nesting_level_ = nesting_level;
         if( nesting_level_ == 0 ) {
             base_policy_ = 0;
