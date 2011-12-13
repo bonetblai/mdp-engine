@@ -620,9 +620,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
         clear(inside_priority_queue_);
         clear(outside_priority_queue_);
 #ifdef USE_BDD_PQ
-        //std::cout << "about to clear.." << std::flush;
         inside_bdd_priority_queue_.clear();
-        //std::cout << std::endl;
+        outside_bdd_priority_queue_.clear();
 #endif
 #else
         if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
@@ -636,9 +635,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         inside_priority_queue_.push(node);
         node->in_pq_ = true;
 #ifdef USE_BDD_PQ
-        //std::cout << "about to push.." << std::flush;
         inside_bdd_priority_queue_.push(node);
-        //std::cout << std::endl;
 #endif
 #else
         if( (best_inside_ == 0) || ao4_min_priority_t<T>()(best_inside_, node) ) {
@@ -652,6 +649,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
         outside_priority_queue_.push(node);
         node->in_pq_ = true;
+#ifdef USE_BDD_PQ
+        outside_bdd_priority_queue_.push(node);
+#endif
 #else
         if( (best_outside_ == 0) || ao4_min_priority_t<T>()(best_outside_, node) ) {
             if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
@@ -674,10 +674,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
         ao4_node_t<T> *node = inside_priority_queue_.top();
         inside_priority_queue_.pop();
 #ifdef USE_BDD_PQ
-        //std::cout << "about to top.." << std::flush;
         ao4_node_t<T> *aux = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
-        //std::cout << std::endl;
+        assert(node->delta_ == aux->delta_);
 #endif
 #else
         ao4_node_t<T> *node = best_inside_;
@@ -691,6 +690,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
         ao4_node_t<T> *node = outside_priority_queue_.top();
         outside_priority_queue_.pop();
+#ifdef USE_BDD_PQ
+        ao4_node_t<T> *aux = outside_bdd_priority_queue_.top();
+        outside_bdd_priority_queue_.pop();
+        assert(node->delta_ == aux->delta_);
+#endif
 #else
         ao4_node_t<T> *node = best_outside_;
         best_outside_ = 0;
