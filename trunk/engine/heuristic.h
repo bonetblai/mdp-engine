@@ -138,6 +138,7 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
 template<typename T> struct wrapper_t : public Hash::hash_map_t<T>::eval_function_t {
     const heuristic_t<T> *heuristic_;
     wrapper_t(const heuristic_t<T> *heuristic = 0) : heuristic_(heuristic) { }
+    virtual ~wrapper_t() { }
     float operator()(const T &s) const {
         return heuristic_ == 0 ? 0 : heuristic_->value(s);
     }

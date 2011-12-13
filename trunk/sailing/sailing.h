@@ -129,6 +129,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool terminal(const state_t &s) const {
         return (s.x_ == goal_.x_) && (s.y_ == goal_.y_);
     }
+    virtual bool dead_end(const state_t &s) const { return false; }
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.tack(a) == state_t::Into ? false : s.apply(a).in_lake(rows_, cols_);
     }
