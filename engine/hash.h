@@ -103,6 +103,17 @@ class data_t {
     }
 };
 
+}; // namespace Hash
+
+
+inline std::ostream& operator<<(std::ostream &os, const Hash::data_t &data) {
+    data.print(os);
+    return os;
+}
+
+
+namespace Hash {
+
 // Hash function for state
 template<typename T> class hash_function_t {
   public:
@@ -127,6 +138,7 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
 
   public: // evaluation functions
     struct eval_function_t {
+        virtual ~eval_function_t() { }
         virtual float operator()(const T &s) const = 0;
     };
 
@@ -138,12 +150,12 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
     const eval_function_t *eval_function_;
 
     Hash::data_t* push(const T &s, Hash::data_t *d) {
-        insert(std::make_pair(s, d));
+        base_type::insert(std::make_pair(s, d));
         return d;
     }
 
-    iterator lookup(const T &s) { return find(s); }
-    const_iterator lookup(const T &s) const { return find(s); }
+    iterator lookup(const T &s) { return base_type::find(s); }
+    const_iterator lookup(const T &s) const { return const_cast<hash_map_t<T>*>(this)->find(s); }
 
   public:
     hash_map_t(eval_function_t *eval_function = 0)
@@ -262,11 +274,6 @@ template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : pu
 };
 
 }; // namespace Hash
-
-inline std::ostream& operator<<(std::ostream &os, const Hash::data_t &data) {
-    data.print(os);
-    return os;
-}
 
 #undef DEBUG
 
