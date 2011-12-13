@@ -66,15 +66,21 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     bool is_leaf_in_max(unsigned index) const { return (index << 1) > max_size_; }
     bool is_leaf_in_min(unsigned index) const { return (index << 1) > min_size_; }
 
+    bool check_max_heap_property(unsigned index) const {
+        unsigned left = index << 1, right = 1 + left;
+        if( (left <= max_size_) && max_cmpfn_(max_array_[index]->element_, max_array_[left]->element_) ) {
+            return false;
+        }
+        if( (right <= max_size_) && max_cmpfn_(max_array_[index]->element_, max_array_[right]->element_) ) {
+            return false;
+        }
+        return true;
+    }
+    bool check_max_invariant(unsigned index) const { return index == min_array_[max_array_[index]->xref_]; }
     bool check_max() const {
         // check heap property
         for( unsigned index = 1; index <= max_size_; ++index ) {
-            unsigned left = index << 1, right = 1 + left;
-            if( (left <= max_size_) && max_cmpfn_(max_array_[index]->element_, max_array_[left]->element_) ) {
-                std::cout << "heap property violated at max_array[index=" << index << "]" << std::endl;
-                return false;
-            }
-            if( (right <= max_size_) && max_cmpfn_(max_array_[index]->element_, max_array_[right]->element_) ) {
+            if( !check_min_heap_property(index) ) {
                 std::cout << "heap property violated at max_array[index=" << index << "]" << std::endl;
                 return false;
             }
@@ -82,7 +88,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
         // check invariants for xrefs
         for( unsigned index = 1; index <= max_size_; ++index ) {
-            if( index != min_array_[max_array_[index]->xref_] ) {
+            if( !check_max_invariant(index) ) {
                 std::cout << "invariant violated for max_array[index=" << index << "]" << std::endl;
                 return false;
             }
@@ -92,19 +98,23 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         return true;
     }
 
+    bool check_min_heap_property(unsigned index) const {
+        unsigned left = index << 1, right = 1 + left;
+        if( (left <= min_size_) &&
+            min_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[left]]->element_) ) {
+            return false;
+        }
+        if( (right <= min_size_) &&
+            min_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[right]]->element_) ) {
+            return false;
+        }
+        return true;
+    }
+    bool check_min_invariant(unsigned index) const { return index == max_array_[min_array_[index]]->xref_; }
     bool check_min() const {
         // check heap property in min_array
         for( unsigned index = 1; index <= min_size_; ++index ) {
-            unsigned left = index << 1, right = 1 + left;
-            //std::cout << min_size_ << " " << index << " " << left << " " << right << std::endl;
-            //std::cout << min_size_ << " " << min_array_[index] << " " << min_array_[left] << " " << min_array_[right] << std::endl;
-            if( (left <= min_size_) &&
-                min_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[left]]->element_) ) {
-                std::cout << "heap property violated at min_array[index=" << index << "]" << std::endl;
-                return false;
-            }
-            if( (right <= min_size_) &&
-                min_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[right]]->element_) ) {
+            if( !check_min_heap_property(index) ) {
                 std::cout << "heap property violated at min_array[index=" << index << "]" << std::endl;
                 return false;
             }
@@ -112,7 +122,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
         // check invariants for xrefs in min_array
         for( unsigned index = 1; index <= min_size_; ++index ) {
-            if( index != max_array_[min_array_[index]]->xref_ ) {
+            if( !check_min_invariant(index) ) {
                 std::cout << "invariant violated for min_array[index=" << index << "]" << std::endl;
                 return false;
             }
@@ -133,8 +143,43 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
             parent = parent >> 1;
         }
         max_array_[index] = container;
-        push_min(1 + min_size_, index);
-        ++min_size_;
+
+        if( container->xref_ != 0 ) {
+            // container is not new; it is changing location in max_array
+            min_array_[container->xref_] = index;
+        } else {
+            push_min(1 + min_size_, index);
+            ++min_size_;
+        }
+    }
+
+    unsigned max_subtree_leaf(unsigned index) const {
+        while( !is_leaf_in_max(index) ) index = index << 1;
+        return index;
+    }
+    void remove_from_max(unsigned index) {
+        if( !is_leaf_in_max(index) ) {
+            unsigned leaf = max_subtree_leaf(index);
+            assert(is_leaf_in_max(leaf));
+            assert(!max_cmpfn_(max_array_[index]->element_, max_array_[leaf]->element_));
+            assert(!min_cmpfn_(max_array_[index]->element_, max_array_[leaf]->element_));
+            assert(max_array_[index]->xref_ == 1);
+            max_array_[index]->xref_ = max_array_[leaf]->xref_;
+            min_array_[max_array_[index]->xref_] = index;
+            index = leaf;
+        }
+
+        // link pool of available containers
+        max_array_[index]->next_ = pool_;
+        pool_ = max_array_[index];
+
+        // remove container from heap
+        if( index != max_size_ ) {
+            //std::cout << " <push-max@" << index << ">" << std::flush;
+            push_max(index, max_array_[max_size_]);
+        }
+        --max_size_;
+        assert(check());
     }
 
     void heapify_max(unsigned index) {
@@ -172,9 +217,24 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         max_array_[element]->xref_ = index;
     }
 
+    unsigned min_subtree_leaf(unsigned index) const {
+        while( !is_leaf_in_min(index) ) index = index << 1;
+        return index;
+    }
     void remove_from_min(unsigned index) {
-        std::cout << "index=" << index << std::endl;
-        assert(is_leaf_in_min(index)); // TOOD: not always as there can be many ties 
+        if( !is_leaf_in_min(index) ) {
+            unsigned leaf = min_subtree_leaf(index);
+            assert(is_leaf_in_min(leaf));
+            assert(!max_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[leaf]]->element_));
+            assert(!min_cmpfn_(max_array_[min_array_[index]]->element_, max_array_[min_array_[leaf]]->element_));
+            max_array_[min_array_[index]]->xref_ = leaf;
+            max_array_[min_array_[leaf]]->xref_ = index;
+            unsigned aux_index = min_array_[index];
+            min_array_[index] = min_array_[leaf];
+            min_array_[leaf] = aux_index;
+            index = leaf;
+        }
+
         if( index != min_size_ ) {
             push_min(index, min_array_[min_size_]);
         }
@@ -182,7 +242,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         assert(check_min());
     }
 
-    void min_heapify(unsigned index) {
+    void heapify_min(unsigned index) {
         assert((index > 0) && (index <= min_size_));
         unsigned left = index << 1, right = 1 + left, largest = 0;
 
@@ -198,21 +258,23 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         }
 
         if( largest != index ) {
-            container_t *tmp = min_array_[largest];
+            unsigned tmp = min_array_[largest];
             min_array_[largest] = min_array_[index];
             min_array_[index] = tmp;
-            min_heapify(largest);
+            max_array_[min_array_[largest]]->xref_ = largest;
+            max_array_[min_array_[index]]->xref_ = index;
+            heapify_min(largest);
         }
     }
 
   public:
     bdd_priority_queue(unsigned capacity)
       : capacity_(capacity), pool_(0), max_size_(0), min_size_(0) {
-        std::cout << "building..." << std::flush;
+        //std::cout << "building..." << std::flush;
         max_array_ = vector<container_t*>(1+capacity_, 0);
         min_array_ = vector<unsigned>(1+capacity_, 0);
         clear();
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
     }
     ~bdd_priority_queue() {
         clear();
@@ -228,7 +290,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     bool empty() const { return max_size_ == 0; }
 
     void clear() {
-        std::cout << "clearing: size=" << max_size_ << "..." << std::flush;
+        //std::cout << "clearing: size=" << max_size_ << "..." << std::flush;
         for( unsigned index = 1; index <= max_size_; ++index ) {
             max_array_[index]->next_ = pool_;
             pool_ = max_array_[index];
@@ -239,9 +301,8 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         bzero(&min_array_[0], (1 + capacity_) * sizeof(unsigned));
         min_size_ = 0;
 
-        assert(check_max());
-        assert(check_min());
-        std::cout << "done" << std::endl;
+        assert(check());
+        //std::cout << "done" << std::endl;
     }
 
     const T top() const {
@@ -249,41 +310,58 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     }
 
     bool push(T &element) {
+        //std::cout << "push:" << std::flush;
         if( max_size_ < capacity_ ) {
-            std::cout << "push:" << std::flush;
-            std::cout << " <get-container>" << std::flush;
+            //std::cout << " <get-container>" << std::flush;
             container_t *container = allocate_container(element);
-            std::cout << " <push-max>" << std::flush;
+            //std::cout << " <push-max>" << std::flush;
             push_max(1 + max_size_, container);
             ++max_size_;
-            std::cout << " <check-max>" << std::flush;
-            assert(check_max());
-            std::cout << " <check-min>" << std::flush;
-            assert(check_min());
-            std::cout << " done" << std::endl;
+            //std::cout << " <check>" << std::flush;
+            assert(check());
+            //std::cout << " done" << std::endl;
             return true;
         } else {
-            assert(0);
+            //std::cout << " <remove-from-min>" << std::flush;
+            unsigned to_be_removed = min_array_[1];
+            min_array_[1] = min_array_[min_size_];
+            max_array_[min_array_[1]]->xref_ = 1;
+            --min_size_;
+            if( min_size_ > 0 ) {
+                //std::cout << " <heapify-min>" << std::flush;
+                heapify_min(1);
+            }
+
+            //std::cout << " <remove-from-max>" << std::flush;
+            remove_from_max(to_be_removed);
+            assert(max_size_ < capacity_);
+
+            //std::cout << " <recursive-call>" << std::flush;
+            push(element);
+            //std::cout << " done" << std::endl;
             return false;
         }
     }
 
     void pop() {
         assert((max_size_ > 0) && (max_size_ <= capacity_));
-        std::cout << "pop:" << std::flush;
-        std::cout << " <remove-from-min>" << std::flush;
+        //std::cout << "pop:" << std::flush;
+        //std::cout << " <remove-from-min>" << std::flush;
         remove_from_min(max_array_[1]->xref_);
         max_array_[1]->next_ = pool_;
         pool_ = max_array_[1];
         max_array_[1] = max_array_[max_size_];
+        min_array_[max_array_[1]->xref_] = 1;
         --max_size_;
-        std::cout << " <heapify-max>" << std::flush;
-        if( max_size_ > 0 ) heapify_max(1);
-        std::cout << " <check-max>" << std::flush;
-        assert(check_max());
-        std::cout << " <check-max>" << std::flush;
-        assert(check_min());
-        std::cout << " done" << std::endl;
+
+        if( max_size_ > 0 ) {
+            //std::cout << " <heapify-max>" << std::flush;
+            heapify_max(1);
+        }
+
+        //std::cout << " <check>" << std::flush;
+        assert(check());
+        //std::cout << " done" << std::endl;
     }
 };
 
