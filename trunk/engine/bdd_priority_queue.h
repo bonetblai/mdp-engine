@@ -309,7 +309,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         return max_array_[1]->element_;
     }
 
-    bool push(T &element) {
+    void push(T &element) {
         //std::cout << "push:" << std::flush;
         if( max_size_ < capacity_ ) {
             //std::cout << " <get-container>" << std::flush;
@@ -319,34 +319,34 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
             ++max_size_;
             //std::cout << " <check>" << std::flush;
             assert(check());
-            //std::cout << " done" << std::endl;
-            return true;
         } else {
-            //std::cout << " <remove-from-min>" << std::flush;
-            unsigned to_be_removed = min_array_[1];
-            min_array_[1] = min_array_[min_size_];
-            max_array_[min_array_[1]]->xref_ = 1;
-            --min_size_;
-            if( min_size_ > 0 ) {
-                //std::cout << " <heapify-min>" << std::flush;
-                heapify_min(1);
+            unsigned min = min_array_[1];
+            if( max_cmpfn_(max_array_[min]->element_, element) ) {
+                //std::cout << " <remove-from-min>" << std::flush;
+                min_array_[1] = min_array_[min_size_];
+                max_array_[min_array_[1]]->xref_ = 1;
+                --min_size_;
+                if( min_size_ > 0 ) {
+                    //std::cout << " <heapify-min>" << std::flush;
+                    heapify_min(1);
+                }
+
+                //std::cout << " <remove-from-max>" << std::flush;
+                remove_from_max(min);
+                assert(max_size_ < capacity_);
+                //std::cout << " <recursive-call>" << std::flush;
+                push(element);
+            } else {
+                //std::cout << " <discarded>" << std::endl;
             }
-
-            //std::cout << " <remove-from-max>" << std::flush;
-            remove_from_max(to_be_removed);
-            assert(max_size_ < capacity_);
-
-            //std::cout << " <recursive-call>" << std::flush;
-            push(element);
-            //std::cout << " done" << std::endl;
-            return false;
         }
+        //std::cout << " done" << std::endl;
     }
 
     void pop() {
-        assert((max_size_ > 0) && (max_size_ <= capacity_));
         //std::cout << "pop:" << std::flush;
         //std::cout << " <remove-from-min>" << std::flush;
+        assert(max_size_ > 0);
         remove_from_min(max_array_[1]->xref_);
         max_array_[1]->next_ = pool_;
         pool_ = max_array_[1];
