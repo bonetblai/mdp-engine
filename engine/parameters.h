@@ -29,7 +29,8 @@ struct parameters_t {
 
     struct vi_parameters_t {
         unsigned max_number_iterations_;
-        vi_parameters_t() : max_number_iterations_(std::numeric_limits<unsigned>::max()) { }
+        vi_parameters_t()
+          : max_number_iterations_(std::numeric_limits<unsigned>::max()) { }
     } vi;
 
     struct rtdp_parameters_t {
@@ -39,8 +40,7 @@ struct parameters_t {
         rtdp_parameters_t()
           : bound_(std::numeric_limits<unsigned>::max()),
             max_number_steps_(std::numeric_limits<unsigned>::max()),
-            epsilon_greedy_(0) {
-        }
+            epsilon_greedy_(0) { }
     } rtdp;
 
     struct eval_parameters_t {
