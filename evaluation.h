@@ -26,7 +26,7 @@
 
 #include "ao2.h"
 #include "ao3.h"
-#include "ao4.h"
+#include "aot.h"
 #include "mcts.h"
 
 namespace Evaluation {
@@ -85,7 +85,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
-        policy = new Policy::ao4_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+        policy = new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
     } else if( policy_type == "ao4" ) {
         ss << "ao4(" << base_str
            << ",width=" << par.width_
@@ -93,7 +93,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
-        policy = new Policy::ao4_t<T>(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+        policy = new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
     } else {
         ss << "<inexistent-policy-type>";
     }

@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef AO4_H
-#define AO4_H
+#ifndef AOT_H
+#define AOT_H
 
 #include "policy.h"
 #include "bdd_priority_queue.h"
@@ -31,6 +31,7 @@
 //#define DEBUG
 #define USE_PQ
 #define USE_BDD_PQ
+//#define HEAVY_ASSERTIONS
 
 // TODO: implement bounded priority queue
 
@@ -38,9 +39,9 @@ namespace Policy {
 
 ////////////////////////////////////////////////
 
-template<typename T> class ao4_t;
+template<typename T> class aot_t;
 
-template<typename T> struct ao4_node_t {
+template<typename T> struct aot_node_t {
     float value_;
     float delta_;
     unsigned nsamples_;
@@ -48,73 +49,76 @@ template<typename T> struct ao4_node_t {
     bool in_queue_;
     bool in_pq_;
 
-    ao4_node_t(float value = 0, float delta = 0)
-      : value_(value), delta_(delta), nsamples_(0), in_best_policy_(false), in_queue_(false), in_pq_(false) { }
-    virtual ~ao4_node_t() { }
+    aot_node_t(float value = 0, float delta = 0)
+      : value_(value), delta_(delta), nsamples_(0),
+        in_best_policy_(false), in_queue_(false), in_pq_(false) { }
+    virtual ~aot_node_t() { }
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
-    virtual void expand(const ao4_t<T> *policy, std::vector<ao4_node_t<T>*> &to_propagate) = 0;
-    virtual void propagate(const ao4_t<T> *policy) = 0;
+    virtual void expand(const aot_t<T> *policy, std::vector<aot_node_t<T>*> &to_propagate) = 0;
+    virtual void propagate(const aot_t<T> *policy) = 0;
 };
 
-template<typename T> struct ao4_state_node_t;
-template<typename T> struct ao4_action_node_t : public ao4_node_t<T> {
+template<typename T> struct aot_state_node_t;
+template<typename T> struct aot_action_node_t : public aot_node_t<T> {
     Problem::action_t action_;
     float action_cost_;
-    ao4_state_node_t<T> *parent_;
-    std::vector<std::pair<float, ao4_state_node_t<T>*> > children_;
+    aot_state_node_t<T> *parent_;
+    std::vector<std::pair<float, aot_state_node_t<T>*> > children_;
 
-    ao4_action_node_t(Problem::action_t action) : action_(action) { }
-    virtual ~ao4_action_node_t() { }
+    aot_action_node_t(Problem::action_t action) : action_(action) { }
+    virtual ~aot_action_node_t() { }
 
     bool is_leaf() const { return children_.empty(); }
     void update_value(float discount) {
-        ao4_node_t<T>::value_ = 0;
+        aot_node_t<T>::value_ = 0;
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
-            ao4_node_t<T>::value_ += children_[i].first * children_[i].second->value_;
+            aot_node_t<T>::value_ += children_[i].first * children_[i].second->value_;
         }
-        ao4_node_t<T>::value_ = action_cost_ + discount * ao4_node_t<T>::value_;
+        aot_node_t<T>::value_ = action_cost_ + discount * aot_node_t<T>::value_;
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
         if( indent ) os << std::setw(2 * parent_->depth_) << "";
         os << "[action=" << action_
-           << ",value=" << ao4_node_t<T>::value_
-           << ",delta=" << ao4_node_t<T>::delta_
+           << ",value=" << aot_node_t<T>::value_
+           << ",delta=" << aot_node_t<T>::delta_
            << "]";
     }
-    virtual void expand(const ao4_t<T> *policy, std::vector<ao4_node_t<T>*> &to_propagate) {
+    virtual void expand(const aot_t<T> *policy, std::vector<aot_node_t<T>*> &to_propagate) {
         policy->expand(this, to_propagate);
     }
-    virtual void propagate(const ao4_t<T> *policy) { policy->propagate(this); }
+    virtual void propagate(const aot_t<T> *policy) { policy->propagate(this); }
 };
 
-template<typename T> struct ao4_state_node_t : public ao4_node_t<T> {
+template<typename T> struct aot_state_node_t : public aot_node_t<T> {
     const T state_;
     bool is_goal_;
     bool is_dead_end_;
     unsigned depth_;
     int best_action_;
-    std::vector<std::pair<int, ao4_action_node_t<T>*> > parents_;
-    std::vector<ao4_action_node_t<T>*> children_;
+    std::vector<std::pair<int, aot_action_node_t<T>*> > parents_;
+    std::vector<aot_action_node_t<T>*> children_;
 
-    ao4_state_node_t(const T &state, unsigned depth = 0)
-      : state_(state), is_goal_(false), is_dead_end_(false), depth_(depth), best_action_(-1) { }
-    virtual ~ao4_state_node_t() { }
+    aot_state_node_t(const T &state, unsigned depth = 0)
+      : state_(state),
+        is_goal_(false), is_dead_end_(false),
+        depth_(depth), best_action_(Problem::noop) { }
+    virtual ~aot_state_node_t() { }
 
     Problem::action_t best_action() const {
-        return best_action_ == -1 ? Problem::noop : children_[best_action_]->action_;
+        return best_action_ == Problem::noop ? Problem::noop : children_[best_action_]->action_;
     }
 
     bool is_leaf() const { return is_dead_end_ || (!is_goal_ && children_.empty()); }
     void update_value() {
         assert(!is_goal_);
         if( !is_dead_end_ ) {
-            ao4_node_t<T>::value_ = std::numeric_limits<float>::max();
+            aot_node_t<T>::value_ = std::numeric_limits<float>::max();
             for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
                 float child_value = children_[i]->value_;
-                if( child_value < ao4_node_t<T>::value_ ) {
-                    ao4_node_t<T>::value_ = child_value;
+                if( child_value < aot_node_t<T>::value_ ) {
+                    aot_node_t<T>::value_ = child_value;
                     best_action_ = i;
                 }
             }
@@ -128,19 +132,19 @@ template<typename T> struct ao4_state_node_t : public ao4_node_t<T> {
            << ",best_action=" << best_action()
            << ",#pa=" << parents_.size()
            << ",#chld=" << children_.size()
-           << ",value=" << ao4_node_t<T>::value_
-           << ",delta=" << ao4_node_t<T>::delta_
+           << ",value=" << aot_node_t<T>::value_
+           << ",delta=" << aot_node_t<T>::delta_
            << "]";
     }
-    virtual void expand(const ao4_t<T> *policy, std::vector<ao4_node_t<T>*> &to_propagate) {
+    virtual void expand(const aot_t<T> *policy, std::vector<aot_node_t<T>*> &to_propagate) {
         policy->expand(this, to_propagate);
     }
-    virtual void propagate(const ao4_t<T> *policy) { policy->propagate(this); }
+    virtual void propagate(const aot_t<T> *policy) { policy->propagate(this); }
 };
 
 ////////////////////////////////////////////////
 
-template<typename T> struct ao4_map_functions_t {
+template<typename T> struct aot_map_functions_t {
     bool operator()(const std::pair<const T*, unsigned> &p1, const std::pair<const T*, unsigned> &p2) const {
         return (p1.second == p2.second) && (*p1.first == *p2.first);
     }
@@ -149,16 +153,16 @@ template<typename T> struct ao4_map_functions_t {
     }
 };
 
-template<typename T> class ao4_table_t : public std::tr1::unordered_map<std::pair<const T*, unsigned>, ao4_state_node_t<T>*, ao4_map_functions_t<T>, ao4_map_functions_t<T> > {
+template<typename T> class aot_table_t : public std::tr1::unordered_map<std::pair<const T*, unsigned>, aot_state_node_t<T>*, aot_map_functions_t<T>, aot_map_functions_t<T> > {
   public:
-    typedef typename std::tr1::unordered_map<std::pair<const T*, unsigned>, ao4_state_node_t<T>*, ao4_map_functions_t<T>, ao4_map_functions_t<T> > base_type;
+    typedef typename std::tr1::unordered_map<std::pair<const T*, unsigned>, aot_state_node_t<T>*, aot_map_functions_t<T>, aot_map_functions_t<T> > base_type;
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
     const_iterator end() const { return base_type::end(); }
 
   public:
-    ao4_table_t() { }
-    virtual ~ao4_table_t() { }
+    aot_table_t() { }
+    virtual ~aot_table_t() { }
     void print(std::ostream &os) const {
         for( const_iterator it = begin(); it != end(); ++it ) {
             os << "(" << it->first.first << "," << it->first.second << ")" << std::endl;
@@ -166,7 +170,7 @@ template<typename T> class ao4_table_t : public std::tr1::unordered_map<std::pai
     }
     void clear() {
         for( const_iterator it = begin(); it != end(); ++it ) {
-            ao4_state_node_t<T> *s_node = it->second;
+            aot_state_node_t<T> *s_node = it->second;
             for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                 delete s_node->children_[i];
             }
@@ -178,30 +182,30 @@ template<typename T> class ao4_table_t : public std::tr1::unordered_map<std::pai
 
 ////////////////////////////////////////////////
 
-template<typename T> struct ao4_min_priority_t {
-    bool operator()(const ao4_node_t<T> *n1, const ao4_node_t<T> *n2) const {
+template<typename T> struct aot_min_priority_t {
+    bool operator()(const aot_node_t<T> *n1, const aot_node_t<T> *n2) const {
         return fabs(n1->delta_) > fabs(n2->delta_);
     }
 };
 
-template<typename T> struct ao4_max_priority_t {
-    bool operator()(const ao4_node_t<T> *n1, const ao4_node_t<T> *n2) const {
+template<typename T> struct aot_max_priority_t {
+    bool operator()(const aot_node_t<T> *n1, const aot_node_t<T> *n2) const {
         return fabs(n2->delta_) > fabs(n1->delta_);
     }
 };
 
-template<typename T> class ao4_priority_queue_t : public std::priority_queue<ao4_node_t<T>*, std::vector<ao4_node_t<T>*>, ao4_min_priority_t<T> > {
+template<typename T> class aot_priority_queue_t : public std::priority_queue<aot_node_t<T>*, std::vector<aot_node_t<T>*>, aot_min_priority_t<T> > {
 };
 
-template<typename T> class ao4_bdd_priority_queue_t : public std::bdd_priority_queue<ao4_node_t<T>*, ao4_min_priority_t<T>, ao4_max_priority_t<T> > {
+template<typename T> class aot_bdd_priority_queue_t : public std::bdd_priority_queue<aot_node_t<T>*, aot_min_priority_t<T>, aot_max_priority_t<T> > {
   public:
-    ao4_bdd_priority_queue_t(unsigned capacity)
-      : std::bdd_priority_queue<ao4_node_t<T>*, ao4_min_priority_t<T>, ao4_max_priority_t<T> >(capacity) { }
+    aot_bdd_priority_queue_t(unsigned capacity)
+      : std::bdd_priority_queue<aot_node_t<T>*, aot_min_priority_t<T>, aot_max_priority_t<T> >(capacity) { }
 };
 
 ////////////////////////////////////////////////
 
-template<typename T> class ao4_t : public improvement_t<T> {
+template<typename T> class aot_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
@@ -211,24 +215,24 @@ template<typename T> class ao4_t : public improvement_t<T> {
     unsigned leaf_nsamples_;
     unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
-    mutable ao4_state_node_t<T> *root_;
+    mutable aot_state_node_t<T> *root_;
 #ifdef USE_PQ
-    mutable ao4_priority_queue_t<T> inside_priority_queue_;
-    mutable ao4_priority_queue_t<T> outside_priority_queue_;
-    mutable ao4_bdd_priority_queue_t<T> inside_bdd_priority_queue_;
-    mutable ao4_bdd_priority_queue_t<T> outside_bdd_priority_queue_;
+    mutable aot_priority_queue_t<T> inside_priority_queue_;
+    mutable aot_priority_queue_t<T> outside_priority_queue_;
+    mutable aot_bdd_priority_queue_t<T> inside_bdd_priority_queue_;
+    mutable aot_bdd_priority_queue_t<T> outside_bdd_priority_queue_;
 #else
-    mutable ao4_node_t<T> *best_inside_;
-    mutable ao4_node_t<T> *best_outside_;
+    mutable aot_node_t<T> *best_inside_;
+    mutable aot_node_t<T> *best_outside_;
 #endif
-    mutable ao4_table_t<T> table_;
+    mutable aot_table_t<T> table_;
     mutable float from_inside_;
     mutable float from_outside_;
     mutable unsigned total_number_expansions_;
     mutable unsigned total_evaluations_;
 
   public:
-    ao4_t(const policy_t<T> &base_policy,
+    aot_t(const policy_t<T> &base_policy,
           unsigned width,
           unsigned depth_bound,
           float ao_parameter,
@@ -259,9 +263,9 @@ template<typename T> class ao4_t : public improvement_t<T> {
         total_number_expansions_ = 0;
         total_evaluations_ = 0;
     }
-    virtual ~ao4_t() { }
+    virtual ~aot_t() { }
     virtual const policy_t<T>* clone() const {
-        return new ao4_t(improvement_t<T>::base_policy_, width_, depth_bound_, ao_parameter_, delayed_evaluation_, expansions_per_iteration_, leaf_nsamples_, delayed_evaluation_nsamples_);
+        return new aot_t(improvement_t<T>::base_policy_, width_, depth_bound_, ao_parameter_, delayed_evaluation_, expansions_per_iteration_, leaf_nsamples_, delayed_evaluation_nsamples_);
     }
 
     virtual Problem::action_t operator()(const T &s) const {
@@ -271,7 +275,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         insert_into_priority_queue(root_);
 
         // expand leaves and propagate values
-        std::vector<ao4_node_t<T>*> to_propagate;
+        std::vector<aot_node_t<T>*> to_propagate;
         for( unsigned i = 0; (i < width_) && !empty_priority_queues(); ) {
             unsigned expanded = 0;
             for( ; (expanded < expansions_per_iteration_) && !empty_priority_queues(); ++expanded ) {
@@ -282,7 +286,6 @@ template<typename T> class ao4_t : public improvement_t<T> {
             }
             clear_priority_queues();
             recompute_delta(root_);
-            //std::cout << "root->value=" << root_->value_ << std::endl;
             i += expanded;
         }
         assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action())));
@@ -317,11 +320,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
 
     // lookup a node in hash table; if not found, create a new entry.
-    std::pair<ao4_state_node_t<T>*, bool> fetch_node(const T &state, unsigned depth) const {
-        typename ao4_table_t<T>::iterator it = table_.find(std::make_pair(&state, depth));
+    std::pair<aot_state_node_t<T>*, bool> fetch_node(const T &state, unsigned depth) const {
+        typename aot_table_t<T>::iterator it = table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
             ++num_nodes_;
-            ao4_state_node_t<T> *node = new ao4_state_node_t<T>(state, depth);
+            aot_state_node_t<T> *node = new aot_state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth), node));
             if( policy_t<T>::problem().terminal(state) ) {
                 node->value_ = 0;
@@ -350,12 +353,12 @@ template<typename T> class ao4_t : public improvement_t<T> {
 
     // expansion of state and action nodes. The binding of appropriate method
     // is done at run-time with virtual methods
-    void expand(std::vector<ao4_node_t<T>*> &to_propagate) const {
+    void expand(std::vector<aot_node_t<T>*> &to_propagate) const {
         ++total_number_expansions_;
-        ao4_node_t<T> *node = select_from_priority_queue();
+        aot_node_t<T> *node = select_from_priority_queue();
         node->expand(this, to_propagate);
     }
-    void expand(ao4_action_node_t<T> *a_node, std::vector<ao4_node_t<T>*> &to_propagate, bool picked_from_queue = true) const {
+    void expand(aot_action_node_t<T> *a_node, std::vector<aot_node_t<T>*> &to_propagate, bool picked_from_queue = true) const {
         assert(a_node->is_leaf());
         assert(!a_node->parent_->is_dead_end_);
         std::vector<std::pair<T, float> > outcomes;
@@ -364,7 +367,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
             float prob = outcomes[i].second;
-            std::pair<ao4_state_node_t<T>*, bool> p = fetch_node(state, 1 + a_node->parent_->depth_);
+            std::pair<aot_state_node_t<T>*, bool> p = fetch_node(state, 1 + a_node->parent_->depth_);
             if( p.second ) {
                 assert(p.first->is_leaf());
                 to_propagate.push_back(p.first);
@@ -381,19 +384,24 @@ template<typename T> class ao4_t : public improvement_t<T> {
             const T &state = a_node->parent_->state_;
             unsigned depth = 1 + a_node->parent_->depth_;
             for( int i = 0, isz = a_node->parent_->children_.size(); i < isz; ++i ) {
-                ao4_action_node_t<T> *sibling = a_node->parent_->children_[i];
+                aot_action_node_t<T> *sibling = a_node->parent_->children_[i];
                 if( sibling->is_leaf() ) {
                     float oval = (sibling->value_ - sibling->action_cost_) / policy_t<T>::problem().discount();
                     float eval = evaluate(state, sibling->action_, depth);
                     float nval = oval * sibling->nsamples_ + eval;
                     sibling->nsamples_ += delayed_evaluation_nsamples_ * leaf_nsamples_;
                     sibling->value_ = sibling->action_cost_ + policy_t<T>::problem().discount() * nval / sibling->nsamples_;
-                    //std::cout << "sibling re-sampled: num=" << sibling->nsamples_ << std::endl;
+
+#ifdef DEBUG
+                    std::cout << "sibling re-sampled: "
+                              << "num=" << sibling->nsamples_
+                              << std::endl;
+#endif
                 }
             }
         }
     }
-    void expand(ao4_state_node_t<T> *s_node, std::vector<ao4_node_t<T>*> &to_propagate) const {
+    void expand(aot_state_node_t<T> *s_node, std::vector<aot_node_t<T>*> &to_propagate) const {
         assert(s_node->is_leaf());
         assert(!s_node->is_dead_end_);
         s_node->children_.reserve(policy_t<T>::problem().number_actions(s_node->state_));
@@ -401,7 +409,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             if( policy_t<T>::problem().applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
-                ao4_action_node_t<T> *a_node = new ao4_action_node_t<T>(a);
+                aot_action_node_t<T> *a_node = new aot_action_node_t<T>(a);
                 a_node->action_cost_ = policy_t<T>::problem().cost(s_node->state_, a);
                 a_node->parent_ = s_node;
                 s_node->children_.push_back(a_node);
@@ -422,26 +430,26 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
 
     // propagate new values bottom-up using BFS and stopping when values changes no further
-    void propagate(ao4_node_t<T> *node) const {
+    void propagate(aot_node_t<T> *node) const {
         node->propagate(this);
     }
-    void propagate(ao4_action_node_t<T> *a_node) const {
+    void propagate(aot_action_node_t<T> *a_node) const {
         assert(a_node->parent_ != 0);
         propagate(a_node->parent_);
     }
-    void propagate(ao4_state_node_t<T> *s_node) const {
-        std::deque<ao4_state_node_t<T>*> queue;
+    void propagate(aot_state_node_t<T> *s_node) const {
+        std::deque<aot_state_node_t<T>*> queue;
         queue.push_back(s_node);
         s_node->in_queue_ = true;
         while( !queue.empty() ) {
-            ao4_state_node_t<T> *s_node = queue.front();
+            aot_state_node_t<T> *s_node = queue.front();
             queue.pop_front();
             s_node->in_queue_ = false;
             float old_value = s_node->value_;
             if( !s_node->is_leaf() ) s_node->update_value();
             if( s_node->is_leaf() || (old_value != s_node->value_) ) {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
-                    ao4_action_node_t<T> *a_node = s_node->parents_[i].second;
+                    aot_action_node_t<T> *a_node = s_node->parents_[i].second;
                     float old_value = a_node->value_;
                     a_node->update_value(policy_t<T>::problem().discount());
                     assert(a_node->parent_ != 0);
@@ -455,13 +463,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
 
     // recompute delta values for nodes in top-down BFS manner
-    void recompute_delta(ao4_state_node_t<T> *root) const {
+    void recompute_delta(aot_state_node_t<T> *root) const {
         assert(!root->is_goal_);
         assert(!root->is_dead_end_);
 
-        std::deque<ao4_state_node_t<T>*> s_queue;
+        std::deque<aot_state_node_t<T>*> s_queue;
         bool expanding_from_s_queue = true;
-        std::deque<ao4_action_node_t<T>*> a_queue;
+        std::deque<aot_action_node_t<T>*> a_queue;
         bool expanding_from_a_queue = false;
 
         root->delta_ = std::numeric_limits<float>::max();
@@ -472,7 +480,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             // expand from the state queue
             if( expanding_from_s_queue ) {
                 while( !s_queue.empty() ) {
-                    ao4_state_node_t<T> *s_node = s_queue.back();
+                    aot_state_node_t<T> *s_node = s_queue.back();
                     s_queue.pop_back();
                     s_node->in_queue_ = false;
                     recompute(s_node, a_queue);
@@ -484,7 +492,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             // expand from the action queue
             if( expanding_from_a_queue ) {
                 while( !a_queue.empty() ) {
-                    ao4_action_node_t<T> *a_node = a_queue.back();
+                    aot_action_node_t<T> *a_node = a_queue.back();
                     a_queue.pop_back();
                     recompute(a_node, s_queue);
                 }
@@ -493,7 +501,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             }
         }
     }
-    void recompute(ao4_state_node_t<T> *s_node, std::deque<ao4_action_node_t<T>*> &a_queue) const {
+    void recompute(aot_state_node_t<T> *s_node, std::deque<aot_action_node_t<T>*> &a_queue) const {
         assert(!s_node->is_goal_);
         assert(!s_node->is_dead_end_);
         if( s_node->is_leaf() ) {
@@ -511,7 +519,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
                 float Delta = std::numeric_limits<float>::max();
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     if( i != s_node->best_action_ ) {
-                        ao4_action_node_t<T> *a_node = s_node->children_[i];
+                        aot_action_node_t<T> *a_node = s_node->children_[i];
                         float d = a_node->value_ - best_value;
                         Delta = Utils::min(Delta, d);
                     }
@@ -519,7 +527,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
 
                 // compute delta
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-                    ao4_action_node_t<T> *a_node = s_node->children_[i];
+                    aot_action_node_t<T> *a_node = s_node->children_[i];
                     if( i == s_node->best_action_ ) {
                         a_node->delta_ = Utils::min(s_node->delta_, Delta);
                         a_node->in_best_policy_ = true;
@@ -534,7 +542,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             } else {
                 assert(s_node->delta_ <= 0);
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-                    ao4_action_node_t<T> *a_node = s_node->children_[i];
+                    aot_action_node_t<T> *a_node = s_node->children_[i];
                     a_node->delta_ = s_node->delta_ + best_value - a_node->value_;
                     a_node->in_best_policy_ = false;
                     assert(a_node->delta_ <= 0);
@@ -543,7 +551,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
             }
         }
     }
-    void recompute(ao4_action_node_t<T> *a_node, std::deque<ao4_state_node_t<T>*> &s_queue) const {
+    void recompute(aot_action_node_t<T> *a_node, std::deque<aot_state_node_t<T>*> &s_queue) const {
         if( a_node->is_leaf() ) {
             // insert tip node into priority queue
             if( a_node->parent_->depth_ < depth_bound_ ) {
@@ -551,13 +559,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
             }
         } else {
             for( int i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
-                ao4_state_node_t<T> *s_node = a_node->children_[i].second;
+                aot_state_node_t<T> *s_node = a_node->children_[i].second;
                 if( !s_node->in_queue_ && !s_node->is_goal_ && !s_node->is_dead_end_ ) {
                     float delta = std::numeric_limits<float>::max();
                     bool in_best_policy = false;
                     for( int j = 0, jsz = s_node->parents_.size(); j < jsz; ++j ) {
                         int child_index = s_node->parents_[j].first;
-                        ao4_action_node_t<T> *parent = s_node->parents_[j].second;
+                        aot_action_node_t<T> *parent = s_node->parents_[j].second;
                         assert(parent->children_[child_index].second == s_node);
                         float d = parent->delta_ /
                                   (policy_t<T>::problem().discount() * parent->children_[child_index].first);
@@ -613,16 +621,16 @@ template<typename T> class ao4_t : public improvement_t<T> {
     bool empty_priority_queues() const {
         return empty_inside_priority_queue() && empty_outside_priority_queue();
     }
-    void clear(ao4_priority_queue_t<T> &pq) const {
+    void clear(aot_priority_queue_t<T> &pq) const {
         while( !pq.empty() ) {
-            ao4_node_t<T> *node = pq.top();
+            aot_node_t<T> *node = pq.top();
             pq.pop();
             node->in_pq_ = false;
         }
     }
-    void clear(ao4_bdd_priority_queue_t<T> &pq) const {
+    void clear(aot_bdd_priority_queue_t<T> &pq) const {
         while( !pq.empty() ) {
-            ao4_node_t<T> *node = pq.top();
+            aot_node_t<T> *node = pq.top();
             pq.pop();
             node->in_pq_ = false;
         }
@@ -633,10 +641,12 @@ template<typename T> class ao4_t : public improvement_t<T> {
         clear(inside_priority_queue_);
         clear(outside_priority_queue_);
 #  else
-        //clear(inside_priority_queue_);
-        //clear(outside_priority_queue_);
         clear(inside_bdd_priority_queue_);
         clear(outside_bdd_priority_queue_);
+#    ifdef HEAVY_ASSERTIONS
+        clear(inside_priority_queue_);
+        clear(outside_priority_queue_);
+#    endif
 #  endif
 #else
         if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
@@ -645,51 +655,60 @@ template<typename T> class ao4_t : public improvement_t<T> {
         best_outside_ = 0;
 #endif
     }
-    void insert_into_inside_priority_queue(ao4_node_t<T> *node) const {
+    void insert_into_inside_priority_queue(aot_node_t<T> *node) const {
 #ifdef USE_PQ
         node->in_pq_ = true;
 #  ifndef USE_BDD_PQ
         inside_priority_queue_.push(node);
 #  else
-        //inside_priority_queue_.push(node);
         inside_bdd_priority_queue_.push(node);
+#    ifdef HEAVY_ASSERTIONS
+        inside_priority_queue_.push(node);
+#    endif
 #  endif
 #else
-        if( (best_inside_ == 0) || ao4_min_priority_t<T>()(best_inside_, node) ) {
+        if( (best_inside_ == 0) || aot_min_priority_t<T>()(best_inside_, node) ) {
             if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
             best_inside_ = node;
             best_inside_->in_pq_ = true;
         }
 #endif
     }
-    void insert_into_outside_priority_queue(ao4_node_t<T> *node) const {
+    void insert_into_outside_priority_queue(aot_node_t<T> *node) const {
 #ifdef USE_PQ
         node->in_pq_ = true;
 #  ifndef USE_BDD_PQ
         outside_priority_queue_.push(node);
 #  else
-        //outside_priority_queue_.push(node);
         outside_bdd_priority_queue_.push(node);
+#    ifdef HEAVY_ASSERTIONS
+        outside_priority_queue_.push(node);
+#    endif
 #  endif
 #else
-        if( (best_outside_ == 0) || ao4_min_priority_t<T>()(best_outside_, node) ) {
+        if( (best_outside_ == 0) || aot_min_priority_t<T>()(best_outside_, node) ) {
             if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
             best_outside_ = node;
             best_outside_->in_pq_ = true;
         }
 #endif
     }
-    void insert_into_priority_queue(ao4_node_t<T> *node) const {
+    void insert_into_priority_queue(aot_node_t<T> *node) const {
         if( !node->in_pq_ ) {
-            //std::cout << "push "; node->print(std::cout, false); std::cout << std::endl;
+#ifdef DEBUG
+            std::cout << "push ";
+            node->print(std::cout, false);
+            std::cout << std::endl;
+#endif
+
             if( node->delta_ >= 0 )
                 insert_into_inside_priority_queue(node);
             else
                 insert_into_outside_priority_queue(node);
         }
     }
-    ao4_node_t<T>* select_from_inside() const {
-        ao4_node_t<T> *node = 0;
+    aot_node_t<T>* select_from_inside() const {
+        aot_node_t<T> *node = 0;
 #ifdef USE_PQ
 #  ifndef USE_BDD_PQ
         node = inside_priority_queue_.top();
@@ -697,17 +716,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #  else
         node = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
-#if 0
-        ao4_node_t<T> *aux = inside_priority_queue_.top();
+#    ifdef HEAVY_ASSERTIONS
+        aot_node_t<T> *aux = inside_priority_queue_.top();
         inside_priority_queue_.pop();
         assert(node->delta_ == aux->delta_);
-        ao4_state_node_t<T> *snode = dynamic_cast<ao4_state_node_t<T>*>(node);
-        ao4_state_node_t<T> *saux = dynamic_cast<ao4_state_node_t<T>*>(aux);
-        if( !(snode->state_ == saux->state_) ) {
-            std::cout << "mismatch: " << snode->state_ << " " << saux->state_ << std::endl;
-        }
-        assert(snode->state_ == saux->state_);
-#endif
+#    endif
 #  endif
 #else
         node = best_inside_;
@@ -717,8 +730,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
         ++from_inside_;
         return node;
     }
-    ao4_node_t<T>* select_from_outside() const {
-        ao4_node_t<T> *node = 0;
+    aot_node_t<T>* select_from_outside() const {
+        aot_node_t<T> *node = 0;
 #ifdef USE_PQ
 #  ifndef USE_BDD_PQ
         node = outside_priority_queue_.top();
@@ -726,17 +739,11 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #  else
         node = outside_bdd_priority_queue_.top();
         outside_bdd_priority_queue_.pop();
-#if 0
-        ao4_node_t<T> *aux = outside_priority_queue_.top();
+#    ifdef HEAVY_ASSERTIONS
+        aot_node_t<T> *aux = outside_priority_queue_.top();
         outside_priority_queue_.pop();
         assert(node->delta_ == aux->delta_);
-        ao4_state_node_t<T> *snode = dynamic_cast<ao4_state_node_t<T>*>(node);
-        ao4_state_node_t<T> *saux = dynamic_cast<ao4_state_node_t<T>*>(aux);
-        if( !(snode->state_ == saux->state_) ) {
-            std::cout << "mismatch: " << snode->state_ << " " << saux->state_ << std::endl;
-        }
-        assert(snode->state_ == saux->state_);
-#endif
+#    endif
 #  endif
 #else
         node = best_outside_;
@@ -746,8 +753,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
         ++from_outside_;
         return node;
     }
-    ao4_node_t<T>* select_from_priority_queue() const {
-        ao4_node_t<T> *node = 0;
+    aot_node_t<T>* select_from_priority_queue() const {
+        aot_node_t<T> *node = 0;
         if( empty_inside_priority_queue() ) {
             node = select_from_outside();
         } else if( empty_outside_priority_queue() ) {
@@ -759,7 +766,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
                 node = select_from_outside();
             }
         }
-        //std::cout << "pop "; node->print(std::cout, false); std::cout << std::endl;
+
+#ifdef DEBUG
+        std::cout << "pop ";
+        node->print(std::cout, false);
+        std::cout << std::endl;
+#endif
+
         return node;
     }
 };
