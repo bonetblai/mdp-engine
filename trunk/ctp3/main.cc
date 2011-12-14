@@ -47,6 +47,7 @@ int main(int argc, const char **argv) {
 
     cout << fixed;
     Algorithm::parameters_t parameters;
+    cout << 8*sizeof(unsigned long long) << endl;
 
     // parse arguments
     ++argv;
