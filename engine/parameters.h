@@ -46,10 +46,11 @@ struct parameters_t {
     struct eval_parameters_t {
         unsigned number_trials_;
         unsigned max_number_steps_;
+        bool verbose_;
         eval_parameters_t()
           : number_trials_(1000),
             max_number_steps_(std::numeric_limits<unsigned>::max()),
-            verbose(false) { }
+            verbose_(false) { }
     } eval;
 
     parameters_t() : epsilon_(0), seed_(0) { }
