@@ -55,7 +55,8 @@ struct state_t {
     }
     int distance_to(int n) const { return distances_[n]; }
     bool is_dead_end() const {
-        return (current_) != -1 && (heuristic_ == std::numeric_limits<int>::max()); }
+        return (current_ != -1) && (heuristic_ == std::numeric_limits<int>::max());
+    }
 
     void move_to(int n) {
         int mask = 1 << n;
