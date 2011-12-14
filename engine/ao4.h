@@ -215,11 +215,8 @@ template<typename T> class ao4_t : public improvement_t<T> {
 #ifdef USE_PQ
     mutable ao4_priority_queue_t<T> inside_priority_queue_;
     mutable ao4_priority_queue_t<T> outside_priority_queue_;
-
-#ifdef USE_BDD_PQ
     mutable ao4_bdd_priority_queue_t<T> inside_bdd_priority_queue_;
     mutable ao4_bdd_priority_queue_t<T> outside_bdd_priority_queue_;
-#endif
 #else
     mutable ao4_node_t<T> *best_inside_;
     mutable ao4_node_t<T> *best_outside_;
@@ -249,7 +246,7 @@ template<typename T> class ao4_t : public improvement_t<T> {
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         num_nodes_(0),
         root_(0),
-#ifdef USE_BDD_PQ
+#ifdef USE_PQ
         inside_bdd_priority_queue_(expansions_per_iteration),
         outside_bdd_priority_queue_(expansions_per_iteration),
 #endif
@@ -593,14 +590,22 @@ template<typename T> class ao4_t : public improvement_t<T> {
     // implementation of priority queue for storing the deltas
     bool empty_inside_priority_queue() const {
 #ifdef USE_PQ
+#  ifndef USE_BDD_PQ
         return inside_priority_queue_.empty();
+#  else
+        return inside_bdd_priority_queue_.empty();
+#  endif
 #else
         return best_inside_ == 0;
 #endif
     }
     bool empty_outside_priority_queue() const {
 #ifdef USE_PQ
+#  ifndef USE_BDD_PQ
         return outside_priority_queue_.empty();
+#  else
+        return outside_bdd_priority_queue_.empty();
+#  endif
 #else
         return best_outside_ == 0;
 #endif
@@ -615,14 +620,24 @@ template<typename T> class ao4_t : public improvement_t<T> {
             node->in_pq_ = false;
         }
     }
+    void clear(ao4_bdd_priority_queue_t<T> &pq) const {
+        while( !pq.empty() ) {
+            ao4_node_t<T> *node = pq.top();
+            pq.pop();
+            node->in_pq_ = false;
+        }
+    }
     void clear_priority_queues() const {
 #ifdef USE_PQ
+#  ifndef USE_BDD_PQ
         clear(inside_priority_queue_);
         clear(outside_priority_queue_);
-#ifdef USE_BDD_PQ
-        inside_bdd_priority_queue_.clear();
-        outside_bdd_priority_queue_.clear();
-#endif
+#  else
+        //clear(inside_priority_queue_);
+        //clear(outside_priority_queue_);
+        clear(inside_bdd_priority_queue_);
+        clear(outside_bdd_priority_queue_);
+#  endif
 #else
         if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
         best_inside_ = 0;
@@ -632,11 +647,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void insert_into_inside_priority_queue(ao4_node_t<T> *node) const {
 #ifdef USE_PQ
-        inside_priority_queue_.push(node);
         node->in_pq_ = true;
-#ifdef USE_BDD_PQ
+#  ifndef USE_BDD_PQ
+        inside_priority_queue_.push(node);
+#  else
+        //inside_priority_queue_.push(node);
         inside_bdd_priority_queue_.push(node);
-#endif
+#  endif
 #else
         if( (best_inside_ == 0) || ao4_min_priority_t<T>()(best_inside_, node) ) {
             if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
@@ -647,11 +664,13 @@ template<typename T> class ao4_t : public improvement_t<T> {
     }
     void insert_into_outside_priority_queue(ao4_node_t<T> *node) const {
 #ifdef USE_PQ
-        outside_priority_queue_.push(node);
         node->in_pq_ = true;
-#ifdef USE_BDD_PQ
+#  ifndef USE_BDD_PQ
+        outside_priority_queue_.push(node);
+#  else
+        //outside_priority_queue_.push(node);
         outside_bdd_priority_queue_.push(node);
-#endif
+#  endif
 #else
         if( (best_outside_ == 0) || ao4_min_priority_t<T>()(best_outside_, node) ) {
             if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
@@ -670,16 +689,28 @@ template<typename T> class ao4_t : public improvement_t<T> {
         }
     }
     ao4_node_t<T>* select_from_inside() const {
+        ao4_node_t<T> *node = 0;
 #ifdef USE_PQ
-        ao4_node_t<T> *node = inside_priority_queue_.top();
+#  ifndef USE_BDD_PQ
+        node = inside_priority_queue_.top();
         inside_priority_queue_.pop();
-#ifdef USE_BDD_PQ
-        ao4_node_t<T> *aux = inside_bdd_priority_queue_.top();
+#  else
+        node = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
+#if 0
+        ao4_node_t<T> *aux = inside_priority_queue_.top();
+        inside_priority_queue_.pop();
         assert(node->delta_ == aux->delta_);
+        ao4_state_node_t<T> *snode = dynamic_cast<ao4_state_node_t<T>*>(node);
+        ao4_state_node_t<T> *saux = dynamic_cast<ao4_state_node_t<T>*>(aux);
+        if( !(snode->state_ == saux->state_) ) {
+            std::cout << "mismatch: " << snode->state_ << " " << saux->state_ << std::endl;
+        }
+        assert(snode->state_ == saux->state_);
 #endif
+#  endif
 #else
-        ao4_node_t<T> *node = best_inside_;
+        node = best_inside_;
         best_inside_ = 0;
 #endif
         node->in_pq_ = false;
@@ -687,16 +718,28 @@ template<typename T> class ao4_t : public improvement_t<T> {
         return node;
     }
     ao4_node_t<T>* select_from_outside() const {
+        ao4_node_t<T> *node = 0;
 #ifdef USE_PQ
-        ao4_node_t<T> *node = outside_priority_queue_.top();
+#  ifndef USE_BDD_PQ
+        node = outside_priority_queue_.top();
         outside_priority_queue_.pop();
-#ifdef USE_BDD_PQ
-        ao4_node_t<T> *aux = outside_bdd_priority_queue_.top();
+#  else
+        node = outside_bdd_priority_queue_.top();
         outside_bdd_priority_queue_.pop();
+#if 0
+        ao4_node_t<T> *aux = outside_priority_queue_.top();
+        outside_priority_queue_.pop();
         assert(node->delta_ == aux->delta_);
+        ao4_state_node_t<T> *snode = dynamic_cast<ao4_state_node_t<T>*>(node);
+        ao4_state_node_t<T> *saux = dynamic_cast<ao4_state_node_t<T>*>(aux);
+        if( !(snode->state_ == saux->state_) ) {
+            std::cout << "mismatch: " << snode->state_ << " " << saux->state_ << std::endl;
+        }
+        assert(snode->state_ == saux->state_);
 #endif
+#  endif
 #else
-        ao4_node_t<T> *node = best_outside_;
+        node = best_outside_;
         best_outside_ = 0;
 #endif
         node->in_pq_ = false;
