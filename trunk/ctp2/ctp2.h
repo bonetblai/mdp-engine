@@ -24,6 +24,8 @@ struct state_t {
     std::vector<int> distances_;
     int heuristic_;
 
+    static std::vector<int> static_distances_;
+
   public:
     state_t(int current = -1)
       : current_(current), known_(0), blocked_(0), visited_(0),
@@ -69,10 +71,9 @@ struct state_t {
             blocked_ &= ~mask;
     }
     void preprocess(const CTP::graph_t &graph) {
-        std::vector<int> distances;
         compute_distances(graph);
-        compute_distances(graph, distances, true);
-        heuristic_ = distances[graph.num_nodes_ - 1];
+        compute_distances(graph, static_distances_, true);
+        heuristic_ = static_distances_[graph.num_nodes_ - 1];
     }
 
     const state_t& operator=(const state_t &s) {
@@ -113,7 +114,7 @@ struct state_t {
         dist.reserve(graph.num_nodes_);
 
         // compute all shortest-paths from current node in known (or optimistic) graph.
-        std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, CTP::open_list_cmp> queue;
+        static std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, CTP::open_list_cmp> queue;
 
         // initialization of values
         for( int n = 0; n < graph.num_nodes_; ++n ) {
@@ -180,6 +181,8 @@ struct state_t {
     }
 
 };
+
+std::vector<int> state_t::static_distances_;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
