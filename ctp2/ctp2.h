@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <map>
 #include <vector>
@@ -15,6 +16,29 @@
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
+#undef INT_MAX
+#define INT_MAX std::numeric_limits<int>::max()
+
+template<typename T> struct bits_t {
+    T field_;
+    int base_;
+    bits_t(const T field, int base) : field_(field), base_(base) { }
+    void print(std::ostream &os) const {
+        if( field_ != 0 ) {
+            T aux = field_;
+            for( int i = 0; aux != 0; ++i, aux = aux >> 1 ) {
+                if( aux & 0x1 ) {
+                    os << base_ + i << ",";
+                }
+            }
+        }
+    }
+};
+
+template<typename T> inline std::ostream& operator<<(std::ostream &os, const bits_t<T> &bits) {
+    bits.print(os);
+    return os;
+}
 
 struct state_t {
     int current_;
@@ -28,43 +52,44 @@ struct state_t {
 
   public:
     state_t(int current = -1)
-      : current_(current), known_(0), blocked_(0), visited_(0),
-        heuristic_(std::numeric_limits<int>::max()) { }
+      : current_(current),
+        known_(0), blocked_(0), visited_(0),
+        heuristic_(0) { }
     state_t(const state_t &s) { *this = s; }
     ~state_t() { }
 
     size_t hash() const { return current_ + (known_ ^ blocked_); }
 
-    bool known(int e) const {
-        int mask = 1 << e;
+    bool known(int edge) const {
+        int mask = 1 << edge;
         return known_ & mask;
     }
-    bool traversable(int e) const {
-        int mask = 1 << e;
+    bool traversable(int edge) const {
+        int mask = 1 << edge;
         return (blocked_ & mask) != 0 ? false : true;
     }
-    bool visited(int n) const {
-        int mask = 1 << n;
+    bool visited(int node) const {
+        int mask = 1 << node;
         return visited_ & mask;
     }
-    bool reachable(int n) const {
-        return distances_[n] < std::numeric_limits<int>::max();
+    bool reachable(int node) const {
+        return distances_[node] < INT_MAX;
     }
-    bool perimeter(int n, const CTP::graph_t &graph) const {
-        return !visited(n) && reachable(n);
+    bool perimeter(int node, const CTP::graph_t &graph) const {
+        return !visited(node) && reachable(node);
     }
-    int distance_to(int n) const { return distances_[n]; }
+    int distance_to(int node) const { return distances_[node]; }
     bool is_dead_end() const {
-        return (current_ != -1) && (heuristic_ == std::numeric_limits<int>::max());
+        return (current_ != -1) && (heuristic_ == INT_MAX);
     }
 
-    void move_to(int n) {
-        int mask = 1 << n;
-        current_ = n;
+    void move_to(int node) {
+        int mask = 1 << node;
+        current_ = node;
         visited_ |= mask;
     }
-    void set_edge_status(int e, bool blocked) {
-        int mask = 1 << e;
+    void set_edge_status(int edge, bool blocked) {
+        int mask = 1 << edge;
         known_ |= mask;
         if( blocked )
             blocked_ |= mask;
@@ -77,22 +102,32 @@ struct state_t {
         heuristic_ = static_distances_[graph.num_nodes_ - 1];
     }
 
+    void clear() {
+        current_ = 0;
+        known_ = 0;
+        blocked_ = 0;
+        visited_ = 0;
+        distances_.clear();
+        heuristic_ = 0;
+    }
+
     const state_t& operator=(const state_t &s) {
         current_ = s.current_;
         known_ = s.known_;
         blocked_ = s.blocked_;
         visited_ = s.visited_;
-        heuristic_ = s.heuristic_;
         distances_ = s.distances_;
+        heuristic_ = s.heuristic_;
         return *this;
     }
     bool operator==(const state_t &s) const {
-        return (current_ == s.current_) && (known_ == s.known_) &&
-               (blocked_ == s.blocked_) && (visited_ == s.visited_);
+        return (current_ == s.current_) &&
+               (known_ == s.known_) &&
+               (blocked_ == s.blocked_) &&
+               (visited_ == s.visited_);
     }
     bool operator!=(const state_t &s) const {
-        return (current_ != s.current_) || (known_ != s.known_) ||
-               (blocked_ != s.blocked_) || (visited_ != s.visited_);
+        return *this == s ? false : true;
     }
     bool operator<(const state_t &s) const {
         return (current_ < s.current_) ||
@@ -101,25 +136,28 @@ struct state_t {
                ((current_ == s.current_) && (known_ == s.known_) && (blocked_ == s.blocked_) && (visited_ < s.visited_));
     }
     void print(std::ostream &os) const {
-        os << "("
-           << current_
-           << "," << known_
-           << "," << blocked_
-           << "," << visited_;
-        if( is_dead_end() ) os << ",DE";
+        os << "(" << current_
+           << ",K={" << bits_t<unsigned>(known_, 0) << "}"
+           << ",B={" << bits_t<unsigned>(blocked_, 0) << "}"
+           << ",V={" << bits_t<unsigned>(visited_, 0) << "}";
+        if( is_dead_end() ) os << ",DEAD";
         os << ")";
     }
 
-    void compute_distances(const CTP::graph_t &graph, std::vector<int> &dist, bool optimistic = false) const {
+    void compute_distances(const CTP::graph_t &graph,
+                           std::vector<int> &dist,
+                           bool optimistic = false) const {
         dist.clear();
         dist.reserve(graph.num_nodes_);
 
-        // compute all shortest-paths from current node in known (or optimistic) graph.
-        static std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, CTP::open_list_cmp> queue;
+        // compute shortest paths in known (or optimistic) graph
+        static std::priority_queue<std::pair<int, int>,
+                                   std::vector<std::pair<int, int> >,
+                                   CTP::open_list_cmp> queue;
 
         // initialization of values
         for( int n = 0; n < graph.num_nodes_; ++n ) {
-            dist.push_back(std::numeric_limits<int>::max());
+            dist.push_back(INT_MAX);
         }
 
         // Dijsktra's with goal node as seed
@@ -132,7 +170,8 @@ struct state_t {
             if( p.second <= dist[p.first] ) {
                 for( int i = 0, isz = graph.at_[p.first].size(); i < isz; ++i ) {
                     int j = graph.at_[p.first][i];
-                    if( (known(j) && traversable(j)) || (optimistic && !known(j)) ) {
+                    if( (known(j) && traversable(j)) ||
+                        (optimistic && !known(j)) ) {
                         const CTP::graph_t::edge_t &e = graph.edge_list_[j];
                         int cost = p.second + e.cost_;
                         int next = p.first == e.to_ ? e.from_ : e.to_;
@@ -152,11 +191,11 @@ struct state_t {
     void print_path(const CTP::graph_t &graph, const std::vector<int> &dist) const {
         int path_cost = 0;
         std::cout << "path=<" << std::flush;
-        if( dist[current_] < std::numeric_limits<int>::max() ) {
+        if( dist[current_] < INT_MAX ) {
             int node = current_;
             std::cout << "n=" << node << std::flush;
             while( node != graph.num_nodes_ - 1 ) {
-                int best = -1, cost = std::numeric_limits<int>::max();
+                int best = -1, cost = INT_MAX;
                 for( int i = 0, isz = graph.at_[node].size(); i < isz; ++i ) {
                     int j = graph.at_[node][i];
                     if( known(j) && traversable(j) ) {
@@ -190,9 +229,9 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     return os;
 }
 
-bool cmp_function(const std::pair<state_t, float> &p1, const std::pair<state_t, float> &p2) {
-    return p1.second > p2.second;
-}
+//bool cmp_function(const std::pair<state_t, float> &p1, const std::pair<state_t, float> &p2) {
+//    return p1.second > p2.second;
+//}
 
 class problem_t : public Problem::problem_t<state_t> {
   public:
@@ -210,15 +249,22 @@ class problem_t : public Problem::problem_t<state_t> {
         return s.current_ == -1 ? 1 : graph_.num_nodes_;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
-        return ((s.current_ == -1) && (a == 0)) || ((s.current_ != -1) && s.perimeter(a, graph_));
+        return ((s.current_ == -1) && (a == 0)) ||
+               ((s.current_ != -1) && s.perimeter(a, graph_));
     }
     virtual const state_t& init() const { return init_; }
-    virtual bool terminal(const state_t &s) const { return s.current_ == goal_; }
-    virtual bool dead_end(const state_t &s) const { return s.is_dead_end(); }
+    virtual bool terminal(const state_t &s) const {
+        return s.current_ == goal_;
+    }
+    virtual bool dead_end(const state_t &s) const {
+        return s.is_dead_end();
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return s.current_ == -1 ? 0 : s.distance_to(a);
     }
-    virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
+    virtual void next(const state_t &s,
+                      Problem::action_t a,
+                      std::vector<std::pair<state_t, float> > &outcomes) const {
         //std::cout << "next" << s << " w/ a=" << a << " is:" << std::endl;
 
         ++expansions_;
@@ -283,7 +329,9 @@ class problem_with_hidden_state_t : public problem_t {
         hidden_ = hidden;
     }
 
-    virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
+    virtual void next(const state_t &s,
+                      Problem::action_t a,
+                      std::vector<std::pair<state_t, float> > &outcomes) const {
         ++expansions_;
         outcomes.clear();
         outcomes.reserve(1);
@@ -308,8 +356,8 @@ class problem_with_hidden_state_t : public problem_t {
     }
 };
 
-inline state_t sample_weather(const CTP::graph_t &graph) {
-    state_t state(0);
+inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
+    state.clear();
     int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
     for( int e = 0; e < num_edges; ++e ) {
         float p = graph.prob(e);
@@ -320,15 +368,15 @@ inline state_t sample_weather(const CTP::graph_t &graph) {
         }
     }
     if( graph.with_shortcut_ ) state.set_edge_status(graph.num_edges_ - 1, true);
-    return state;
 }
 
-inline float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
-    std::vector<int> distances;
+inline float probability_bad_weather(const CTP::graph_t &graph,
+                                     unsigned nsamples) {
     float prob = 0;
+    state_t weather(0);
     for( unsigned i = 0; i < nsamples; ++i ) {
-        state_t weather = sample_weather(graph);
-        weather.compute_distances(graph, distances);
+        sample_weather(graph, weather);
+        weather.preprocess(graph);
         prob += weather.reachable(graph.num_nodes_ - 1) ? 0 : 1;
     }
     return prob / nsamples;

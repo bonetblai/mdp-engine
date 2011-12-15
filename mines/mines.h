@@ -1,10 +1,10 @@
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <map>
 #include <set>
 #include <vector>
 #include <limits>
-#include <strings.h>
 
 //#define  DISCOUNT  .95
 #define  DISCOUNT  1
@@ -185,7 +185,7 @@ struct state_t {
     }
 
     void set_default_probabilities() {
-        bcopy(&default_probabilities_[0], &prob_obs_[0], sizeof(float) * prob_obs_.size());
+        memcpy(&prob_obs_[0], &default_probabilities_[0], sizeof(float) * prob_obs_.size());
     }
 
     void initial_preprocess() {

@@ -47,7 +47,6 @@ int main(int argc, const char **argv) {
 
     cout << fixed;
     Algorithm::parameters_t parameters;
-    cout << 8*sizeof(unsigned long long) << endl;
 
     // parse arguments
     ++argv;
@@ -120,8 +119,9 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
+    state_t::initialize(graph.num_nodes_, graph.num_edges_);
     problem_t problem(graph);
-    //cout << "P(bad weather)=" << probability_bad_weather(graph, 1e6) << endl;
+    cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -172,14 +172,16 @@ int main(int argc, const char **argv) {
         for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
             cout << " " << i << flush;
             // sample a good weather
-            state_t hidden = sample_weather(graph);
+            state_t hidden(0);
+            sample_weather(graph, hidden);
             hidden.preprocess(graph);
             while( hidden.is_dead_end() ) {
-                hidden = sample_weather(graph);
+                sample_weather(graph, hidden);
                 hidden.preprocess(graph);
             }
             if( graph.with_shortcut_ ) hidden.set_edge_status(graph.num_edges_ - 1, false);
             pwhs.set_hidden(hidden);
+            //cout << "hidden=" << hidden << endl;
 
             // do evaluation from start node
             size_t steps = 0;
