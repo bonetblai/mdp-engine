@@ -11,17 +11,17 @@ struct open_list_cmp {
 };
 
 struct graph_t {
-    unsigned num_nodes_;
-    unsigned num_edges_;
+    int num_nodes_;
+    int num_edges_;
     bool with_shortcut_;
-    unsigned shortcut_cost_;
-    unsigned *h_opt_;
+    int shortcut_cost_;
+    int *h_opt_;
 
     struct edge_t {
-        unsigned from_, to_;
-        unsigned cost_;
-        float prob_;
-        edge_t(unsigned from, unsigned to, unsigned cost, unsigned prob)
+        int from_, to_;
+        int cost_;
+        float prob_; // probability that edge is traversable (priv. comm. from Malte et al.)
+        edge_t(int from, int to, int cost, float prob)
           : from_(from), to_(to), cost_(cost), prob_(prob) { }
     };
 
@@ -48,7 +48,6 @@ struct graph_t {
         is >> token;
         if( token == "p" ) {
             is >> num_nodes_ >> num_edges_;
-            ++num_edges_; // increase count to make space for fixed (s,t) edge
 
             if( num_nodes_ > 128 ) {
                 std::cout << "error: number of nodes must be <= 128." << std::endl;
@@ -60,7 +59,7 @@ struct graph_t {
             }
 
             at_.resize(num_nodes_);
-            for( unsigned e = 0; e < num_edges_ - 1; ++e ) {
+            for( int e = 0; e < num_edges_; ++e ) {
                 is >> token;
                 if( token == "e" ) {
                     int from, to, cost;
@@ -85,6 +84,11 @@ struct graph_t {
         // insert shortcut (s,t) edge
         if( with_shortcut_ ) {
             std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
+            ++num_edges_;
+            if( num_edges_ > 288 ) {
+                std::cout << "error: number of edges must be <= 288." << std::endl;
+                return false;
+            }
             int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
             edge_list_.push_back(edge_t(from, to, shortcut_cost_, 1));
             at_[from].push_back(e);
@@ -92,8 +96,8 @@ struct graph_t {
         }
 
         // compute optimistic shortest-paths to goal
-        h_opt_ = new unsigned[num_nodes_];
-        for( unsigned n = 0; n < num_nodes_; ++n )
+        h_opt_ = new int[num_nodes_];
+        for( int n = 0; n < num_nodes_; ++n )
             h_opt_[n] = std::numeric_limits<int>::max();
 
         std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, open_list_cmp> open;
@@ -101,23 +105,19 @@ struct graph_t {
         h_opt_[goal] = 0;
         open.push(std::make_pair(goal, 0));
         while( !open.empty() ) {
-            std::pair<unsigned, unsigned> p = open.top();
+            std::pair<int, int> p = open.top();
             open.pop();
             if( p.second <= h_opt_[p.first] ) {
                 for( int i = 0, isz = at_[p.first].size(); i < isz; ++i ) {
                     const edge_t &e = edge_list_[at_[p.first][i]];
-                    unsigned cost = p.second + e.cost_;
-                    unsigned to = e.from_ == p.first ? e.to_ : e.from_;
+                    int cost = p.second + e.cost_;
+                    int to = e.from_ == p.first ? e.to_ : e.from_;
                     if( cost < h_opt_[to] ) {
                         h_opt_[to] = cost;
                         open.push(std::make_pair(to, cost));
                     }
                 }
             }
-        }
-
-        // print node degrees
-        for( unsigned n = 0; n < num_nodes_; ++n ) {
         }
 
         return true;

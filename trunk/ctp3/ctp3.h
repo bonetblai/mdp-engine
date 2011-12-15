@@ -1,5 +1,5 @@
 #include <cassert>
-#include <strings.h>
+#include <cstring>
 #include <iostream>
 #include <map>
 #include <vector>
@@ -16,69 +16,126 @@
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
-#undef UINT_MAX
-#define UINT_MAX std::numeric_limits<unsigned>::max()
+#undef INT_MAX
+#define INT_MAX std::numeric_limits<int>::max()
 
-#define B_EDGES 36 // max. 288 edges
-#define B_NODES 16 // max. 128 nodes
+#define WORDS_FOR_NODES 4 // max. 128 nodes
+#define WORDS_FOR_EDGES 9 // max. 288 edges
+
+template<typename T> struct bits_t {
+    T field_;
+    int base_;
+    bits_t(const T field, int base) : field_(field), base_(base) { }
+    void print(std::ostream &os) const {
+        if( field_ != 0 ) {
+            T aux = field_;
+            for( int i = 0; aux != 0; ++i, aux = aux >> 1 ) {
+                if( aux & 0x1 ) {
+                    os << base_ + i << ",";
+                }
+            }
+        }
+    }
+};
+
+template<typename T> inline std::ostream& operator<<(std::ostream &os, const bits_t<T> &bits) {
+    bits.print(os);
+    return os;
+}
 
 struct state_t {
     int current_;
-    unsigned char known_[B_EDGES];
-    unsigned char blocked_[B_EDGES];
-    unsigned char visited_[B_NODES];
-    mutable unsigned *distances_;
-    unsigned heuristic_;
+    unsigned known_[WORDS_FOR_EDGES];
+    unsigned blocked_[WORDS_FOR_EDGES];
+    unsigned visited_[WORDS_FOR_NODES];
+    mutable int *distances_;
+    int heuristic_;
 
-    static unsigned static_distances_[1<<B_NODES];
+    static int num_nodes_;
+    static int num_edges_;
+    static int words_for_nodes_;
+    static int words_for_edges_;
+    static int static_distances_[];
 
   public:
     state_t(int current = -1)
-      : current_(current), distances_(0), heuristic_(UINT_MAX) {
-        bzero(known_, B_EDGES);
-        bzero(blocked_, B_EDGES);
-        bzero(visited_, B_NODES);
+      : current_(current), distances_(0), heuristic_(0) {
+        memset(known_, 0, WORDS_FOR_EDGES * sizeof(unsigned));
+        memset(blocked_, 0, WORDS_FOR_EDGES * sizeof(unsigned));
+        memset(visited_, 0, WORDS_FOR_NODES * sizeof(unsigned));
+        distances_ = new int[num_nodes_];
     }
-    state_t(const state_t &s) { *this = s; }
+    state_t(const state_t &s) {
+        distances_ = new int[num_nodes_];
+        *this = s;
+    }
     ~state_t() { delete[] distances_; }
 
-    size_t hash() const { return current_ + (known_ ^ blocked_); }
+    static void initialize(unsigned num_nodes, unsigned num_edges) {
+        num_nodes_ = num_nodes;
+        num_edges_ = num_edges;
+        assert(num_nodes_ <= WORDS_FOR_NODES * 4 * 8);
+        assert(num_edges_ <= WORDS_FOR_EDGES * 4 * 8);
+        words_for_nodes_ = num_nodes_ >> 5;
+        if( (num_nodes_ & 0x1F) != 0 ) ++words_for_nodes_;
+        words_for_edges_ = num_edges_ >> 5;
+        if( (num_edges_ & 0x1F) != 0 ) ++words_for_edges_;
+        std::cout << "init: #nodes=" << num_nodes_
+                  << ", #edges=" << num_edges_
+                  << ", #words-for-nodes=" << words_for_nodes_
+                  << ", #words-for-edges=" << words_for_edges_
+                  << std::endl;
+    }
+
+    size_t hash() const {
+        unsigned rv = current_;
+        for( int i = 0; i < words_for_edges_; ++i )
+            rv = rv ^ known_[i];
+        for( int i = 0; i < words_for_edges_; ++i )
+            rv = rv ^ blocked_[i];
+        return rv;
+    }
 
     bool known(int edge) const {
-        int mask = 1 << edge;
-        return known_ & mask;
+        int n = edge >> 5, offset = edge & 0x1F;
+        int mask = 1 << offset;
+        return known_[n] & mask;
     }
     bool traversable(int edge) const {
-        int mask = 1 << edge;
-        return (blocked_ & mask) != 0 ? false : true;
+        int n = edge >> 5, offset = edge & 0x1F;
+        int mask = 1 << offset;
+        return (blocked_[n] & mask) != 0 ? false : true;
     }
     bool visited(int node) const {
-        int mask = 1 << node;
-        return visited_ & mask;
+        int n = node >> 5, offset = node & 0x1F;
+        int mask = 1 << offset;
+        return visited_[n] & mask;
     }
     bool reachable(int node) const {
-        return distances_[node] < UINT_MAX;
+        return distances_[node] < INT_MAX;
     }
     bool perimeter(int node, const CTP::graph_t &graph) const {
         return !visited(node) && reachable(node);
     }
     int distance_to(int node) const { return distances_[node]; }
     bool is_dead_end() const {
-        return (current_ != -1) && (heuristic_ == UINT_MAX);
+        return (current_ != -1) && (heuristic_ == INT_MAX);
     }
 
     void move_to(int node) {
-        int mask = 1 << node;
+        int n = node >> 5, offset = node & 0x1F;
+        int mask = 1 << offset;
         current_ = node;
-        visited_ |= mask;
+        visited_[n] |= mask;
     }
     void set_edge_status(int edge, bool blocked) {
-        int mask = 1 << edge;
-        known_ |= mask;
+        int n = edge >> 5, offset = edge & 0x1F;
+        int mask = 1 << offset;
+        known_[n] |= mask;
         if( blocked )
-            blocked_ |= mask;
+            blocked_[n] |= mask;
         else
-            blocked_ &= ~mask;
+            blocked_[n] &= ~mask;
     }
     void preprocess(const CTP::graph_t &graph) {
         compute_distances(graph);
@@ -86,57 +143,72 @@ struct state_t {
         heuristic_ = static_distances_[graph.num_nodes_ - 1];
     }
 
+    void clear() {
+        current_ = 0;
+        memset(known_, 0, words_for_edges_ * sizeof(unsigned));
+        memset(blocked_, 0, words_for_edges_ * sizeof(unsigned));
+        memset(visited_, 0, words_for_nodes_ * sizeof(unsigned));
+        memset(distances_, 0, num_nodes_ * sizeof(int));
+        heuristic_ = 0;
+    }
+
     const state_t& operator=(const state_t &s) {
         current_ = s.current_;
-        bcopy(s.known_, known_, B_EDGES);
-        bcopy(s.blocked_, blocked_, B_EDGES);
-        bcopy(s.visited_, visited_, B_NODES);
-        distances_ = s.distances_; // TODO: THIS IS WRONG!!!!!
+        memcpy(known_, s.known_, words_for_edges_ * sizeof(unsigned));
+        memcpy(blocked_, s.blocked_, words_for_edges_ * sizeof(unsigned));
+        memcpy(visited_, s.visited_, words_for_nodes_ * sizeof(unsigned));
+        memcpy(distances_, s.distances_, num_nodes_ * sizeof(int));
         heuristic_ = s.heuristic_;
         return *this;
     }
     bool operator==(const state_t &s) const {
-        return (current_ == s.current_) && (known_ == s.known_) &&
-               (blocked_ == s.blocked_) && (visited_ == s.visited_);
+        return (current_ == s.current_) &&
+               (memcmp(known_, s.known_, words_for_edges_ * sizeof(unsigned)) == 0) &&
+               (memcmp(blocked_, s.blocked_, words_for_edges_ * sizeof(unsigned)) == 0) &&
+               (memcmp(visited_, s.visited_, words_for_nodes_ * sizeof(unsigned)) == 0);
     }
     bool operator!=(const state_t &s) const {
-        return (current_ != s.current_) || (known_ != s.known_) ||
-               (blocked_ != s.blocked_) || (visited_ != s.visited_);
+        return *this == s ? false : true;
     }
     bool operator<(const state_t &s) const {
         return (current_ < s.current_) ||
-               ((current_ == s.current_) && (known_ < s.known_)) ||
-               ((current_ == s.current_) && (known_ == s.known_) &&
-                (blocked_ < s.blocked_)) ||
-               ((current_ == s.current_) && (known_ == s.known_) &&
-                (blocked_ == s.blocked_) && (visited_ < s.visited_));
+               ((current_ == s.current_) &&
+                (memcmp(known_, s.known_, words_for_edges_ * sizeof(unsigned)) < 0)) ||
+               ((current_ == s.current_) &&
+                (memcmp(known_, s.known_, words_for_edges_ * sizeof(unsigned)) == 0) &&
+                (memcmp(blocked_, s.blocked_, words_for_edges_ * sizeof(unsigned)) < 0)) ||
+               ((current_ == s.current_) &&
+                (memcmp(known_, s.known_, words_for_edges_ * sizeof(unsigned)) == 0) &&
+                (memcmp(blocked_, s.blocked_, words_for_edges_ * sizeof(unsigned)) == 0) &&
+                (memcmp(visited_, s.visited_, words_for_nodes_ * sizeof(unsigned)) < 0));
     }
     void print(std::ostream &os) const {
-        os << "("
-           << current_
-           << "," << known_
-           << "," << blocked_
-           << "," << visited_;
-        if( is_dead_end() ) os << ",DE";
+        os << words_for_edges_ << ":(" << current_ << ",K={";
+        for( int i = 0; i < words_for_edges_; ++i )
+            os << bits_t<unsigned>(known_[i], i << 5);
+        os << "},B={";
+        for( int i = 0; i < words_for_edges_; ++i )
+            os << bits_t<unsigned>(blocked_[i], i << 5);
+        os << "},V={";
+        for( int i = 0; i < words_for_nodes_; ++i )
+            os << bits_t<unsigned>(visited_[i], i << 5);
+        os << "}";
+        if( is_dead_end() ) os << ",DEAD";
         os << ")";
     }
 
     void compute_distances(const CTP::graph_t &graph,
-                           unsigned *dist,
+                           int *dist,
                            bool optimistic = false) const {
 
-        if( dist == 0 ) {
-            dist = distances_ = new unsigned[graph.num_nodes_];
-        }
-
         // compute shortest paths in known (or optimistic) graph
-        static std::priority_queue<std::pair<unsigned, unsigned>,
-                                   std::vector<std::pair<unsigned, unsigned> >,
+        static std::priority_queue<std::pair<int, int>,
+                                   std::vector<std::pair<int, int> >,
                                    CTP::open_list_cmp> queue;
 
         // initialization of values
-        for( unsigned n = 0; n < graph.num_nodes_; ++n ) {
-            dist[n] = UINT_MAX;
+        for( int n = 0; n < graph.num_nodes_; ++n ) {
+            dist[n] = INT_MAX;
         }
 
         // Dijsktra's with goal node as seed
@@ -144,7 +216,7 @@ struct state_t {
         dist[start] = 0;
         queue.push(std::make_pair(start, 0));
         while( !queue.empty() ) {
-            std::pair<unsigned, unsigned> p = queue.top();
+            std::pair<int, int> p = queue.top();
             queue.pop();
             if( p.second <= dist[p.first] ) {
                 for( int i = 0, isz = graph.at_[p.first].size(); i < isz; ++i ) {
@@ -152,8 +224,8 @@ struct state_t {
                     if( (known(j) && traversable(j)) ||
                         (optimistic && !known(j)) ) {
                         const CTP::graph_t::edge_t &e = graph.edge_list_[j];
-                        unsigned cost = p.second + e.cost_;
-                        unsigned next = p.first == e.to_ ? e.from_ : e.to_;
+                        int cost = p.second + e.cost_;
+                        int next = p.first == e.to_ ? e.from_ : e.to_;
                         if( cost < dist[next] ) {
                             dist[next] = cost;
                             queue.push(std::make_pair(next, cost));
@@ -167,20 +239,19 @@ struct state_t {
         compute_distances(graph, distances_);
     }
 
-    void print_path(const CTP::graph_t &graph, const unsigned *dist) const {
+    void print_path(const CTP::graph_t &graph, const int *dist) const {
         int path_cost = 0;
         std::cout << "path=<" << std::flush;
-        if( dist[current_] < UINT_MAX ) {
-            unsigned node = current_;
+        if( dist[current_] < INT_MAX ) {
+            int node = current_;
             std::cout << "n=" << node << std::flush;
             while( node != graph.num_nodes_ - 1 ) {
-                int best = -1;
-                unsigned cost = UINT_MAX;
+                int best = -1, cost = INT_MAX;
                 for( int i = 0, isz = graph.at_[node].size(); i < isz; ++i ) {
                     int j = graph.at_[node][i];
                     if( known(j) && traversable(j) ) {
                         const CTP::graph_t::edge_t &e = graph.edge_list_[j];
-                        unsigned next = node == e.to_ ? e.from_ : e.to_;
+                        int next = node == e.to_ ? e.from_ : e.to_;
                         if( dist[next] < cost ) {
                             best = j;
                             cost = dist[next];
@@ -202,7 +273,11 @@ struct state_t {
 
 };
 
-//unsigned state_t::static_distances_[128];
+int state_t::num_nodes_ = 0;
+int state_t::num_edges_ = 0;
+int state_t::words_for_nodes_ = 0;
+int state_t::words_for_edges_ = 0;
+int state_t::static_distances_[WORDS_FOR_NODES*32];
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
@@ -336,8 +411,8 @@ class problem_with_hidden_state_t : public problem_t {
     }
 };
 
-inline state_t sample_weather(const CTP::graph_t &graph) {
-    state_t state(0);
+inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
+    state.clear();
     int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
     for( int e = 0; e < num_edges; ++e ) {
         float p = graph.prob(e);
@@ -348,19 +423,17 @@ inline state_t sample_weather(const CTP::graph_t &graph) {
         }
     }
     if( graph.with_shortcut_ ) state.set_edge_status(graph.num_edges_ - 1, true);
-    return state;
 }
 
 inline float probability_bad_weather(const CTP::graph_t &graph,
                                      unsigned nsamples) {
-    unsigned *distances = new unsigned[graph.num_nodes_];
     float prob = 0;
+    state_t weather(0);
     for( unsigned i = 0; i < nsamples; ++i ) {
-        state_t weather = sample_weather(graph);
-        weather.compute_distances(graph, distances);
+        sample_weather(graph, weather);
+        weather.preprocess(graph);
         prob += weather.reachable(graph.num_nodes_ - 1) ? 0 : 1;
     }
-    delete[] distances;
     return prob / nsamples;
 }
 

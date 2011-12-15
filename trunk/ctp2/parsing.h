@@ -20,8 +20,9 @@ struct graph_t {
     struct edge_t {
         int from_, to_;
         int cost_;
-        float prob_;
-        edge_t(int from, int to, int cost, float prob) : from_(from), to_(to), cost_(cost), prob_(prob) { }
+        float prob_; // probability that edge is traversable (priv. comm. from Malte et al.)
+        edge_t(int from, int to, int cost, float prob)
+          : from_(from), to_(to), cost_(cost), prob_(prob) { }
     };
 
     std::vector<edge_t> edge_list_;
@@ -47,14 +48,18 @@ struct graph_t {
         is >> token;
         if( token == "p" ) {
             is >> num_nodes_ >> num_edges_;
-            ++num_edges_; // increase count to make space for fixed (s,t) edge
-            if( num_edges_ > 64 ) {
-                std::cout << "error: number of edges must be less than or equal to 64." << std::endl;
+
+            if( num_nodes_ > (int)(4*sizeof(unsigned long)) ) {
+                std::cout << "error: number of nodes must be <= " << 4*sizeof(unsigned long) << "." << std::endl;
+                return false;
+            }
+            if( num_edges_ > (int)(4*sizeof(unsigned long)) ) {
+                std::cout << "error: number of edges must be <= " << 4*sizeof(unsigned long) << "." << std::endl;
                 return false;
             }
 
             at_.resize(num_nodes_);
-            for( int e = 0; e < num_edges_ - 1; ++e ) {
+            for( int e = 0; e < num_edges_; ++e ) {
                 is >> token;
                 if( token == "e" ) {
                     int from, to, cost;
@@ -79,6 +84,11 @@ struct graph_t {
         // insert shortcut (s,t) edge
         if( with_shortcut_ ) {
             std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
+            ++num_edges_;
+            if( num_edges_ > (int)(4*sizeof(unsigned long)) ) {
+                std::cout << "error: number of edges must be <= " << 4*sizeof(unsigned long) << "." << std::endl;
+                return false;
+            }
             int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
             edge_list_.push_back(edge_t(from, to, shortcut_cost_, 1));
             at_[from].push_back(e);
@@ -108,10 +118,6 @@ struct graph_t {
                     }
                 }
             }
-        }
-
-        // print node degrees
-        for( int n = 0; n < num_nodes_; ++n ) {
         }
 
         return true;

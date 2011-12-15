@@ -21,6 +21,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <cstring>
 #include <vector>
 
 //#define DEBUG
@@ -298,7 +299,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         }
         max_size_ = 0;
 
-        bzero(&min_array_[0], (1 + capacity_) * sizeof(unsigned));
+        memset(&min_array_[0], 0, (1 + capacity_) * sizeof(unsigned));
         min_size_ = 0;
 
         assert(check());
