@@ -119,7 +119,7 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
-    state_t::initialize(graph.num_nodes_, graph.num_edges_);
+    state_t::initialize(graph.num_nodes_, graph.num_edges_, 2e5);
     problem_t problem(graph);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 

@@ -49,12 +49,12 @@ struct graph_t {
         if( token == "p" ) {
             is >> num_nodes_ >> num_edges_;
 
-            if( num_nodes_ > 128 ) {
-                std::cout << "error: number of nodes must be <= 128." << std::endl;
+            if( num_nodes_ > (int)(8*sizeof(unsigned long)) ) {
+                std::cout << "error: number of nodes must be <= " << 8*sizeof(unsigned long) << "." << std::endl;
                 return false;
             }
-            if( num_edges_ > 288 ) {
-                std::cout << "error: number of edges must be <= 288." << std::endl;
+            if( num_edges_ > (int)(8*sizeof(unsigned long)) ) {
+                std::cout << "error: number of edges must be <= " << 8*sizeof(unsigned long) << "." << std::endl;
                 return false;
             }
 
@@ -85,8 +85,8 @@ struct graph_t {
         if( with_shortcut_ ) {
             std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
             ++num_edges_;
-            if( num_edges_ > 288 ) {
-                std::cout << "error: number of edges must be <= 288." << std::endl;
+            if( num_edges_ > (int)(8*sizeof(unsigned long)) ) {
+                std::cout << "error: number of edges must be <= " << 8*sizeof(unsigned long) << "." << std::endl;
                 return false;
             }
             int from = 0, to = num_nodes_ - 1, e = num_edges_ - 1;
