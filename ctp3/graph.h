@@ -1,10 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <limits>
-
-#undef INT_MAX
-#define INT_MAX std::numeric_limits<int>::max()
+#include <limits.h>
 
 namespace CTP {
 

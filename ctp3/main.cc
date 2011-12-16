@@ -204,6 +204,7 @@ int main(int argc, const char **argv) {
             values.push_back(cost);
         }
         cout << endl;
+        cout << "max-branching=" << problem.max_branching_ << endl;
         state_t::print_stats(cout);
 
         // compute avg
