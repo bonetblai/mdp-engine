@@ -1,5 +1,5 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -fasm-blocks #-DNDEBUG
 OBJS	=	main.o
 TARGET	=	ctp3
 

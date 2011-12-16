@@ -25,6 +25,12 @@
 #define WORDS_FOR_EDGES 9 // max. 288 edges
 
 
+inline unsigned rotation(unsigned x) {
+    __asm { rol x, 16 }
+    return x;
+}
+
+
 template<typename T> struct bits_t {
     T field_;
     int base_;
@@ -47,6 +53,7 @@ template<typename T> inline std::ostream& operator<<(std::ostream &os, const bit
 }
 
 
+
 struct state_info_t {
     unsigned known_[WORDS_FOR_EDGES];
     unsigned blocked_[WORDS_FOR_EDGES];
@@ -67,7 +74,8 @@ struct state_info_t {
         for( int i = 0; i < words_for_edges_; ++i )
             rv = rv ^ known_[i];
         for( int i = 0; i < words_for_edges_; ++i )
-            rv = rv ^ blocked_[i];
+            rv = rv ^ rotation(blocked_[i]);
+        //std::cout << "hash of "; print(std::cout); std::cout << " = " << rv << std::endl;
         return rv;
     }
 
@@ -143,38 +151,50 @@ struct cache_functions_t {
     }
 };
 
-
-class shortest_path_cache_t : public std::tr1::unordered_map<state_info_t, const int*, cache_functions_t, cache_functions_t> {
+class shortest_path_cache_t : public std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
     unsigned capacity_;
-    int *all_pairs_distances_;
+    int *distances_;
     unsigned lookups_;
     unsigned hits_;
 
   public:
-    shortest_path_cache_t() : capacity_(0), all_pairs_distances_(0), lookups_(0), hits_(0) { }
-    ~shortest_path_cache_t() { delete[] all_pairs_distances_; }
+    shortest_path_cache_t()
+      : std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t>(),
+        capacity_(0), distances_(0), lookups_(0), hits_(0) { }
+    ~shortest_path_cache_t() { delete[] distances_; }
     void initialize(int capacity, int num_nodes) {
         capacity_ = capacity;
-        all_pairs_distances_ = new int[num_nodes * num_nodes];
+        distances_ = new int[num_nodes];
     }
     const int* lookup(const CTP::graph_t &graph, int source, const state_info_t &info) {
         ++lookups_;
         const_iterator it = find(info);
         if( it != end() ) {
-            ++hits_;
-            return &it->second[source * graph.num_nodes_];
+            int *stored = it->second;
+            if( stored[source * graph.num_nodes_ + source] == -1 ) {
+                graph.dijkstra(source, &stored[source * graph.num_nodes_], info.known_, info.blocked_, false);
+            } else {
+                ++hits_;
+            }
+            return &stored[source * graph.num_nodes_];
         } else {
             if( size() < capacity_ ) {
                 int *distances = new int[graph.num_nodes_ * graph.num_nodes_];
-                graph.floyd_warshall(distances, info.known_, info.blocked_, false);
+                for( int node = 0; node < graph.num_nodes_; ++node ) {
+                    distances[node * graph.num_nodes_ + node] = -1;
+                }
+
+                //graph.floyd_warshall(distances, info.known_, info.blocked_, false);
+                graph.dijkstra(source, &distances[source * graph.num_nodes_], info.known_, info.blocked_, false);
                 insert(std::make_pair(info, distances));
                 return &distances[source * graph.num_nodes_];
             } else {
-                graph.floyd_warshall(all_pairs_distances_, info.known_, info.blocked_, false);
-                return &all_pairs_distances_[source * graph.num_nodes_];
+                graph.dijkstra(source, distances_, info.known_, info.blocked_, false);
+                return distances_;
             }
         }
     }
+    unsigned lookups() const { return lookups_; }
     float hit_ratio() const { return (float)hits_ / (float)lookups_; }
 };
 
@@ -204,11 +224,24 @@ struct state_t {
     }
     ~state_t() { delete[] distances_; }
 
-    static void initialize(int num_nodes, int num_edges, int cache_capacity) {
-        num_nodes_ = num_nodes;
-        num_edges_ = num_edges;
-        assert(num_nodes_ <= WORDS_FOR_NODES * 4 * 8);
-        assert(num_edges_ <= WORDS_FOR_EDGES * 4 * 8);
+    static void initialize(const CTP::graph_t &graph, int cache_capacity) {
+        num_nodes_ = graph.num_nodes_;
+        num_edges_ = graph.num_edges_;
+
+        if( num_nodes_ > (int)(WORDS_FOR_NODES * sizeof(unsigned) * 8) ) {
+            std::cout << "error: number of nodes must be <= "
+                      <<  WORDS_FOR_NODES * sizeof(unsigned) * 8
+                      << std::endl;
+            exit(1);
+        }
+
+        if( num_edges_ > (int)(WORDS_FOR_EDGES * sizeof(unsigned) * 8) ) {
+            std::cout << "error: number of nodes must be <= "
+                      <<  WORDS_FOR_EDGES * sizeof(unsigned) * 8
+                      << std::endl;
+            exit(1);
+        }
+
         words_for_nodes_ = num_nodes_ >> 5;
         if( (num_nodes_ & 0x1F) != 0 ) ++words_for_nodes_;
         words_for_edges_ = num_edges_ >> 5;
@@ -219,7 +252,21 @@ struct state_t {
                   << ", #words-for-edges=" << words_for_edges_
                   << std::endl;
         state_info_t::initialize(words_for_edges_);
-        cache_.initialize(cache_capacity, num_nodes);
+        cache_.initialize(cache_capacity, num_nodes_);
+    }
+
+    static void print_stats(std::ostream &os) {
+        int maxsz = 0;
+        for( int i = 0; i < (int)cache_.bucket_count(); ++i ) {
+            int sz = cache_.bucket_size(i);
+            maxsz = sz > maxsz ? sz : maxsz;
+        }
+        os << "cache: #entries=" << cache_.size()
+           << ", #buckets=" << cache_.bucket_count()
+           << ", max-bucket-size=" << maxsz
+           << ", #lookups=" << cache_.lookups()
+           << ", %hit=" << cache_.hit_ratio()
+           << std::endl;
     }
 
     size_t hash() const { return info_.hash(); }
@@ -255,17 +302,13 @@ struct state_t {
     }
 
     void preprocess(const CTP::graph_t &graph) {
-        //dijkstra(graph, current_, distances_);
         const int *distances = cache_.lookup(graph, current_, info_);
-        //assert(memcmp(distances_, distances, num_nodes_*sizeof(int)) == 0);
         memcpy(distances_, distances, num_nodes_ * sizeof(int));
-
-        //heuristic_ = bfs(graph, current_, num_nodes_ - 1, true);
-        // CHECK: remove this
-        int *aux = new int[num_nodes_];
-        dijkstra(graph, current_, aux, true);
-        heuristic_ = aux[num_nodes_ - 1];
-        delete[] aux;
+        //int *aux = new int[num_nodes_];
+        //dijkstra(graph, current_, aux, true);
+        //heuristic_ = aux[num_nodes_ - 1];
+        //delete[] aux;
+        heuristic_ = bfs(graph, current_, num_nodes_ - 1, true);
     }
 
     void clear() {
@@ -285,7 +328,8 @@ struct state_t {
         return *this;
     }
     bool operator==(const state_t &s) const {
-        return (current_ == s.current_) && (info_ == s.info_) &&
+        return (current_ == s.current_) &&
+               (info_ == s.info_) &&
                (memcmp(visited_, s.visited_, words_for_nodes_ * sizeof(unsigned)) == 0);
     }
     bool operator!=(const state_t &s) const {
@@ -317,11 +361,6 @@ struct state_t {
                   int *distances,
                   bool optimistic = false) const {
         graph.dijkstra(source, distances, info_.known_, info_.blocked_, optimistic);
-    }
-    void floyd_warshall(const CTP::graph_t &graph,
-                        int *distances,
-                        bool optimistic = true) const {
-        graph.floyd_warshall(distances, info_.known_, info_.blocked_, optimistic);
     }
 };
 
@@ -501,6 +540,5 @@ inline float probability_bad_weather(const CTP::graph_t &graph,
     }
     return prob / nsamples;
 }
-
 
 

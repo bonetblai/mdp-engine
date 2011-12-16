@@ -15,9 +15,13 @@
 #include "mcts.h"
 #include "dispatcher.h"
 
-#define DISCOUNT 1.00
 #undef INT_MAX
 #define INT_MAX std::numeric_limits<int>::max()
+
+#define DISCOUNT 1.00
+
+#define WORDS_FOR_NODES 1 // max. 32 nodes
+#define WORDS_FOR_EDGES 1 // max. 32 edges
 
 template<typename T> struct bits_t {
     T field_;
@@ -48,7 +52,6 @@ struct state_t {
     std::vector<int> distances_;
     int heuristic_;
 
-    static std::vector<int> static_distances_;
 
   public:
     state_t(int current = -1)
@@ -57,6 +60,23 @@ struct state_t {
         heuristic_(0) { }
     state_t(const state_t &s) { *this = s; }
     ~state_t() { }
+
+    static void initialize(const CTP::graph_t &graph) {
+        if( graph.num_nodes_ > (int)(WORDS_FOR_NODES * sizeof(unsigned) * 8) ) {
+            std::cout << "error: number of nodes must be <= "
+                      <<  WORDS_FOR_NODES * sizeof(unsigned) * 8
+                      << std::endl;
+            exit(1);
+        }
+
+        if( graph.num_edges_ > (int)(WORDS_FOR_EDGES * sizeof(unsigned) * 8) ) {
+            std::cout << "error: number of nodes must be <= "
+                      <<  WORDS_FOR_EDGES * sizeof(unsigned) * 8
+                      << std::endl;
+            exit(1);
+        }
+    }
+
 
     size_t hash() const { return current_ + (known_ ^ blocked_); }
 
@@ -78,16 +98,13 @@ struct state_t {
     bool perimeter(int node, const CTP::graph_t &graph) const {
         return !visited(node) && reachable(node);
     }
-    int distance_to(int node) const { return distances_[node]; }
+    int distance_to(int node) const {
+        return distances_[node];
+    }
     bool is_dead_end() const {
         return (current_ != -1) && (heuristic_ == INT_MAX);
     }
 
-    void move_to(int node) {
-        int mask = 1 << node;
-        current_ = node;
-        visited_ |= mask;
-    }
     void set_edge_status(int edge, bool blocked) {
         int mask = 1 << edge;
         known_ |= mask;
@@ -96,10 +113,17 @@ struct state_t {
         else
             blocked_ &= ~mask;
     }
+    void move_to(int node) {
+        int mask = 1 << node;
+        current_ = node;
+        visited_ |= mask;
+    }
+
     void preprocess(const CTP::graph_t &graph) {
-        compute_distances(graph);
-        compute_distances(graph, static_distances_, true);
-        heuristic_ = static_distances_[graph.num_nodes_ - 1];
+        dijkstra(graph, current_, distances_);
+        //dijkstra(graph, current_, static_distances_, true);
+        //heuristic_ = static_distances_[graph.num_nodes_ - 1];
+        heuristic_ = bfs(graph, current_, graph.num_nodes_ - 1, true);
     }
 
     void clear() {
@@ -144,94 +168,26 @@ struct state_t {
         os << ")";
     }
 
-    void compute_distances(const CTP::graph_t &graph,
-                           std::vector<int> &dist,
-                           bool optimistic = false) const {
-        dist.clear();
-        dist.reserve(graph.num_nodes_);
-
-        // compute shortest paths in known (or optimistic) graph
-        static std::priority_queue<std::pair<int, int>,
-                                   std::vector<std::pair<int, int> >,
-                                   CTP::open_list_cmp> queue;
-
-        // initialization of values
-        for( int n = 0; n < graph.num_nodes_; ++n ) {
-            dist.push_back(INT_MAX);
-        }
-
-        // Dijsktra's with goal node as seed
-        int start = current_;
-        dist[start] = 0;
-        queue.push(std::make_pair(start, 0));
-        while( !queue.empty() ) {
-            std::pair<int, int> p = queue.top();
-            queue.pop();
-            if( p.second <= dist[p.first] ) {
-                for( int i = 0, isz = graph.at_[p.first].size(); i < isz; ++i ) {
-                    int j = graph.at_[p.first][i];
-                    if( (known(j) && traversable(j)) ||
-                        (optimistic && !known(j)) ) {
-                        const CTP::graph_t::edge_t &e = graph.edge_list_[j];
-                        int cost = p.second + e.cost_;
-                        int next = p.first == e.to_ ? e.from_ : e.to_;
-                        if( cost < dist[next] ) {
-                            dist[next] = cost;
-                            queue.push(std::make_pair(next, cost));
-                        }
-                    }
-                }
-            }
-        }
+    int bfs(const CTP::graph_t &graph,
+            int start,
+            int goal,
+            bool optimistic = false) const {
+        return graph.bfs(start, goal, known_, blocked_, optimistic);
     }
-    void compute_distances(const CTP::graph_t &graph) {
-        compute_distances(graph, distances_);
+    void dijkstra(const CTP::graph_t &graph,
+                  int source,
+                  std::vector<int> &distances,
+                  bool optimistic = false) const {
+        graph.dijkstra(source, distances, known_, blocked_, optimistic);
     }
-
-    void print_path(const CTP::graph_t &graph, const std::vector<int> &dist) const {
-        int path_cost = 0;
-        std::cout << "path=<" << std::flush;
-        if( dist[current_] < INT_MAX ) {
-            int node = current_;
-            std::cout << "n=" << node << std::flush;
-            while( node != graph.num_nodes_ - 1 ) {
-                int best = -1, cost = INT_MAX;
-                for( int i = 0, isz = graph.at_[node].size(); i < isz; ++i ) {
-                    int j = graph.at_[node][i];
-                    if( known(j) && traversable(j) ) {
-                        const CTP::graph_t::edge_t &e = graph.edge_list_[j];
-                        int next = node == e.to_ ? e.from_ : e.to_;
-                        if( dist[next] < cost ) {
-                            best = j;
-                            cost = dist[next];
-                        }
-                    } else {
-                        //std::cout << "edge " << j << " is unknown or non-traversable" << std::endl;
-                    }
-                }
-                const CTP::graph_t::edge_t &e = graph.edge_list_[best];
-                int next = node == e.to_ ? e.from_ : e.to_;
-                node = next;
-                path_cost += e.cost_;
-                std::cout << ",e=" << best << std::flush;
-                std::cout << ",n=" << node << std::flush;
-            }
-            std::cout << ">, cost=" << path_cost << std::endl;
-        }
-    }
-
 };
 
-std::vector<int> state_t::static_distances_;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
     return os;
 }
 
-//bool cmp_function(const std::pair<state_t, float> &p1, const std::pair<state_t, float> &p2) {
-//    return p1.second > p2.second;
-//}
 
 class problem_t : public Problem::problem_t<state_t> {
   public:
@@ -318,6 +274,7 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
     return os;
 }
 
+
 class problem_with_hidden_state_t : public problem_t {
     mutable state_t hidden_;
 
@@ -356,6 +313,21 @@ class problem_with_hidden_state_t : public problem_t {
     }
 };
 
+
+class min_min_t : public Heuristic::heuristic_t<state_t> {
+  public:
+    min_min_t() { }
+    virtual ~min_min_t() { }
+    virtual float value(const state_t &s) const { return (float)s.heuristic_; }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
+
+
 inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
     state.clear();
     int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
@@ -382,16 +354,4 @@ inline float probability_bad_weather(const CTP::graph_t &graph,
     return prob / nsamples;
 }
 
-class min_min_t : public Heuristic::heuristic_t<state_t> {
-  public:
-    min_min_t() { }
-    virtual ~min_min_t() { }
-    virtual float value(const state_t &s) const { return (float)s.heuristic_; }
-    virtual void reset_stats() const { }
-    virtual float setup_time() const { return 0; }
-    virtual float eval_time() const { return 0; }
-    virtual size_t size() const { return 0; }
-    virtual void dump(std::ostream &os) const { }
-    float operator()(const state_t &s) const { return value(s); }
-};
 
