@@ -5,6 +5,7 @@
 #include <vector>
 #include <limits>
 #include <tr1/unordered_map>
+#include <emmintrin.h>
 
 #include "graph.h"
 #include "algorithm.h"
@@ -26,8 +27,7 @@
 
 
 inline unsigned rotation(unsigned x) {
-    __asm { rol x, 16 }
-    return x;
+    return (x << 16) | (x >> 16);
 }
 
 
