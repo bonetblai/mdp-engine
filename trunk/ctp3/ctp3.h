@@ -3,9 +3,8 @@
 #include <iostream>
 #include <map>
 #include <vector>
-#include <limits>
+#include <limits.h>
 #include <tr1/unordered_map>
-#include <emmintrin.h>
 
 #include "graph.h"
 #include "algorithm.h"
@@ -16,9 +15,6 @@
 #include "rollout.h"
 #include "mcts.h"
 #include "dispatcher.h"
-
-#undef INT_MAX
-#define INT_MAX std::numeric_limits<int>::max()
 
 #define DISCOUNT 1.00
 
@@ -152,77 +148,106 @@ struct cache_functions_t {
 };
 
 class shortest_path_cache_t : public std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
-    unsigned capacity_;
+  public:
+    void print_stats(std::ostream &os) const {
+        int maxsz = 0;
+        for( int i = 0; i < (int)bucket_count(); ++i ) {
+            int sz = bucket_size(i);
+            maxsz = sz > maxsz ? sz : maxsz;
+        }
+        os << "#entries=" << size()
+           << ", #buckets=" << bucket_count()
+           << ", max-bucket-size=" << maxsz;
+    }
+};
+
+class cache_t {
+    int num_nodes_;
     int *distances_;
+    shortest_path_cache_t **caches_;
+    unsigned capacity_;
+    unsigned size_;
     unsigned lookups_;
     unsigned hits_;
 
   public:
-    shortest_path_cache_t()
-      : std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t>(),
-        capacity_(0), distances_(0), lookups_(0), hits_(0) { }
-    ~shortest_path_cache_t() { delete[] distances_; }
-    void initialize(int capacity, int num_nodes) {
-        capacity_ = capacity;
-        distances_ = new int[num_nodes];
+    cache_t() : num_nodes_(0), caches_(0), capacity_(0), size_(0), lookups_(0), hits_(0) { }
+    ~cache_t() {
+        for( int i = 0; i < num_nodes_; ++i )
+            delete caches_[i];
+        delete[] caches_;
     }
-    const int* lookup(const CTP::graph_t &graph, int source, const state_info_t &info) {
-        ++lookups_;
-        const_iterator it = find(info);
-        if( it != end() ) {
-            int *stored = it->second;
-            if( stored[source * graph.num_nodes_ + source] == -1 ) {
-                graph.dijkstra(source, &stored[source * graph.num_nodes_], info.known_, info.blocked_, false);
-            } else {
-                ++hits_;
-            }
-            return &stored[source * graph.num_nodes_];
-        } else {
-            if( size() < capacity_ ) {
-                int *distances = new int[graph.num_nodes_ * graph.num_nodes_];
-                for( int node = 0; node < graph.num_nodes_; ++node ) {
-                    distances[node * graph.num_nodes_ + node] = -1;
-                }
 
-                //graph.floyd_warshall(distances, info.known_, info.blocked_, false);
-                graph.dijkstra(source, &distances[source * graph.num_nodes_], info.known_, info.blocked_, false);
-                insert(std::make_pair(info, distances));
-                return &distances[source * graph.num_nodes_];
+    void initialize(int num_nodes, unsigned capacity) {
+        num_nodes_ = num_nodes;
+        capacity_ = capacity;
+        distances_ = new int[num_nodes_];
+        caches_ = new shortest_path_cache_t*[num_nodes_];
+        for( int i = 0; i < num_nodes_; ++i )
+            caches_[i] = new shortest_path_cache_t;
+    }
+
+    std::pair<bool, const int*> lookup(const CTP::graph_t &graph, int source, const state_info_t &info) {
+        ++lookups_;
+        shortest_path_cache_t *cache = caches_[source];
+        shortest_path_cache_t::const_iterator it = cache->find(info);
+        if( it != cache->end() ) {
+            ++hits_;
+            return std::make_pair(true, it->second);
+        } else {
+            if( size_ < capacity_ ) {
+                ++size_;
+                int *distances = new int[num_nodes_];
+                graph.dijkstra(source, distances, info.known_, info.blocked_, false);
+                distances[source] = graph.bfs(source, num_nodes_ - 1, info.known_, info.blocked_, true);
+                cache->insert(std::make_pair(info, distances));
+                return std::make_pair(true, distances);
             } else {
                 graph.dijkstra(source, distances_, info.known_, info.blocked_, false);
-                return distances_;
+                distances_[source] = graph.bfs(source, num_nodes_ - 1, info.known_, info.blocked_, true);
+                return std::make_pair(false, distances_);
             }
         }
     }
+
     unsigned lookups() const { return lookups_; }
     float hit_ratio() const { return (float)hits_ / (float)lookups_; }
+    void print_stats(std::ostream &os) {
+        os << "cache: #entries=" << size_
+           << ", #lookups=" << lookups()
+           << ", %hit=" << hit_ratio()
+           << std::endl;
+        for( int i = 0; i < num_nodes_; ++i ) {
+            os << "  cache[" << i << "]: ";
+            caches_[i]->print_stats(os);
+            os << std::endl;
+        }
+    }
 };
-
 
 struct state_t {
     int current_;
     state_info_t info_;
     unsigned visited_[WORDS_FOR_NODES];
-    mutable int *distances_;
+    mutable bool shared_;
+    mutable const int *distances_;
     int heuristic_;
 
     static int num_nodes_;
     static int num_edges_;
     static int words_for_nodes_;
     static int words_for_edges_;
-    static shortest_path_cache_t cache_;
+    static cache_t cache_;
 
   public:
     state_t(int current = -1)
-      : current_(current), distances_(0), heuristic_(0) {
+      : current_(current), shared_(true), distances_(0), heuristic_(0) {
         memset(visited_, 0, WORDS_FOR_NODES * sizeof(unsigned));
-        distances_ = new int[num_nodes_];
     }
-    state_t(const state_t &s) {
-        distances_ = new int[num_nodes_];
-        *this = s;
+    state_t(const state_t &s) { *this = s; }
+    ~state_t() {
+        if( !shared_ ) delete[] distances_;
     }
-    ~state_t() { delete[] distances_; }
 
     static void initialize(const CTP::graph_t &graph, int cache_capacity) {
         num_nodes_ = graph.num_nodes_;
@@ -252,21 +277,11 @@ struct state_t {
                   << ", #words-for-edges=" << words_for_edges_
                   << std::endl;
         state_info_t::initialize(words_for_edges_);
-        cache_.initialize(cache_capacity, num_nodes_);
+        cache_.initialize(num_nodes_, cache_capacity);
     }
 
     static void print_stats(std::ostream &os) {
-        int maxsz = 0;
-        for( int i = 0; i < (int)cache_.bucket_count(); ++i ) {
-            int sz = cache_.bucket_size(i);
-            maxsz = sz > maxsz ? sz : maxsz;
-        }
-        os << "cache: #entries=" << cache_.size()
-           << ", #buckets=" << cache_.bucket_count()
-           << ", max-bucket-size=" << maxsz
-           << ", #lookups=" << cache_.lookups()
-           << ", %hit=" << cache_.hit_ratio()
-           << std::endl;
+        cache_.print_stats(os);
     }
 
     size_t hash() const { return info_.hash(); }
@@ -302,20 +317,30 @@ struct state_t {
     }
 
     void preprocess(const CTP::graph_t &graph) {
-        const int *distances = cache_.lookup(graph, current_, info_);
-        memcpy(distances_, distances, num_nodes_ * sizeof(int));
-        //int *aux = new int[num_nodes_];
-        //dijkstra(graph, current_, aux, true);
-        //heuristic_ = aux[num_nodes_ - 1];
-        //delete[] aux;
-        heuristic_ = bfs(graph, current_, num_nodes_ - 1, true);
+        std::cout << "hola1" << std::endl;
+        std::pair<bool, const int*> p = cache_.lookup(graph, current_, info_);
+        if( p.first ) {
+            if( !shared_ ) delete[] distances_;
+            distances_ = p.second;
+            shared_ = true;
+        } else {
+            if( shared_ ) distances_ = new int[num_nodes_];
+            memcpy(const_cast<int*>(distances_), p.second, num_nodes_ * sizeof(int));
+            shared_ = false;
+        }
+        heuristic_ = distances_[current_];
+        std::cout << "hola2" << std::endl;
     }
 
     void clear() {
         current_ = 0;
         info_.clear();
         memset(visited_, 0, words_for_nodes_ * sizeof(unsigned));
-        memset(distances_, 0, num_nodes_ * sizeof(int));
+        if( !shared_ ) {
+            delete[] distances_;
+            shared_ = true;
+        }
+        distances_ = 0;
         heuristic_ = 0;
     }
 
@@ -323,7 +348,17 @@ struct state_t {
         current_ = s.current_;
         info_ = s.info_;
         memcpy(visited_, s.visited_, words_for_nodes_ * sizeof(unsigned));
-        memcpy(distances_, s.distances_, num_nodes_ * sizeof(int));
+        if( s.shared_ ) {
+            if( !shared_ ) delete[] distances_;
+            distances_ = s.distances_;
+            shared_ = true;
+        } else {
+            if( shared_ ) {
+                shared_ = false;
+                distances_ = new int[num_nodes_];
+            }
+            memcpy(const_cast<int*>(distances_), s.distances_, num_nodes_ * sizeof(int));
+        }
         heuristic_ = s.heuristic_;
         return *this;
     }
@@ -368,7 +403,7 @@ int state_t::num_nodes_ = 0;
 int state_t::num_edges_ = 0;
 int state_t::words_for_nodes_ = 0;
 int state_t::words_for_edges_ = 0;
-shortest_path_cache_t state_t::cache_;
+cache_t state_t::cache_;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
@@ -381,11 +416,13 @@ class problem_t : public Problem::problem_t<state_t> {
     const CTP::graph_t &graph_;
     const state_t init_;
     int start_, goal_;
+    mutable int max_branching_;
 
   public:
     problem_t(CTP::graph_t &graph)
       : Problem::problem_t<state_t>(DISCOUNT, 1e3), // change dead_end_value
-        graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1) { }
+        graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1),
+        max_branching_(0) { }
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
@@ -432,6 +469,7 @@ class problem_t : public Problem::problem_t<state_t> {
                 ++k;
             }
         }
+        max_branching_ = (1<<k) > max_branching_ ? (1<<k) : max_branching_;
 
         // generate subsets of unknowns edges and update weathers
         outcomes.reserve(1 << k);

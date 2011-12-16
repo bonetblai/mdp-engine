@@ -3,7 +3,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
-#include <limits>
+#include <limits.h>
 
 #include "graph.h"
 #include "algorithm.h"
@@ -14,9 +14,6 @@
 #include "rollout.h"
 #include "mcts.h"
 #include "dispatcher.h"
-
-#undef INT_MAX
-#define INT_MAX std::numeric_limits<int>::max()
 
 #define DISCOUNT 1.00
 
