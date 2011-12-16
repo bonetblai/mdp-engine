@@ -14,6 +14,12 @@ struct open_list_cmp {
     }
 };
 
+struct bfs_open_list_cmp {
+    bool operator()(const std::pair<int, std::pair<int, int> > &p1, const std::pair<int, std::pair<int, int> > &p2) {
+        return p1.second.first + p1.second.second > p2.second.first + p2.second.second;
+    }
+};
+
 struct graph_t {
     int num_nodes_;
     int num_edges_;
@@ -31,13 +37,20 @@ struct graph_t {
     std::vector<edge_t> edge_list_;
     std::vector<std::vector<int> > at_;
     int *edges_;
+    int *h_opt_;
+    int *in_queue_;
 
     graph_t(bool with_shortcut = false, int shortcut_cost = 1000)
       : num_nodes_(0), num_edges_(0),
         with_shortcut_(with_shortcut), shortcut_cost_(shortcut_cost),
-        edges_(0) { }
-    ~graph_t() { delete[] edges_; }
+        edges_(0), h_opt_(0), in_queue_(0) { }
+    ~graph_t() {
+        delete[] edges_;
+        delete[] h_opt_;
+        delete[] in_queue_;
+    }
 
+    int heuristic(int node) const { return h_opt_[node]; }
     int from(int edge) const { return edge_list_[edge].from_; }
     int to(int edge) const { return edge_list_[edge].to_; }
     int cost(int edge) const { return edge_list_[edge].cost_; }
@@ -63,15 +76,6 @@ struct graph_t {
         if( token == "p" ) {
             int n_edges;
             is >> num_nodes_ >> n_edges;
-
-            if( num_nodes_ > 128 ) {
-                std::cout << "error: number of nodes must be <= 128." << std::endl;
-                return false;
-            }
-            if( n_edges > 288 ) {
-                std::cout << "error: number of edges must be <= 288." << std::endl;
-                return false;
-            }
 
             edges_ = new int[num_nodes_ * num_nodes_];
             for( int n1 = 0; n1 < num_nodes_; ++n1 ) {
@@ -102,11 +106,36 @@ struct graph_t {
         // insert shortcut (s,t) edge
         if( with_shortcut_ ) {
             std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
-            if( 1+num_edges_ > 288 ) {
-                std::cout << "error: number of edges must be <= 288." << std::endl;
-                return false;
+            add_edge(edge_t(0, num_nodes_ - 1, shortcut_cost_, 1.0));
+        }
+
+        // compute optimistic shortest-paths to goal
+        h_opt_ = new int[num_nodes_];
+        in_queue_ = new int[num_nodes_];
+        for( int node = 0; node < num_nodes_; ++node )
+            h_opt_[node] = INT_MAX;
+
+        std::priority_queue<std::pair<int, int>,
+                            std::vector<std::pair<int, int> >,
+                            open_list_cmp> queue;
+
+        int goal = num_nodes_ - 1;
+        h_opt_[goal] = 0;
+        queue.push(std::make_pair(goal, 0));
+        while( !queue.empty() ) {
+            std::pair<int, int> p = queue.top();
+            queue.pop();
+            if( p.second <= h_opt_[p.first] ) {
+                for( int i = 0, isz = at_[p.first].size(); i < isz; ++i ) {
+                    const edge_t &e = edge_list_[at_[p.first][i]];
+                    int cost = p.second + e.cost_;
+                    int to = e.from_ == p.first ? e.to_ : e.from_;
+                    if( cost < h_opt_[to] ) {
+                        h_opt_[to] = cost;
+                        queue.push(std::make_pair(to, cost));
+                    }
+                }
             }
-            add_edge(edge_t(0, num_nodes_-1, shortcut_cost_, 1.0));
         }
 
         return true;
@@ -143,7 +172,40 @@ struct graph_t {
             const unsigned *k_bitmap,
             const unsigned *b_bitmap,
             bool optimistic = false) const {
-        return 0; // CHECK: implement bfs
+
+        static std::priority_queue<std::pair<int, std::pair<int, int> >,
+                                   std::vector<std::pair<int, std::pair<int, int> > >,
+                                   bfs_open_list_cmp> queue;
+
+        int cost_to_goal = INT_MAX;
+        memset(in_queue_, 0, num_nodes_ * sizeof(int));
+        queue.push(std::make_pair(start, std::make_pair(0, heuristic(start))));
+        in_queue_[start] = 1;
+        while( !queue.empty() ) {
+            std::pair<int, std::pair<int, int> > p = queue.top();
+            queue.pop();
+
+            if( p.first == goal ) {
+                cost_to_goal = p.second.first;
+                break;
+            }
+
+            for( int i = 0, isz = at_[p.first].size(); i < isz; ++i ) {
+                int idx = at_[p.first][i];
+                if( good(idx, k_bitmap, b_bitmap, optimistic) ) {
+                    const edge_t &edge = edge_list_[idx];
+                    int cost = p.second.first + edge.cost_;
+                    int next = p.first == edge.to_ ? edge.from_ : edge.to_;
+                    if( in_queue_[next] == 0 ) {
+                        queue.push(std::make_pair(next, std::make_pair(cost, heuristic(next))));
+                        in_queue_[next] = 1;
+                    }
+                }
+            }
+        }
+
+        while( !queue.empty() ) queue.pop();
+        return cost_to_goal;
     }
 
     void dijkstra(int source,
@@ -216,28 +278,6 @@ struct graph_t {
                 }
             }
         }
-
-#if 0
-        for( int k = 0; k < num_nodes_; ++k ) {
-            for( int i = 0; i < num_nodes_; ++i ) {
-                int edge_ik = edge(i, k, k_bitmap, b_bitmap, optimistic);
-                if( edge_ik != -1 ) {
-                    int cost_ik = cost(edge_ik);
-                    std::cout << "edge " << edge_ik << "=(" << i << "," << k << ") is good: cost=" << cost_ik << std::endl;
-                    for( int j = 0; j < num_nodes_; ++j ) {
-                        int edge_kj = edge(k, j, k_bitmap, b_bitmap, optimistic);
-                        if( edge_kj != -1 ) {
-                            std::cout << "edge " << edge_kj << "=(" << k << "," << j << ") is good: cost=" << cost(edge_kj) << std::endl;
-                            int old_cost = distances[i*num_nodes_ + j];
-                            int new_cost = cost_ik + cost(edge_kj);
-                            if( new_cost < old_cost )
-                                distances[i*num_nodes_ + j] = new_cost;
-                        }
-                    }
-                }
-            }
-        }
-#endif
     }
 };
 

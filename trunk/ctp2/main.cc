@@ -118,8 +118,8 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
-    cout << "sizeof(unsigned long)=" << sizeof(unsigned long)*8 << endl;
     Random::seeds(parameters.seed_);
+    state_t::initialize(graph);
     problem_t problem(graph);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 
