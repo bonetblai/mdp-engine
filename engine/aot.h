@@ -31,7 +31,6 @@
 //#define DEBUG
 #define USE_PQ
 #define USE_BDD_PQ
-//#define HEAVY_ASSERTIONS
 
 // TODO: implement bounded priority queue
 
@@ -275,20 +274,24 @@ template<typename T> class aot_t : public improvement_t<T> {
         insert_into_priority_queue(root_);
 
         // expand leaves and propagate values
+        unsigned expanded = 0;
         std::vector<aot_node_t<T>*> to_propagate;
         for( unsigned i = 0; (i < width_) && !empty_priority_queues(); ) {
-            unsigned expanded = 0;
-            for( ; (expanded < expansions_per_iteration_) && !empty_priority_queues(); ++expanded ) {
+            unsigned expanded_in_iteration = 0;
+            while( (i < width_) && (expanded_in_iteration < expansions_per_iteration_) && !empty_priority_queues() ) {
                 expand(to_propagate);
                 for( int j = 0, jsz = to_propagate.size(); j < jsz; ++j )
                     propagate(to_propagate[j]);
                 to_propagate.clear();
+                ++expanded_in_iteration;
+                ++i;
             }
+            expanded += expanded_in_iteration;
             clear_priority_queues();
             recompute_delta(root_);
-            i += expanded;
         }
         assert((width_ == 0) || ((root_ != 0) && policy_t<T>::problem().applicable(s, root_->best_action())));
+        assert(expanded <= width_);
 
         // select best action
         return width_ == 0 ? improvement_t<T>::base_policy_(s) : root_->best_action();
@@ -596,6 +599,13 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // implementation of priority queue for storing the deltas
+    unsigned size_priority_queues() const {
+#  ifndef USE_BDD_PQ
+        return inside_priority_queue_.size() + outside_priority_queue_.size();
+#  else
+        return inside_bdd_priority_queue_.size() + outside_bdd_priority_queue_.size();
+#  endif
+    }
     bool empty_inside_priority_queue() const {
 #ifdef USE_PQ
 #  ifndef USE_BDD_PQ
@@ -625,6 +635,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         while( !pq.empty() ) {
             aot_node_t<T> *node = pq.top();
             pq.pop();
+            assert(node->in_pq_);
             node->in_pq_ = false;
         }
     }
@@ -632,6 +643,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         while( !pq.empty() ) {
             aot_node_t<T> *node = pq.top();
             pq.pop();
+            assert(node->in_pq_);
             node->in_pq_ = false;
         }
     }
@@ -643,10 +655,6 @@ template<typename T> class aot_t : public improvement_t<T> {
 #  else
         clear(inside_bdd_priority_queue_);
         clear(outside_bdd_priority_queue_);
-#    ifdef HEAVY_ASSERTIONS
-        clear(inside_priority_queue_);
-        clear(outside_priority_queue_);
-#    endif
 #  endif
 #else
         if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
@@ -657,14 +665,17 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     void insert_into_inside_priority_queue(aot_node_t<T> *node) const {
 #ifdef USE_PQ
-        node->in_pq_ = true;
 #  ifndef USE_BDD_PQ
         inside_priority_queue_.push(node);
+        node->in_pq_ = true;
 #  else
-        inside_bdd_priority_queue_.push(node);
-#    ifdef HEAVY_ASSERTIONS
-        inside_priority_queue_.push(node);
-#    endif
+        std::pair<bool, bool> p = inside_bdd_priority_queue_.push(node);
+        node->in_pq_ = p.first;
+        if( p.second ) {
+            aot_node_t<T> *removed = inside_bdd_priority_queue_.removed_element();
+            assert(removed->in_pq_);
+            removed->in_pq_ = false;
+        }
 #  endif
 #else
         if( (best_inside_ == 0) || aot_min_priority_t<T>()(best_inside_, node) ) {
@@ -676,14 +687,17 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     void insert_into_outside_priority_queue(aot_node_t<T> *node) const {
 #ifdef USE_PQ
-        node->in_pq_ = true;
 #  ifndef USE_BDD_PQ
         outside_priority_queue_.push(node);
+        node->in_pq_ = true;
 #  else
-        outside_bdd_priority_queue_.push(node);
-#    ifdef HEAVY_ASSERTIONS
-        outside_priority_queue_.push(node);
-#    endif
+        std::pair<bool, bool> p = outside_bdd_priority_queue_.push(node);
+        node->in_pq_ = p.first;
+        if( p.second ) {
+            aot_node_t<T> *removed = outside_bdd_priority_queue_.removed_element();
+            assert(removed->in_pq_);
+            removed->in_pq_ = false;
+        }
 #  endif
 #else
         if( (best_outside_ == 0) || aot_min_priority_t<T>()(best_outside_, node) ) {
@@ -716,16 +730,12 @@ template<typename T> class aot_t : public improvement_t<T> {
 #  else
         node = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
-#    ifdef HEAVY_ASSERTIONS
-        aot_node_t<T> *aux = inside_priority_queue_.top();
-        inside_priority_queue_.pop();
-        assert(node->delta_ == aux->delta_);
-#    endif
 #  endif
 #else
         node = best_inside_;
         best_inside_ = 0;
 #endif
+        assert(node->in_pq_);
         node->in_pq_ = false;
         ++from_inside_;
         return node;
@@ -739,16 +749,12 @@ template<typename T> class aot_t : public improvement_t<T> {
 #  else
         node = outside_bdd_priority_queue_.top();
         outside_bdd_priority_queue_.pop();
-#    ifdef HEAVY_ASSERTIONS
-        aot_node_t<T> *aux = outside_priority_queue_.top();
-        outside_priority_queue_.pop();
-        assert(node->delta_ == aux->delta_);
-#    endif
 #  endif
 #else
         node = best_outside_;
         best_outside_ = 0;
 #endif
+        assert(node->in_pq_);
         node->in_pq_ = false;
         ++from_outside_;
         return node;
