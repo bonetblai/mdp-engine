@@ -120,7 +120,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
     state_t::initialize(graph, 5e5);
-    problem_t problem(graph);
+    problem_t problem(graph, false, 5e5);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 
     // create heuristic
@@ -169,8 +169,8 @@ int main(int argc, const char **argv) {
         values.reserve(par.evaluation_trials_);
         float start_time = Utils::read_time_in_seconds();
         cout << "#trials=" << par.evaluation_trials_ << ":";
-        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
-            cout << " " << i << flush;
+        for( unsigned trial = 0; trial < par.evaluation_trials_; ++trial ) {
+            cout << " " << trial << flush;
             // sample a good weather
             state_t hidden(0);
             sample_weather(graph, hidden);
@@ -206,6 +206,7 @@ int main(int argc, const char **argv) {
         cout << endl;
         cout << "max-branching=" << problem.max_branching_ << endl;
         state_t::print_stats(cout);
+        problem.print_stats(cout);
 
         // compute avg
         float avg = 0;

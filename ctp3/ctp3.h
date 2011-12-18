@@ -71,7 +71,6 @@ struct state_info_t {
             rv = rv ^ known_[i];
         for( int i = 0; i < words_for_edges_; ++i )
             rv = rv ^ rotation(blocked_[i]);
-        //std::cout << "hash of "; print(std::cout); std::cout << " = " << rv << std::endl;
         return rv;
     }
 
@@ -147,8 +146,18 @@ struct cache_functions_t {
     }
 };
 
-class shortest_path_cache_t : public std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
+class shortest_path_cache_item_t
+  : public std::tr1::unordered_map<state_info_t,
+                                   int*,
+                                   cache_functions_t,
+                                   cache_functions_t> {
   public:
+    void clear() {
+        for( iterator it = begin(); it != end(); ++it )
+            delete[] it->second;
+        std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t>::clear();
+    }
+
     void print_stats(std::ostream &os) const {
         int maxsz = 0;
         for( int i = 0; i < (int)bucket_count(); ++i ) {
@@ -161,37 +170,45 @@ class shortest_path_cache_t : public std::tr1::unordered_map<state_info_t, int*,
     }
 };
 
-class cache_t {
+class shortest_path_cache_t {
     int num_nodes_;
     int *distances_;
-    shortest_path_cache_t **caches_;
+    shortest_path_cache_item_t **items_;
     unsigned capacity_;
     unsigned size_;
     unsigned lookups_;
     unsigned hits_;
 
   public:
-    cache_t() : num_nodes_(0), caches_(0), capacity_(0), size_(0), lookups_(0), hits_(0) { }
-    ~cache_t() {
+    shortest_path_cache_t()
+      : num_nodes_(0), items_(0),
+        capacity_(0), size_(0),
+        lookups_(0), hits_(0) { }
+    ~shortest_path_cache_t() {
         for( int i = 0; i < num_nodes_; ++i )
-            delete caches_[i];
-        delete[] caches_;
+            delete items_[i];
+        delete[] items_;
     }
 
     void initialize(int num_nodes, unsigned capacity) {
         num_nodes_ = num_nodes;
         capacity_ = capacity;
         distances_ = new int[num_nodes_];
-        caches_ = new shortest_path_cache_t*[num_nodes_];
+        items_ = new shortest_path_cache_item_t*[num_nodes_];
         for( int i = 0; i < num_nodes_; ++i )
-            caches_[i] = new shortest_path_cache_t;
+            items_[i] = new shortest_path_cache_item_t;
+    }
+
+    void clear() {
+        for( int i = 0; i < num_nodes_; ++i )
+            items_[i]->clear();
     }
 
     std::pair<bool, const int*> lookup(const CTP::graph_t &graph, int source, const state_info_t &info) {
         ++lookups_;
-        shortest_path_cache_t *cache = caches_[source];
-        shortest_path_cache_t::const_iterator it = cache->find(info);
-        if( it != cache->end() ) {
+        shortest_path_cache_item_t *item = items_[source];
+        shortest_path_cache_item_t::const_iterator it = item->find(info);
+        if( it != item->end() ) {
             ++hits_;
             return std::make_pair(true, it->second);
         } else {
@@ -200,7 +217,7 @@ class cache_t {
                 int *distances = new int[num_nodes_];
                 graph.dijkstra(source, distances, info.known_, info.blocked_, false);
                 distances[source] = graph.bfs(source, num_nodes_ - 1, info.known_, info.blocked_, true);
-                cache->insert(std::make_pair(info, distances));
+                item->insert(std::make_pair(info, distances));
                 return std::make_pair(true, distances);
             } else {
                 graph.dijkstra(source, distances_, info.known_, info.blocked_, false);
@@ -213,14 +230,16 @@ class cache_t {
     unsigned lookups() const { return lookups_; }
     float hit_ratio() const { return (float)hits_ / (float)lookups_; }
     void print_stats(std::ostream &os) {
-        os << "cache: #entries=" << size_
-           << ", #lookups=" << lookups()
-           << ", %hit=" << hit_ratio()
-           << std::endl;
-        for( int i = 0; i < num_nodes_; ++i ) {
-            os << "  cache[" << i << "]: ";
-            caches_[i]->print_stats(os);
-            os << std::endl;
+        if( capacity_ > 0 ) {
+            os << "cache: #entries=" << size_
+               << ", #lookups=" << lookups()
+               << ", %hit=" << hit_ratio()
+               << std::endl;
+            for( int i = 0; i < num_nodes_; ++i ) {
+                os << "  item[" << i << "]: ";
+                items_[i]->print_stats(os);
+                os << std::endl;
+            }
         }
     }
 };
@@ -237,14 +256,17 @@ struct state_t {
     static int num_edges_;
     static int words_for_nodes_;
     static int words_for_edges_;
-    static cache_t cache_;
+    static shortest_path_cache_t cache_;
 
   public:
     state_t(int current = -1)
       : current_(current), shared_(true), distances_(0), heuristic_(0) {
         memset(visited_, 0, WORDS_FOR_NODES * sizeof(unsigned));
     }
-    state_t(const state_t &s) { *this = s; }
+    state_t(const state_t &s)
+      : shared_(true), distances_(0) {
+        *this = s;
+    }
     ~state_t() {
         if( !shared_ ) delete[] distances_;
     }
@@ -278,6 +300,10 @@ struct state_t {
                   << std::endl;
         state_info_t::initialize(words_for_edges_);
         cache_.initialize(num_nodes_, cache_capacity);
+    }
+
+    static void clear_cache() {
+        cache_.clear();
     }
 
     static void print_stats(std::ostream &os) {
@@ -317,7 +343,6 @@ struct state_t {
     }
 
     void preprocess(const CTP::graph_t &graph) {
-        std::cout << "hola1" << std::endl;
         std::pair<bool, const int*> p = cache_.lookup(graph, current_, info_);
         if( p.first ) {
             if( !shared_ ) delete[] distances_;
@@ -325,11 +350,11 @@ struct state_t {
             shared_ = true;
         } else {
             if( shared_ ) distances_ = new int[num_nodes_];
+            assert(distances_ != 0);
             memcpy(const_cast<int*>(distances_), p.second, num_nodes_ * sizeof(int));
             shared_ = false;
         }
         heuristic_ = distances_[current_];
-        std::cout << "hola2" << std::endl;
     }
 
     void clear() {
@@ -354,9 +379,10 @@ struct state_t {
             shared_ = true;
         } else {
             if( shared_ ) {
-                shared_ = false;
                 distances_ = new int[num_nodes_];
+                shared_ = false;
             }
+            assert(distances_ != 0);
             memcpy(const_cast<int*>(distances_), s.distances_, num_nodes_ * sizeof(int));
         }
         heuristic_ = s.heuristic_;
@@ -403,12 +429,108 @@ int state_t::num_nodes_ = 0;
 int state_t::num_edges_ = 0;
 int state_t::words_for_nodes_ = 0;
 int state_t::words_for_edges_ = 0;
-cache_t state_t::cache_;
+shortest_path_cache_t state_t::cache_;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
     return os;
 }
+
+
+struct next_cache_functions_t {
+    bool operator()(const state_t &s1, const state_t &s2) const {
+        return s1 == s2;
+    }
+    size_t operator()(const state_t &s) const {
+        return s.hash();
+    }
+};
+
+class next_cache_item_t
+  : public std::tr1::unordered_map<state_t,
+                                   std::vector<std::pair<state_t, float> >*,
+                                   next_cache_functions_t,
+                                   next_cache_functions_t> {
+  public:
+    void print_stats(std::ostream &os) const {
+        int maxsz = 0;
+        for( int i = 0; i < (int)bucket_count(); ++i ) {
+            int sz = bucket_size(i);
+            maxsz = sz > maxsz ? sz : maxsz;
+        }
+        os << "#entries=" << size()
+           << ", #buckets=" << bucket_count()
+           << ", max-bucket-size=" << maxsz;
+    }
+};
+
+class next_cache_t {
+    int num_actions_;
+    next_cache_item_t **items_;
+    unsigned capacity_;
+    unsigned size_;
+    mutable unsigned lookups_;
+    mutable unsigned hits_;
+
+  public:
+    next_cache_t()
+      : num_actions_(0), items_(0),
+        capacity_(0), size_(0),
+        lookups_(0), hits_(0) { }
+    ~next_cache_t() {
+        for( int i = 0; i < num_actions_; ++i )
+            delete items_[i];
+        delete[] items_;
+    }
+
+    void initialize(int num_actions, unsigned capacity) {
+        num_actions_ = num_actions;
+        capacity_ = capacity;
+        items_ = new next_cache_item_t*[num_actions_];
+        for( int i = 0; i < num_actions_; ++i )
+            items_[i] = new next_cache_item_t;
+    }
+
+    const std::vector<std::pair<state_t, float> >* lookup(const state_t &state,
+                                                          Problem::action_t a) const {
+        ++lookups_;
+        next_cache_item_t *item = items_[a];
+        next_cache_item_t::const_iterator it = item->find(state);
+        if( it != item->end() ) {
+            ++hits_;
+            return it->second;
+        } else
+            return 0;
+    }
+
+    void insert(const state_t &state,
+                Problem::action_t a,
+                std::vector<std::pair<state_t, float> > &next) {
+        if( size_ < capacity_ ) {
+            ++size_;
+            next_cache_item_t *item = items_[a];
+            std::vector<std::pair<state_t, float> > *ptr
+              = new std::vector<std::pair<state_t, float> >(next);
+            item->insert(std::make_pair(state, ptr));
+        }
+    }
+
+    unsigned lookups() const { return lookups_; }
+    float hit_ratio() const { return (float)hits_ / (float)lookups_; }
+    void print_stats(std::ostream &os) {
+        if( capacity_ > 0 ) {
+            os << "next_cache: #entries=" << size_
+               << ", #lookups=" << lookups()
+               << ", %hit=" << hit_ratio()
+               << std::endl;
+            for( int i = 0; i < num_actions_; ++i ) {
+                os << "  item[" << i << "]: ";
+                items_[i]->print_stats(os);
+                os << std::endl;
+            }
+        }
+    }
+};
 
 
 class problem_t : public Problem::problem_t<state_t> {
@@ -417,12 +539,16 @@ class problem_t : public Problem::problem_t<state_t> {
     const state_t init_;
     int start_, goal_;
     mutable int max_branching_;
+    bool use_cache_;
+    mutable next_cache_t next_cache_;
 
   public:
-    problem_t(CTP::graph_t &graph)
+    problem_t(CTP::graph_t &graph, bool use_cache = false, unsigned cache_size = 1e4)
       : Problem::problem_t<state_t>(DISCOUNT, 1e3), // change dead_end_value
         graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1),
-        max_branching_(0) { }
+        max_branching_(0), use_cache_(use_cache) {
+        next_cache_.initialize(graph.num_nodes_, cache_size);
+    }
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
@@ -445,6 +571,15 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual void next(const state_t &s,
                       Problem::action_t a,
                       std::vector<std::pair<state_t, float> > &outcomes) const {
+
+        if( use_cache_ ) {
+            const std::vector<std::pair<state_t, float> > *ptr = next_cache_.lookup(s, a);
+            if( ptr != 0 ) {
+                outcomes = *ptr;
+                return;
+            }
+        }
+
         //std::cout << "next" << s << " w/ a=" << a << " is:" << std::endl;
 
         ++expansions_;
@@ -490,8 +625,14 @@ class problem_t : public Problem::problem_t<state_t> {
                 //std::cout << "    " << next << " w.p. " << p << std::endl;
             }
         }
+
+        if( use_cache_ ) next_cache_.insert(s, a, outcomes);
     }
     virtual void print(std::ostream &os) const { }
+
+    void print_stats(std::ostream &os) {
+        if( use_cache_ ) next_cache_.print_stats(os);
+    }
 };
 
 inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
