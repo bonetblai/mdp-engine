@@ -44,6 +44,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
     const unsigned capacity_;
     mutable container_t *pool_;
+    mutable T removed_element_;
 
     unsigned max_size_;
     vector<container_t*> max_array_;
@@ -289,6 +290,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     unsigned capacity() const { return capacity_; }
     unsigned size() const { return max_size_; }
     bool empty() const { return max_size_ == 0; }
+    T removed_element() const { return removed_element_; }
 
     void clear() {
         //std::cout << "clearing: size=" << max_size_ << "..." << std::flush;
@@ -310,7 +312,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         return max_array_[1]->element_;
     }
 
-    void push(T &element) {
+    std::pair<bool, bool> push(T &element) {
         //std::cout << "push:" << std::flush;
         if( max_size_ < capacity_ ) {
             //std::cout << " <get-container>" << std::flush;
@@ -320,6 +322,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
             ++max_size_;
             //std::cout << " <check>" << std::flush;
             assert(check());
+            return std::make_pair(true, false);
         } else {
             unsigned min = min_array_[1];
             if( max_cmpfn_(max_array_[min]->element_, element) ) {
@@ -334,11 +337,16 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
                 //std::cout << " <remove-from-max>" << std::flush;
                 remove_from_max(min);
+                assert(pool_ != 0);
+                removed_element_ = pool_->element_;
+
                 assert(max_size_ < capacity_);
                 //std::cout << " <recursive-call>" << std::flush;
                 push(element);
+                return std::make_pair(true, true);
             } else {
                 //std::cout << " <discarded>" << std::endl;
+                return std::make_pair(false, false);
             }
         }
         //std::cout << " done" << std::endl;
