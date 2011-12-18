@@ -53,6 +53,16 @@ struct graph_t {
     int cost(int edge) const { return edge_list_[edge].cost_; }
     float prob(int edge) const { return edge_list_[edge].prob_; }
 
+    int degree(int node) const { return at_[node].size(); }
+    int degree() const {
+        int d = 0;
+        for( int node = 0; node < num_nodes_; ++node ) {
+            int dn = degree(node);
+            d = dn > d ? dn : d;
+        }
+        return d;
+    }
+
     int add_edge(const edge_t &edge) {
         assert((int)edge_list_.size() == num_edges_);
         edge_list_.push_back(edge);
@@ -105,6 +115,11 @@ struct graph_t {
             std::cout << "info: adding (s,t) shortcut w/ cost " << shortcut_cost_ << std::endl;
             add_edge(edge_t(0, num_nodes_ - 1, shortcut_cost_, 1.0));
         }
+
+        std::cout << "info: #nodes=" << num_nodes_
+                  << ", #edges=" << num_edges_
+                  << ", degree=" << degree()
+                  << std::endl;
 
         // compute optimistic shortest-paths to goal
         h_opt_ = new int[num_nodes_];
