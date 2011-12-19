@@ -39,7 +39,7 @@ int main(int argc, const char **argv) {
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
-    int shortcut_cost = 200;
+    int shortcut_cost = 5e3;
 
     string base_name;
     string policy_type;
@@ -119,7 +119,7 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
-    state_t::initialize(graph, 5e5);
+    state_t::initialize(graph, false, 5e5);
     problem_t problem(graph, false, 5e5);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 
@@ -158,6 +158,8 @@ int main(int argc, const char **argv) {
     }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
+    optimistic_policy_t optimistic(problem, graph);
+    bases.push_back(make_pair(&optimistic, "optimistic"));
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
@@ -168,16 +170,17 @@ int main(int argc, const char **argv) {
         vector<float> values;
         values.reserve(par.evaluation_trials_);
         float start_time = Utils::read_time_in_seconds();
+        float sum = 0;
         cout << "#trials=" << par.evaluation_trials_ << ":";
         for( unsigned trial = 0; trial < par.evaluation_trials_; ++trial ) {
             cout << " " << trial << flush;
             // sample a good weather
             state_t hidden(0);
             sample_weather(graph, hidden);
-            hidden.preprocess(graph);
+            //hidden.preprocess();
             while( hidden.is_dead_end() ) {
                 sample_weather(graph, hidden);
-                hidden.preprocess(graph);
+                //hidden.preprocess();
             }
             if( graph.with_shortcut_ ) hidden.set_edge_status(graph.num_edges_ - 1, false);
             pwhs.set_hidden(hidden);
@@ -188,7 +191,10 @@ int main(int argc, const char **argv) {
             float cost = 0;
             state_t state = pwhs.init();
             while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
+                //cout << "state=" << state << " " << (state.is_dead_end() ? 1 : 0) << endl;
+                //cout << "dist=" << state.distances_ << endl;
                 Problem::action_t action = (*policy.first)(state);
+                //cout << "act=" << action << endl;
                 assert(action != Problem::noop);
                 assert(problem.applicable(state, action));
                 std::pair<state_t, bool> p = pwhs.sample(state, action);
@@ -202,6 +208,8 @@ int main(int argc, const char **argv) {
                 ++steps;
             }
             values.push_back(cost);
+            sum += cost;
+            cout << "(" << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
         cout << "max-branching=" << problem.max_branching_ << endl;
