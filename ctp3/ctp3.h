@@ -249,18 +249,21 @@ struct state_t {
     state_info_t info_;
     unsigned visited_[WORDS_FOR_NODES];
     mutable bool shared_;
-    mutable const int *distances_;
-    int heuristic_;
+    //mutable const int *distances_;
+    mutable int *distances_;
+    mutable int heuristic_;
 
+    static const CTP::graph_t *graph_;
     static int num_nodes_;
     static int num_edges_;
     static int words_for_nodes_;
     static int words_for_edges_;
     static shortest_path_cache_t cache_;
+    static bool use_cache_;
 
   public:
     state_t(int current = -1)
-      : current_(current), shared_(true), distances_(0), heuristic_(0) {
+      : current_(current), shared_(true), distances_(0), heuristic_(-1) {
         memset(visited_, 0, WORDS_FOR_NODES * sizeof(unsigned));
     }
     state_t(const state_t &s)
@@ -271,7 +274,8 @@ struct state_t {
         if( !shared_ ) delete[] distances_;
     }
 
-    static void initialize(const CTP::graph_t &graph, int cache_capacity) {
+    static void initialize(const CTP::graph_t &graph, bool use_cache, int cache_capacity) {
+        graph_ = &graph;
         num_nodes_ = graph.num_nodes_;
         num_edges_ = graph.num_edges_;
 
@@ -299,6 +303,7 @@ struct state_t {
                   << ", #words-for-edges=" << words_for_edges_
                   << std::endl;
         state_info_t::initialize(words_for_edges_);
+        use_cache_ = use_cache;
         cache_.initialize(num_nodes_, cache_capacity);
     }
 
@@ -312,6 +317,12 @@ struct state_t {
 
     size_t hash() const { return info_.hash(); }
 
+    void compute_heuristic() const {
+        if( heuristic_ == -1 ) {
+            heuristic_ = graph_->bfs(current_, num_nodes_ - 1, info_.known_, info_.blocked_, true);
+        }
+    }
+
     bool known(int edge) const { return info_.known(edge); }
     bool traversable(int edge) const { return info_.traversable(edge); }
     bool visited(int node) const {
@@ -320,15 +331,18 @@ struct state_t {
         return visited_[n] & mask;
     }
     bool reachable(int node) const {
+        preprocess();
         return distances_[node] < INT_MAX;
     }
-    bool perimeter(int node, const CTP::graph_t &graph) const {
-        return !visited(node) && reachable(node);
-    }
     int distance_to(int node) const {
+        preprocess();
         return distances_[node];
     }
+    bool perimeter(int node) const {
+        return !visited(node) && reachable(node);
+    }
     bool is_dead_end() const {
+        compute_heuristic();
         return (current_ != -1) && (heuristic_ == INT_MAX);
     }
 
@@ -342,19 +356,28 @@ struct state_t {
         visited_[n] |= mask;
     }
 
-    void preprocess(const CTP::graph_t &graph) {
-        std::pair<bool, const int*> p = cache_.lookup(graph, current_, info_);
-        if( p.first ) {
-            if( !shared_ ) delete[] distances_;
-            distances_ = p.second;
-            shared_ = true;
-        } else {
-            if( shared_ ) distances_ = new int[num_nodes_];
-            assert(distances_ != 0);
-            memcpy(const_cast<int*>(distances_), p.second, num_nodes_ * sizeof(int));
-            shared_ = false;
+    void preprocess() const {
+        if( distances_ == 0 ) {
+            assert(shared_);
+            std::pair<bool, const int*> p(false, 0);
+            if( use_cache_ ) p = cache_.lookup(*graph_, current_, info_);
+            if( p.first ) {
+                if( !shared_ ) delete[] distances_;
+                distances_ = const_cast<int*>(p.second);
+                shared_ = true;
+            } else {
+                if( shared_ ) distances_ = new int[num_nodes_];
+                assert(distances_ != 0);
+                shared_ = false;
+                if( p.second ) {
+                    memcpy(const_cast<int*>(distances_), p.second, num_nodes_ * sizeof(int));
+                } else {
+                    graph_->dijkstra(current_, distances_, info_.known_, info_.blocked_, false);
+                    //distances_[current_] = graph_->bfs(current_, num_nodes_ - 1, info_.known_, info_.blocked_, true);
+                }
+            }
+            //heuristic_ = distances_[current_];
         }
-        heuristic_ = distances_[current_];
     }
 
     void clear() {
@@ -366,7 +389,7 @@ struct state_t {
             shared_ = true;
         }
         distances_ = 0;
-        heuristic_ = 0;
+        heuristic_ = -1;
     }
 
     const state_t& operator=(const state_t &s) {
@@ -410,26 +433,15 @@ struct state_t {
         if( is_dead_end() ) os << ",DEAD";
         os << ")";
     }
-
-    int bfs(const CTP::graph_t &graph,
-            int start,
-            int goal,
-            bool optimistic = false) const {
-        return graph.bfs(start, goal, info_.known_, info_.blocked_, optimistic);
-    }
-    void dijkstra(const CTP::graph_t &graph,
-                  int source,
-                  int *distances,
-                  bool optimistic = false) const {
-        graph.dijkstra(source, distances, info_.known_, info_.blocked_, optimistic);
-    }
 };
 
+const CTP::graph_t *state_t::graph_ = 0;
 int state_t::num_nodes_ = 0;
 int state_t::num_edges_ = 0;
 int state_t::words_for_nodes_ = 0;
 int state_t::words_for_edges_ = 0;
 shortest_path_cache_t state_t::cache_;
+bool state_t::use_cache_ = false;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     s.print(os);
@@ -556,7 +568,7 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return ((s.current_ == -1) && (a == 0)) ||
-               ((s.current_ != -1) && s.perimeter(a, graph_));
+               ((s.current_ != -1) && s.perimeter(a));
     }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
@@ -583,7 +595,6 @@ class problem_t : public Problem::problem_t<state_t> {
         //std::cout << "next" << s << " w/ a=" << a << " is:" << std::endl;
 
         ++expansions_;
-        outcomes.clear();
 
         int to_node = -1;
         if( s.current_ == -1 ) {
@@ -607,6 +618,7 @@ class problem_t : public Problem::problem_t<state_t> {
         max_branching_ = (1<<k) > max_branching_ ? (1<<k) : max_branching_;
 
         // generate subsets of unknowns edges and update weathers
+        outcomes.clear();
         outcomes.reserve(1 << k);
         for( int i = 0, isz = 1 << k; i < isz; ++i ) {
             state_t next(s);
@@ -619,8 +631,18 @@ class problem_t : public Problem::problem_t<state_t> {
                 subset = subset >> 1;
             }
             next.move_to(to_node);
+            next.heuristic_ = -1;
+            if( next.shared_ ) {
+                next.distances_ = 0;
+            } else {
+                assert(next.distances_ != 0);
+                delete[] next.distances_;
+                next.distances_ = 0;
+                next.shared_ = true;
+            }
+            assert(next.distances_ == 0);
             if( p > 0 ) {
-                next.preprocess(graph_);
+                //next.preprocess();
                 outcomes.push_back(std::make_pair(next, p));
                 //std::cout << "    " << next << " w.p. " << p << std::endl;
             }
@@ -674,7 +696,17 @@ class problem_with_hidden_state_t : public problem_t {
             next.info_.set_edge_status(e, hidden_.traversable(e) ? false : true);
         }
         next.move_to(to_node);
-        next.preprocess(graph_);
+        next.heuristic_ = -1;
+        if( next.shared_ ) {
+            next.distances_ = 0;
+        } else {
+            assert(next.distances_ != 0);
+            delete[] next.distances_;
+            next.distances_ = 0;
+            next.shared_ = true;
+        }
+        assert(next.distances_ == 0);
+        //next.preprocess();
         outcomes.push_back(std::make_pair(next, 1));
     }
 };
@@ -684,13 +716,43 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
   public:
     min_min_t() { }
     virtual ~min_min_t() { }
-    virtual float value(const state_t &s) const { return (float)s.heuristic_; }
+    virtual float value(const state_t &s) const {
+        s.compute_heuristic();
+        return (float)s.heuristic_;
+    }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return 0; }
     virtual void dump(std::ostream &os) const { }
     float operator()(const state_t &s) const { return value(s); }
+};
+
+
+class optimistic_policy_t : public Policy::policy_t<state_t> {
+    const CTP::graph_t &graph_;
+  public:
+    optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph)
+      : Policy::policy_t<state_t>(problem), graph_(graph) { }
+    virtual ~optimistic_policy_t() { }
+    virtual Problem::action_t operator()(const state_t &s) const {
+        float best_cost = FLT_MAX;
+        Problem::action_t best_action = Problem::noop;
+        for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
+            if( problem().applicable(s, a) ) {
+                float cost = problem().cost(s, a);
+                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true);
+                if( cost < best_cost ) {
+                    best_cost = cost;
+                    best_action = a;
+                }
+            }
+        }
+        return best_action;
+    }
+    virtual const Policy::policy_t<state_t>* clone() const {
+        return new optimistic_policy_t(problem(), graph_);
+    }
 };
 
 
@@ -714,7 +776,7 @@ inline float probability_bad_weather(const CTP::graph_t &graph,
     state_t weather(0);
     for( unsigned i = 0; i < nsamples; ++i ) {
         sample_weather(graph, weather);
-        weather.preprocess(graph);
+        //weather.preprocess();
         prob += weather.reachable(graph.num_nodes_ - 1) ? 0 : 1;
     }
     return prob / nsamples;
