@@ -32,15 +32,15 @@
 
 namespace Policy {
 
+namespace MCTS {
+
 template<typename T> class hash_function_t {
   public:
     size_t operator()(const std::pair<Problem::action_t, T> &p) const { return p.second.hash(); }
     size_t operator()(const std::pair<unsigned, T> &p) const { return p.second.hash(); }
 };
 
-
 ////////////////////////////////////////////////
-
 
 template<typename T> struct node_t;
 template<typename T> class mcts_hash_t : public Hash::generic_hash_map_t<std::pair<Problem::action_t, T>, const node_t<T>*, hash_function_t<T> > {
@@ -70,14 +70,14 @@ template<typename T> struct node_t {
     } 
     ~node_t() { }
 
-    Problem::action_t select_action2(const Problem::problem_t<T> &problem, float uct_parameter) const {
+    Problem::action_t select_action2(const Problem::problem_t<T> &problem, float parameter) const {
         float log_ns = logf(counts_[0]);
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
             if( counts_[1+a] == 0 ) return a;
             assert(counts_[0] > 0);
-            float bonus = uct_parameter * sqrtf(log_ns / counts_[1+a]);
+            float bonus = parameter * sqrtf(log_ns / counts_[1+a]);
             float value = values_[1+a] + bonus;
             if( value < best_value ) {
                 best_value = value;
@@ -125,20 +125,20 @@ template<typename T> class mcts_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
-    float uct_parameter_;
+    float parameter_;
     mutable mcts_table_t<T> table_;
 
   public:
-    mcts_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float uct_parameter)
+    mcts_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float parameter)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
-        uct_parameter_(uct_parameter) {
+        parameter_(parameter) {
         number_nodes_ = 0;
     }
     virtual ~mcts_t() { }
     virtual const policy_t<T>* clone() const {
-        return new mcts_t(improvement_t<T>::base_policy_, width_, depth_bound_, uct_parameter_);
+        return new mcts_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_);
     }
 
     virtual Problem::action_t operator()(const T &s) const {
@@ -157,7 +157,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         os << "stats: policy-type=improvement::uct(width="
            << width_ << ",depth="
            << depth_bound_ << ",par="
-           << uct_parameter_ << ")" << std::endl;
+           << parameter_ << ")" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         improvement_t<T>::base_policy_.print_stats(os);
     }
@@ -247,7 +247,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
 
                 // compute score of action adding bonus (if applicable)
                 assert(data.counts_[0] > 0);
-                float bonus = add_bonus ? uct_parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
+                float bonus = add_bonus ? parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
                 float value = data.values_[1+a] + bonus;
 
                 // update best action so far
@@ -278,7 +278,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
             assert(0);
         } else {
             // select action for this node and increase counts
-            Problem::action_t a = node->select_action2(policy_t<T>::problem(), uct_parameter_);
+            Problem::action_t a = node->select_action2(policy_t<T>::problem(), parameter_);
             ++node->counts_[0];
             ++node->counts_[1+a];
 
@@ -336,6 +336,16 @@ template<typename T> class mcts_t : public improvement_t<T> {
         return Evaluation::evaluation(improvement_t<T>::base_policy_, s, 1, depth_bound_ - depth);
     }
 };
+
+}; // namespace MCTS
+
+template<typename T>
+inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
+                                   unsigned width,
+                                   unsigned depth_bound,
+                                   float parameter) {
+    return new MCTS::mcts_t<T>(base_policy, width, depth_bound, parameter);
+}
 
 }; // namespace Policy
 
