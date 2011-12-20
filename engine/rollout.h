@@ -39,7 +39,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
     unsigned nesting_;
 
   public:
-    rollout_t(const policy_t<T> &base_policy, unsigned width, unsigned depth, unsigned nesting = 1)
+    rollout_t(const policy_t<T> &base_policy, unsigned width, unsigned depth, unsigned nesting)
       : improvement_t<T>(base_policy),
         width_(width), depth_(depth), nesting_(nesting) {
     }
@@ -96,11 +96,11 @@ template<typename T>
 inline const policy_t<T>* make_nested_rollout(const policy_t<T> &base_policy,
                                               unsigned width,
                                               unsigned depth,
-                                              unsigned nesting_level = 1) {
+                                              unsigned nesting = 1) {
     std::vector<const policy_t<T>*> nested_policies;
-    nested_policies.reserve(1 + nesting_level);
+    nested_policies.reserve(1 + nesting);
     nested_policies.push_back(&base_policy);
-    for( unsigned level = 0; level < nesting_level; ++level ) {
+    for( unsigned level = 0; level < nesting; ++level ) {
         const policy_t<T> *policy = nested_policies.back();
         policy_t<T> *rollout =
           new Rollout::rollout_t<T>(*policy, width, depth, 1+level);

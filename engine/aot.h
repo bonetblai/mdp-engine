@@ -35,9 +35,9 @@
 
 namespace Policy {
 
-template<typename T> class aot_t; // Forward reference
-
 namespace AOT {
+
+template<typename T> class aot_t; // Forward reference
 
 ////////////////////////////////////////////////
 //
@@ -241,15 +241,16 @@ template<typename T> class bdd_priority_queue_t :
                                 max_priority_t<T> >(capacity) { }
 };
 
-}; // namespace AOT
-
 ////////////////////////////////////////////////
+//
+// Policy
+//
 
 template<typename T> class aot_t : public improvement_t<T> {
   protected:
     unsigned width_;
     unsigned depth_bound_;
-    float ao_parameter_;
+    float parameter_;
     bool delayed_evaluation_;
     unsigned expansions_per_iteration_;
     unsigned leaf_nsamples_;
@@ -273,15 +274,15 @@ template<typename T> class aot_t : public improvement_t<T> {
     aot_t(const policy_t<T> &base_policy,
           unsigned width,
           unsigned depth_bound,
-          float ao_parameter,
-          bool delayed_evaluation = true,
-          unsigned expansions_per_iteration = 100,
-          unsigned leaf_nsamples = 1,
-          unsigned delayed_evaluation_nsamples = 1)
+          float parameter,
+          bool delayed_evaluation,
+          unsigned expansions_per_iteration,
+          unsigned leaf_nsamples,
+          unsigned delayed_evaluation_nsamples)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
-        ao_parameter_(ao_parameter),
+        parameter_(parameter),
         delayed_evaluation_(delayed_evaluation),
         expansions_per_iteration_(expansions_per_iteration),
         leaf_nsamples_(leaf_nsamples),
@@ -302,7 +303,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         return new aot_t(improvement_t<T>::base_policy_,
                          width_,
                          depth_bound_,
-                         ao_parameter_,
+                         parameter_,
                          delayed_evaluation_,
                          expansions_per_iteration_,
                          leaf_nsamples_,
@@ -348,7 +349,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         os << "stats: policy-type=aot::aot(width="
            << width_ << ",depth="
            << depth_bound_ << ",par="
-           << ao_parameter_ << ")" << std::endl;
+           << parameter_ << ")" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         os << "stats: %in=" << from_inside_ / (from_inside_ + from_outside_)
            << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
@@ -807,7 +808,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         } else if( empty_outside_priority_queue() ) {
             node = select_from_inside();
         } else {
-            if( Random::real() < ao_parameter_ ) {
+            if( Random::real() < parameter_ ) {
                 node = select_from_inside();
             } else {
                 node = select_from_outside();
@@ -823,6 +824,27 @@ template<typename T> class aot_t : public improvement_t<T> {
         return node;
     }
 };
+
+}; // namespace AOT
+
+template<typename T>
+inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
+                                   unsigned width,
+                                   unsigned depth_bound,
+                                   float parameter,
+                                   bool delayed_evaluation = true,
+                                   unsigned expansions_per_iteration = 100,
+                                   unsigned leaf_nsamples = 1,
+                                   unsigned delayed_evaluation_nsamples = 1) {
+    return new AOT::aot_t<T>(base_policy,
+                             width,
+                             depth_bound,
+                             parameter,
+                             delayed_evaluation,
+                             expansions_per_iteration,
+                             leaf_nsamples,
+                             delayed_evaluation_nsamples);
+}
 
 }; // namespace Policy
 
