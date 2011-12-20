@@ -1,6 +1,7 @@
 all:
 	@rm -f tasks.zip
-	@./generate-ctp2
+	#@./generate-ctp2
+	@./generate-ctp3
 	@#./generate-race
 	@#./generate-rect
 	@#./generate-sailing
