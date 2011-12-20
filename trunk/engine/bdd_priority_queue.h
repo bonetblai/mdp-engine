@@ -177,7 +177,6 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
         // remove container from heap
         if( index != max_size_ ) {
-            //std::cout << " <push-max@" << index << ">" << std::flush;
             push_max(index, max_array_[max_size_]);
         }
         --max_size_;
@@ -272,11 +271,9 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
   public:
     bdd_priority_queue(unsigned capacity)
       : capacity_(capacity), pool_(0), max_size_(0), min_size_(0) {
-        //std::cout << "building..." << std::flush;
         max_array_ = vector<container_t*>(1+capacity_, 0);
         min_array_ = vector<unsigned>(1+capacity_, 0);
         clear();
-        //std::cout << "done" << std::endl;
     }
     ~bdd_priority_queue() {
         clear();
@@ -293,7 +290,6 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     T removed_element() const { return removed_element_; }
 
     void clear() {
-        //std::cout << "clearing: size=" << max_size_ << "..." << std::flush;
         for( unsigned index = 1; index <= max_size_; ++index ) {
             max_array_[index]->next_ = pool_;
             pool_ = max_array_[index];
@@ -305,7 +301,6 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         min_size_ = 0;
 
         assert(check());
-        //std::cout << "done" << std::endl;
     }
 
     const T top() const {
@@ -313,48 +308,36 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     }
 
     std::pair<bool, bool> push(T &element) {
-        //std::cout << "push:" << std::flush;
         if( max_size_ < capacity_ ) {
-            //std::cout << " <get-container>" << std::flush;
             container_t *container = allocate_container(element);
-            //std::cout << " <push-max>" << std::flush;
             push_max(1 + max_size_, container);
             ++max_size_;
-            //std::cout << " <check>" << std::flush;
             assert(check());
             return std::make_pair(true, false);
         } else {
             unsigned min = min_array_[1];
             if( max_cmpfn_(max_array_[min]->element_, element) ) {
-                //std::cout << " <remove-from-min>" << std::flush;
                 min_array_[1] = min_array_[min_size_];
                 max_array_[min_array_[1]]->xref_ = 1;
                 --min_size_;
                 if( min_size_ > 0 ) {
-                    //std::cout << " <heapify-min>" << std::flush;
                     heapify_min(1);
                 }
 
-                //std::cout << " <remove-from-max>" << std::flush;
                 remove_from_max(min);
                 assert(pool_ != 0);
                 removed_element_ = pool_->element_;
 
                 assert(max_size_ < capacity_);
-                //std::cout << " <recursive-call>" << std::flush;
                 push(element);
                 return std::make_pair(true, true);
             } else {
-                //std::cout << " <discarded>" << std::endl;
                 return std::make_pair(false, false);
             }
         }
-        //std::cout << " done" << std::endl;
     }
 
     void pop() {
-        //std::cout << "pop:" << std::flush;
-        //std::cout << " <remove-from-min>" << std::flush;
         assert(max_size_ > 0);
         remove_from_min(max_array_[1]->xref_);
         max_array_[1]->next_ = pool_;
@@ -364,13 +347,10 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
         --max_size_;
 
         if( max_size_ > 0 ) {
-            //std::cout << " <heapify-max>" << std::flush;
             heapify_max(1);
         }
 
-        //std::cout << " <check>" << std::flush;
         assert(check());
-        //std::cout << " done" << std::endl;
     }
 };
 
