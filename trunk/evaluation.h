@@ -42,7 +42,11 @@ struct parameters_t {
 };
 
 template<typename T>
-inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const std::string &base_name, const std::string &policy_type, std::vector<std::pair<const Policy::policy_t<T>*, std::string> > bases, const parameters_t &par) {
+inline std::pair<const Policy::policy_t<T>*, std::string>
+  select_policy(const std::string &base_name,
+                const std::string &policy_type,
+                std::vector<std::pair<const Policy::policy_t<T>*, std::string> > bases,
+                const parameters_t &par) {
 
     // locate base policy
     const Policy::policy_t<T> *base = 0;
@@ -68,14 +72,16 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",depth=" << par.depth_
            << ",nesting=" << par.par2_
            << ")";
-        policy = new Policy::nested_rollout_t<T>(*base, par.width_, par.depth_, par.par2_);
+        policy =
+          new Policy::nested_rollout_t<T>(*base, par.width_, par.depth_, par.par2_);
     } else if( policy_type == "uct" ) {
         ss << "uct(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = new Policy::mcts_t<T>(*base, par.width_, par.depth_, par.par1_);
+        policy =
+          new Policy::mcts_t<T>(*base, par.width_, par.depth_, par.par1_);
     } else if( policy_type == "aot" ) {
         ss << "aot(" << base_str
            << ",width=" << par.width_
@@ -83,7 +89,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
-        policy = new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+        policy =
+          new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
     } else if( policy_type == "aot-i" ) {
         ss << "aot-i(" << base_str
            << ",width=" << par.width_
@@ -91,7 +98,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
-        policy = new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+        policy =
+          new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
     } else {
         ss << "<inexistent-policy-type>";
     }
@@ -100,9 +108,17 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
 }
 
 template<typename T>
-inline std::pair<std::pair<float, float>, float> evaluate_policy(const Policy::policy_t<T> &policy, const parameters_t &par) {
+inline std::pair<std::pair<float, float>, float>
+  evaluate_policy(const Policy::policy_t<T> &policy,
+                  const parameters_t &par,
+                  bool verbose = false) {
     float start_time = Utils::read_time_in_seconds();
-    std::pair<float, float> value = Evaluation::evaluation_with_stdev(policy, policy.problem().init(), par.evaluation_trials_, par.evaluation_depth_);
+    std::pair<float, float> value =
+      Evaluation::evaluation_with_stdev(policy,
+                                        policy.problem().init(),
+                                        par.evaluation_trials_,
+                                        par.evaluation_depth_,
+                                        verbose);
     float time = Utils::read_time_in_seconds() - start_time;
     return std::make_pair(value, time);
 }
