@@ -141,7 +141,12 @@ int main(int argc, const char **argv) {
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
-    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, parameters, results);
+    Dispatcher::solve(problem,
+                      heuristic,
+                      problem.init(),
+                      bitmap,
+                      parameters,
+                      results);
 
     // print results
     if( !results.empty() ) {
@@ -155,7 +160,8 @@ int main(int argc, const char **argv) {
     vector<pair<const Policy::policy_t<state_t>*, string> > bases;
 
     // fill base policies
-    const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
+    const Problem::hash_t<state_t> *hash =
+      results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
         Policy::hash_policy_t<state_t> optimal(*hash);
         bases.push_back(make_pair(optimal.clone(), "optimal"));
@@ -168,10 +174,14 @@ int main(int argc, const char **argv) {
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
-    cout << policy.second << "= " << flush;
-    pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par);
-    cout << setprecision(5) << eval.first.first << " " << eval.first.second << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+    pair<const Policy::policy_t<state_t>*, std::string> policy =
+      Evaluation::select_policy(base_name, policy_type, bases, par);
+    pair<pair<float, float>, float> eval =
+      Evaluation::evaluate_policy(*policy.first, par, true);
+    cout << policy.second << "= "
+         << setprecision(5) << eval.first.first << " "
+         << eval.first.second
+         << setprecision(2) << " ( " << eval.second << " secs)" << endl;
 
     // free resources
     delete policy.first;

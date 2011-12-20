@@ -171,7 +171,12 @@ inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned 
 }
 
 template<typename T>
-inline std::pair<float, float> evaluation_with_stdev(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth, bool verbose = false) {
+inline std::pair<float, float>
+  evaluation_with_stdev(const Policy::policy_t<T> &policy,
+                        const T &s,
+                        unsigned number_trials,
+                        unsigned max_depth,
+                        bool verbose = false) {
     std::vector<float> values;
     values.reserve(number_trials);
     if( verbose ) std::cout << "#trials=" << number_trials << ":";
