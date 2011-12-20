@@ -46,6 +46,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
     }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
@@ -64,6 +65,13 @@ template<typename T> class rollout_t : public improvement_t<T> {
         }
         assert(best_action != Problem::noop);
         return best_action;
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=improvement::rollout(width="
+           << width_ << ",depth="
+           << depth_ << ")" << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+        improvement_t<T>::base_policy_.print_stats(os);
     }
 
     float evaluate(const T &s) const {
@@ -111,7 +119,17 @@ template<typename T> class nested_rollout_t : public policy_t<T> {
     }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         return (*nested_policy_)(s);
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=improvement::nested-rollout(nesting="
+           << nesting_level_ << ")" << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+        assert(nested_policy_ != 0);
+        nested_policy_->print_stats(os);
+        if( base_policy_ != 0 )
+            base_policy_->print_stats(os);
     }
 };
 

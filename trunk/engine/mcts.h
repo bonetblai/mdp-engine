@@ -142,6 +142,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
     }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         table_.clear();
         for( unsigned i = 0; i < width_; ++i ) {
             search_tree(s, 0);
@@ -151,6 +152,14 @@ template<typename T> class mcts_t : public improvement_t<T> {
         Problem::action_t action = select_action(s, it->second, 0, false);
         assert(policy_t<T>::problem().applicable(s, action));
         return action;
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=improvement::uct(width="
+           << width_ << ",depth="
+           << depth_bound_ << ",par="
+           << uct_parameter_ << ")" << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+        improvement_t<T>::base_policy_.print_stats(os);
     }
 
     float value(const T &s, Problem::action_t a) const {
