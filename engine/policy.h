@@ -35,15 +35,17 @@ namespace Policy {
 template<typename T> class policy_t {
   protected:
     const Problem::problem_t<T> &problem_;
+    mutable unsigned decisions_;
 
   public:
     policy_t(const Problem::problem_t<T> &problem)
-      : problem_(problem) {
+      : problem_(problem), decisions_(0) {
     }
     virtual ~policy_t() { }
     const Problem::problem_t<T>& problem() const { return problem_; }
     virtual Problem::action_t operator()(const T &s) const = 0;
     virtual const policy_t<T>* clone() const = 0;
+    virtual void print_stats(std::ostream &os) const = 0;
 };
 
 template<typename T> class improvement_t : public policy_t<T> {
@@ -64,6 +66,7 @@ template<typename T> class random_t : public policy_t<T> {
     virtual const policy_t<T>* clone() const { return new random_t(policy_t<T>::problem()); }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         if( policy_t<T>::problem().dead_end(s) ) return Problem::noop;
         std::vector<Problem::action_t> actions;
         actions.reserve(policy_t<T>::problem().number_actions(s));
@@ -73,6 +76,10 @@ template<typename T> class random_t : public policy_t<T> {
             }
         }
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=base::random" << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
 
@@ -88,9 +95,14 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     virtual const policy_t<T>* clone() const { return new hash_policy_t(hash_); }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         std::pair<Problem::action_t, float> p = hash_.bestQValue(s);
         assert(policy_t<T>::problem().applicable(s, p.first));
         return p.first;
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=base::hash" << std::endl;
+        os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
     }
 };
 
@@ -106,6 +118,7 @@ template<typename T> class greedy_t : public policy_t<T> {
     virtual const policy_t<T>* clone() const { return new greedy_t(policy_t<T>::problem(), heuristic_); }
 
     virtual Problem::action_t operator()(const T &s) const {
+        ++policy_t<T>::decisions_;
         std::vector<std::pair<T, float> > outcomes;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
@@ -125,6 +138,10 @@ template<typename T> class greedy_t : public policy_t<T> {
             }
         }
         return best_action;
+    }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=base::greedy" << std::endl;
+        os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
     }
 };
 

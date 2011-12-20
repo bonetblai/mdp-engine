@@ -311,6 +311,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     virtual Problem::action_t operator()(const T &s) const {
         // initialize tree and priority queue
+        ++policy_t<T>::decisions_;
         clear();
         root_ = fetch_node(s, 0).first;
         insert_into_priority_queue(root_);
@@ -343,15 +344,19 @@ template<typename T> class aot_t : public improvement_t<T> {
         return width_ == 0 ?
           improvement_t<T>::base_policy_(s) : root_->best_action();
     }
-
-    void stats(std::ostream &os) const {
-        if( from_inside_ + from_outside_ > 0 ) {
-            os << "%in=" << from_inside_ / (from_inside_ + from_outside_)
-               << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
-               << ", #expansions=" << total_number_expansions_
-               << ", #evaluations=" << total_evaluations_
-               << std::endl;
-        }
+    virtual void print_stats(std::ostream &os) const {
+        os << "stats: policy-type=aot::aot(width="
+           << width_ << ",depth="
+           << depth_bound_ << ",par="
+           << ao_parameter_ << ")" << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+        os << "stats: %in=" << from_inside_ / (from_inside_ + from_outside_)
+           << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
+           << std::endl;
+        os << "stats: #expansions=" << total_number_expansions_
+           << ", #evaluations=" << total_evaluations_
+           << std::endl;
+        improvement_t<T>::base_policy_.print_stats(os);
     }
 
     void print_tree(std::ostream &os) const {
