@@ -28,9 +28,8 @@
 #include <vector>
 #include <queue>
 
-//#define DEBUG
-#define USE_PQ
 #define USE_BDD_PQ
+//#define DEBUG
 
 // TODO: implement bounded priority queue
 
@@ -215,14 +214,12 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
     mutable aot_state_node_t<T> *root_;
-#ifdef USE_PQ
-    mutable aot_priority_queue_t<T> inside_priority_queue_;
-    mutable aot_priority_queue_t<T> outside_priority_queue_;
+#ifdef USE_BDD_PQ
     mutable aot_bdd_priority_queue_t<T> inside_bdd_priority_queue_;
     mutable aot_bdd_priority_queue_t<T> outside_bdd_priority_queue_;
 #else
-    mutable aot_node_t<T> *best_inside_;
-    mutable aot_node_t<T> *best_outside_;
+    mutable aot_priority_queue_t<T> inside_priority_queue_;
+    mutable aot_priority_queue_t<T> outside_priority_queue_;
 #endif
     mutable aot_table_t<T> table_;
     mutable float from_inside_;
@@ -249,16 +246,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         num_nodes_(0),
         root_(0),
-#ifdef USE_PQ
+#ifdef USE_BDD_PQ
         inside_bdd_priority_queue_(expansions_per_iteration),
         outside_bdd_priority_queue_(expansions_per_iteration),
 #endif
         from_inside_(0),
         from_outside_(0) {
-#ifndef USE_PQ
-        best_inside_ = 0;
-        best_outside_ = 0;
-#endif
         total_number_expansions_ = 0;
         total_evaluations_ = 0;
     }
@@ -600,32 +593,24 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // implementation of priority queue for storing the deltas
     unsigned size_priority_queues() const {
-#  ifndef USE_BDD_PQ
-        return inside_priority_queue_.size() + outside_priority_queue_.size();
-#  else
+#ifdef USE_BDD_PQ
         return inside_bdd_priority_queue_.size() + outside_bdd_priority_queue_.size();
-#  endif
+#else
+        return inside_priority_queue_.size() + outside_priority_queue_.size();
+#endif
     }
     bool empty_inside_priority_queue() const {
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        return inside_priority_queue_.empty();
-#  else
+#ifdef USE_BDD_PQ
         return inside_bdd_priority_queue_.empty();
-#  endif
 #else
-        return best_inside_ == 0;
+        return inside_priority_queue_.empty();
 #endif
     }
     bool empty_outside_priority_queue() const {
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        return outside_priority_queue_.empty();
-#  else
+#ifdef USE_BDD_PQ
         return outside_bdd_priority_queue_.empty();
-#  endif
 #else
-        return best_outside_ == 0;
+        return outside_priority_queue_.empty();
 #endif
     }
     bool empty_priority_queues() const {
@@ -648,63 +633,42 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
     }
     void clear_priority_queues() const {
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        clear(inside_priority_queue_);
-        clear(outside_priority_queue_);
-#  else
+#ifdef USE_BDD_PQ
         clear(inside_bdd_priority_queue_);
         clear(outside_bdd_priority_queue_);
-#  endif
 #else
-        if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
-        best_inside_ = 0;
-        if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
-        best_outside_ = 0;
+        clear(inside_priority_queue_);
+        clear(outside_priority_queue_);
 #endif
     }
     void insert_into_inside_priority_queue(aot_node_t<T> *node) const {
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        inside_priority_queue_.push(node);
-        node->in_pq_ = true;
-#  else
+#ifdef USE_BDD_PQ
         std::pair<bool, bool> p = inside_bdd_priority_queue_.push(node);
         node->in_pq_ = p.first;
         if( p.second ) {
             aot_node_t<T> *removed = inside_bdd_priority_queue_.removed_element();
+            assert(removed != 0);
             assert(removed->in_pq_);
             removed->in_pq_ = false;
         }
-#  endif
 #else
-        if( (best_inside_ == 0) || aot_min_priority_t<T>()(best_inside_, node) ) {
-            if( best_inside_ != 0 ) best_inside_->in_pq_ = false;
-            best_inside_ = node;
-            best_inside_->in_pq_ = true;
-        }
+        inside_priority_queue_.push(node);
+        node->in_pq_ = true;
 #endif
     }
     void insert_into_outside_priority_queue(aot_node_t<T> *node) const {
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        outside_priority_queue_.push(node);
-        node->in_pq_ = true;
-#  else
+#ifdef USE_BDD_PQ
         std::pair<bool, bool> p = outside_bdd_priority_queue_.push(node);
         node->in_pq_ = p.first;
         if( p.second ) {
             aot_node_t<T> *removed = outside_bdd_priority_queue_.removed_element();
+            assert(removed != 0);
             assert(removed->in_pq_);
             removed->in_pq_ = false;
         }
-#  endif
 #else
-        if( (best_outside_ == 0) || aot_min_priority_t<T>()(best_outside_, node) ) {
-            if( best_outside_ != 0 ) best_outside_->in_pq_ = false;
-            best_outside_ = node;
-            best_outside_->in_pq_ = true;
-        }
+        outside_priority_queue_.push(node);
+        node->in_pq_ = true;
 #endif
     }
     void insert_into_priority_queue(aot_node_t<T> *node) const {
@@ -723,17 +687,12 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     aot_node_t<T>* select_from_inside() const {
         aot_node_t<T> *node = 0;
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        node = inside_priority_queue_.top();
-        inside_priority_queue_.pop();
-#  else
+#ifdef USE_BDD_PQ
         node = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
-#  endif
 #else
-        node = best_inside_;
-        best_inside_ = 0;
+        node = inside_priority_queue_.top();
+        inside_priority_queue_.pop();
 #endif
         assert(node->in_pq_);
         node->in_pq_ = false;
@@ -742,17 +701,12 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     aot_node_t<T>* select_from_outside() const {
         aot_node_t<T> *node = 0;
-#ifdef USE_PQ
-#  ifndef USE_BDD_PQ
-        node = outside_priority_queue_.top();
-        outside_priority_queue_.pop();
-#  else
+#ifdef USE_BDD_PQ
         node = outside_bdd_priority_queue_.top();
         outside_bdd_priority_queue_.pop();
-#  endif
 #else
-        node = best_outside_;
-        best_outside_ = 0;
+        node = outside_priority_queue_.top();
+        outside_priority_queue_.pop();
 #endif
         assert(node->in_pq_);
         node->in_pq_ = false;
