@@ -1,2 +1,2 @@
 clean:
-	rm -f *~
+	rm -f *~ core

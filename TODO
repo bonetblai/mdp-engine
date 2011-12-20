@@ -1,6 +1,5 @@
-- Change name of algorithms: ao3 and ao4
-- Delete ao1 and ao2 (?)
+- Delete ao1.h, ao2.h and ao3.h
 - Rename UCT correctly
 - Implement better print out
-- Implement better revision strategy for ao4 to increase convergence time
+- Implement better revision strategy for aot-i to increase convergence time
 - Move evaluation.h to engine

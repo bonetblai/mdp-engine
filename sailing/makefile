@@ -1,4 +1,4 @@
-G++	=	clang++ #g++
+G++	=	g++
 CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
 OBJS	=	main.o
 TARGET	=	sailing
@@ -7,7 +7,7 @@ $(TARGET):	$(OBJS)
 		$(G++) $(CCFLAGS) -o $(TARGET) $(OBJS)
 
 clean:
-		rm -f $(OBJS) $(TARGET) *~
+		rm -f $(OBJS) $(TARGET) *~ core
 
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<

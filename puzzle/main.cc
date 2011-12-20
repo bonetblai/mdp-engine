@@ -112,10 +112,10 @@ int main(int argc, const char **argv) {
         cols = strtoul(argv[1], 0, 0);
         base_name = argv[2];
         policy_type = argv[3];
-        if( argc >= 4 ) par.width_ = strtoul(argv[4], 0, 0);
-        if( argc >= 5 ) par.depth_ = strtoul(argv[5], 0, 0);
-        if( argc >= 6 ) par.par1_ = strtod(argv[6], 0);
-        if( argc >= 7 ) par.par2_ = strtoul(argv[7], 0, 0);
+        if( argc >= 5 ) par.width_ = strtoul(argv[4], 0, 0);
+        if( argc >= 6 ) par.depth_ = strtoul(argv[5], 0, 0);
+        if( argc >= 7 ) par.par1_ = strtod(argv[6], 0);
+        if( argc >= 8 ) par.par2_ = strtoul(argv[7], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -156,10 +156,14 @@ int main(int argc, const char **argv) {
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    Policy::hash_policy_t<state_t> optimal(*hash);
-    bases.push_back(make_pair(&optimal, "optimal"));
-    Policy::greedy_t<state_t> greedy(problem, *heuristic);
-    bases.push_back(make_pair(&greedy, "greedy"));
+    if( hash != 0 ) {
+        Policy::hash_policy_t<state_t> optimal(*hash);
+        bases.push_back(make_pair(optimal.clone(), "optimal"));
+    }
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        bases.push_back(make_pair(greedy.clone(), "greedy"));
+    }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
