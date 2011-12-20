@@ -346,7 +346,7 @@ template<typename T> class aot_t : public improvement_t<T> {
           improvement_t<T>::base_policy_(s) : root_->best_action();
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=aot::aot(width="
+        os << "stats: policy-type=aot(width="
            << width_ << ",depth="
            << depth_bound_ << ",par="
            << parameter_ << ")" << std::endl;

@@ -77,7 +77,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
         return best_action;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=improvement::rollout(width="
+        os << "stats: policy-type=rollout(width="
            << width_ << ",depth="
            << depth_ << ",nesting="
            << nesting_ << ")" << std::endl;
