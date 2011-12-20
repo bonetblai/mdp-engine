@@ -24,8 +24,6 @@
 #include <iomanip>
 #include <strings.h>
 
-#include "ao2.h"
-#include "ao3.h"
 #include "aot.h"
 #include "mcts.h"
 
@@ -78,16 +76,16 @@ inline std::pair<const Policy::policy_t<T>*, std::string> select_policy(const st
            << ",par=" << par.par1_
            << ")";
         policy = new Policy::mcts_t<T>(*base, par.width_, par.depth_, par.par1_);
-    } else if( policy_type == "ao3" ) {
-        ss << "ao3(" << base_str
+    } else if( policy_type == "aot" ) {
+        ss << "aot(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy = new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
-    } else if( policy_type == "ao4" ) {
-        ss << "ao4(" << base_str
+    } else if( policy_type == "aot-i" ) {
+        ss << "aot-i(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
