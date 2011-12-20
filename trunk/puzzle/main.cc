@@ -178,10 +178,11 @@ int main(int argc, const char **argv) {
       Evaluation::select_policy(base_name, policy_type, bases, par);
     pair<pair<float, float>, float> eval =
       Evaluation::evaluate_policy(*policy.first, par, true);
-    cout << policy.second << "= "
-         << setprecision(5) << eval.first.first << " "
-         << eval.first.second
-         << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+    cout << "result: " << policy.second
+         << "= " << setprecision(5) << eval.first.first
+         << " " << eval.first.second << setprecision(2)
+         << " ( " << eval.second << " secs)" << endl;
+    policy.first->print_stats(cout);
 
     // free resources
     delete policy.first;

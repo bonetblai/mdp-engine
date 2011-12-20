@@ -72,16 +72,14 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",depth=" << par.depth_
            << ",nesting=" << par.par2_
            << ")";
-        policy =
-          new Policy::nested_rollout_t<T>(*base, par.width_, par.depth_, par.par2_);
+        policy = Policy::make_nested_rollout(*base, par.width_, par.depth_, par.par2_);
     } else if( policy_type == "uct" ) {
         ss << "uct(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy =
-          new Policy::mcts_t<T>(*base, par.width_, par.depth_, par.par1_);
+        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_);
     } else if( policy_type == "aot" ) {
         ss << "aot(" << base_str
            << ",width=" << par.width_
@@ -90,7 +88,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
     } else if( policy_type == "aot-i" ) {
         ss << "aot-i(" << base_str
            << ",width=" << par.width_
@@ -99,7 +97,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          new Policy::aot_t<T>(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
     } else {
         ss << "<inexistent-policy-type>";
     }
