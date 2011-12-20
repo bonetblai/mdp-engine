@@ -9,3 +9,4 @@ clean:
 	for p in $(PROBLEMS); do \
 	    (cd $$p; make clean) \
         done
+	rm -f *~ core

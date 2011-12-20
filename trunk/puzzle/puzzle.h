@@ -195,6 +195,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.applicable(rows_, cols_, a);
     }
+    virtual bool dead_end(const state_t &s) const { return false; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }

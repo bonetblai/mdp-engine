@@ -7,7 +7,7 @@ $(TARGET):	$(OBJS)
 		$(G++) -static $(CCFLAGS) -o $(TARGET) $(OBJS) -l tinisat -L../../tinisat-0.1
 
 clean:
-		rm -f $(OBJS) $(TARGET) *~
+		rm -f $(OBJS) $(TARGET) *~ core
 
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<

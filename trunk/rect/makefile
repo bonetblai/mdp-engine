@@ -7,7 +7,7 @@ $(TARGET):	$(OBJS)
 		$(G++) -static $(CCFLAGS) -o $(TARGET) $(OBJS)
 
 clean:
-		rm -f $(OBJS) $(TARGET) *~
+		rm -f $(OBJS) $(TARGET) *~ core
 
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<
