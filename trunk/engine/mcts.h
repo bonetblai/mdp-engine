@@ -154,7 +154,7 @@ template<typename T> class mcts_t : public improvement_t<T> {
         return action;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=improvement::uct(width="
+        os << "stats: policy-type=uct(width="
            << width_ << ",depth="
            << depth_bound_ << ",par="
            << parameter_ << ")" << std::endl;

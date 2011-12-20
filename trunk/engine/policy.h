@@ -78,7 +78,7 @@ template<typename T> class random_t : public policy_t<T> {
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=base::random" << std::endl;
+        os << "stats: policy-type=random()" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
@@ -101,7 +101,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
         return p.first;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=base::hash" << std::endl;
+        os << "stats: policy-type=hash()" << std::endl;
         os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
     }
 };
@@ -140,7 +140,7 @@ template<typename T> class greedy_t : public policy_t<T> {
         return best_action;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=base::greedy" << std::endl;
+        os << "stats: policy-type=greedy()" << std::endl;
         os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
     }
 };
