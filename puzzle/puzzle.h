@@ -2,8 +2,6 @@
 #include <iostream>
 #include <iomanip>
 
-#define DISCOUNT   .95
-
 #include "algorithm.h"
 #include "parameters.h"
 #include "heuristic.h"
@@ -182,7 +180,8 @@ class problem_t : public Problem::problem_t<state_t> {
 
   public:
     problem_t(unsigned rows, unsigned cols, const state_t &init, float p = 1.0)
-      : rows_(rows), cols_(cols), p_(p), init_(init) {
+      : Problem::problem_t<state_t>(),
+        rows_(rows), cols_(cols), p_(p), init_(init) {
         goal_.set_goal(rows_, cols_);
     }
     virtual ~problem_t() { }
