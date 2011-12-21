@@ -5,7 +5,7 @@ problem=$2
 
 # locate files
 #echo phase0
-if [ "$domain" == "race" -o "$domain" == "ctp2" ]; then
+if [ "$domain" == "race" -o "$domain" == "ctp2" -o "$domain" == "ctp3" ]; then
     FILES=`grep -l $problem raw/*/output.*`
 else
     FILES=`grep $domain raw/*/output.* | awk '{ if( $9 == problem ) print $1; }' problem=$problem | cut -f1 -d:`

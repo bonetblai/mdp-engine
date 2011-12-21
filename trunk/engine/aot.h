@@ -214,13 +214,17 @@ template<typename T> class hash_t :
 
 template<typename T> struct min_priority_t {
     bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
-        return fabs(n1->delta_) > fabs(n2->delta_);
+        float v1 = fabs(n1->delta_), v2 = fabs(n2->delta_);
+        //return (v1 > v2) || ((v1 == v2) && (n1->value_ > n2->value_));
+        return v1 > v2;
     }
 };
 
 template<typename T> struct max_priority_t {
     bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
-        return fabs(n2->delta_) > fabs(n1->delta_);
+        float v1 = fabs(n1->delta_), v2 = fabs(n2->delta_);
+        //return (v2 > v1) || ((v2 == v1) && (n2->value_ > n1->value_));
+        return v2 > v1;
     }
 };
 
@@ -761,16 +765,22 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     void insert_into_priority_queue(AOT::node_t<T> *node) const {
         if( !node->in_pq_ ) {
+            float sign = copysignf(1, node->delta_);
+            if( sign == 1 ) {
 #ifdef DEBUG
-            std::cout << "push ";
-            node->print(std::cout, false);
-            std::cout << std::endl;
+                std::cout << "push:in  ";
+                node->print(std::cout, false);
+                std::cout << std::endl;
 #endif
-
-            if( node->delta_ >= 0 )
                 insert_into_inside_priority_queue(node);
-            else
+            } else {
+#ifdef DEBUG
+                std::cout << "push:out ";
+                node->print(std::cout, false);
+                std::cout << std::endl;
+#endif
                 insert_into_outside_priority_queue(node);
+            }
         }
     }
     AOT::node_t<T>* select_from_inside() const {
@@ -803,15 +813,24 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     AOT::node_t<T>* select_from_priority_queue() const {
         AOT::node_t<T> *node = 0;
-        if( empty_inside_priority_queue() ) {
-            node = select_from_outside();
-        } else if( empty_outside_priority_queue() ) {
-            node = select_from_inside();
+        if( parameter_ < 0 ) {
+            float in_size = (float)inside_bdd_priority_queue_.size();
+            float out_size = (float)outside_bdd_priority_queue_.size();
+            float threshold = in_size / (in_size + out_size);
+            if( Random::real() < threshold )
+                node = select_from_inside();
+            else
+                node = select_from_outside();
         } else {
-            if( Random::real() < parameter_ ) {
+            if( empty_inside_priority_queue() ) {
+                node = select_from_outside();
+            } else if( empty_outside_priority_queue() ) {
                 node = select_from_inside();
             } else {
-                node = select_from_outside();
+                if( Random::real() < parameter_ )
+                    node = select_from_inside();
+                else
+                    node = select_from_outside();
             }
         }
 
