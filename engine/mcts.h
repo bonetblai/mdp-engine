@@ -77,7 +77,8 @@ template<typename T> struct node_t {
         for( Problem::action_t a = 0; a < problem.number_actions(); ++a ) {
             if( counts_[1+a] == 0 ) return a;
             assert(counts_[0] > 0);
-            float bonus = parameter * sqrtf(log_ns / counts_[1+a]);
+            float par = parameter == 0 ? values_[1+a] : parameter;
+            float bonus = par * sqrtf(log_ns / counts_[1+a]);
             float value = values_[1+a] + bonus;
             if( value < best_value ) {
                 best_value = value;
@@ -247,7 +248,8 @@ template<typename T> class mcts_t : public improvement_t<T> {
 
                 // compute score of action adding bonus (if applicable)
                 assert(data.counts_[0] > 0);
-                float bonus = add_bonus ? parameter_ * sqrtf(log_ns / data.counts_[1+a]) : 0;
+                float par = parameter_ == 0 ? data.values_[1+a] : parameter_;
+                float bonus = add_bonus ? par * sqrtf(log_ns / data.counts_[1+a]) : 0;
                 float value = data.values_[1+a] + bonus;
 
                 // update best action so far
