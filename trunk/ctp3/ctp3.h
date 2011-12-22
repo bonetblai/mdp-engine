@@ -555,8 +555,8 @@ class problem_t : public Problem::problem_t<state_t> {
     mutable next_cache_t next_cache_;
 
   public:
-    problem_t(CTP::graph_t &graph, bool use_cache = false, unsigned cache_size = 1e4)
-      : Problem::problem_t<state_t>(DISCOUNT, 1e3), // change dead_end_value
+    problem_t(CTP::graph_t &graph, bool use_cache = false, unsigned cache_size = (int)1e4)
+      : Problem::problem_t<state_t>(DISCOUNT, (int)1e3), // change dead_end_value
         graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1),
         max_branching_(0), use_cache_(use_cache) {
         next_cache_.initialize(graph.num_nodes_, cache_size);
@@ -753,6 +753,7 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
     virtual const Policy::policy_t<state_t>* clone() const {
         return new optimistic_policy_t(problem(), graph_);
     }
+    virtual void print_stats(std::ostream &os) const { }
 };
 
 
