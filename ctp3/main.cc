@@ -39,7 +39,7 @@ int main(int argc, const char **argv) {
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
-    int shortcut_cost = 5e3;
+    int shortcut_cost = (int)5e3;
 
     string base_name;
     string policy_type;
@@ -119,9 +119,9 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
-    state_t::initialize(graph, false, 5e5);
-    problem_t problem(graph, false, 5e5);
-    cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
+    state_t::initialize(graph, false, (int)5e5);
+    problem_t problem(graph, false, (int)5e5);
+    cout << "P(bad weather)=" << probability_bad_weather(graph, (int)1e5) << endl;
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -209,7 +209,7 @@ int main(int argc, const char **argv) {
             }
             values.push_back(cost);
             sum += cost;
-            cout << "(" << sum/(1+trial) << ")" << flush;
+            cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
         cout << "max-branching=" << problem.max_branching_ << endl;
