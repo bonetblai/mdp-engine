@@ -30,8 +30,11 @@
 
 #define USE_BDD_PQ
 //#define DEBUG
+#define EXPERIMENT
 
-// TODO: implement bounded priority queue
+#ifdef EXPERIMENT
+//template<typename T> extern const Heuristic::heuristic_t<T> *global_heuristic;
+#endif
 
 namespace Policy {
 
@@ -59,7 +62,7 @@ template<typename T> struct node_t {
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
     virtual void expand(const aot_t<T> *policy,
-                        std::vector<node_t<T>*> &to_propagate) = 0;
+                        std::vector<node_t<T>*> &nodes_to_propagate) = 0;
     virtual void propagate(const aot_t<T> *policy) = 0;
 };
 
@@ -92,8 +95,8 @@ template<typename T> struct action_node_t : public node_t<T> {
            << "]";
     }
     virtual void expand(const aot_t<T> *policy,
-                        std::vector<node_t<T>*> &to_propagate) {
-        policy->expand(this, to_propagate);
+                        std::vector<node_t<T>*> &nodes_to_propagate) {
+        policy->expand(this, nodes_to_propagate);
     }
     virtual void propagate(const aot_t<T> *policy) {
         policy->propagate(this);
@@ -149,8 +152,8 @@ template<typename T> struct state_node_t : public node_t<T> {
            << "]";
     }
     virtual void expand(const aot_t<T> *policy,
-                        std::vector<node_t<T>*> &to_propagate) {
-        policy->expand(this, to_propagate);
+                        std::vector<node_t<T>*> &nodes_to_propagate) {
+        policy->expand(this, nodes_to_propagate);
     }
     virtual void propagate(const aot_t<T> *policy) {
         policy->propagate(this);
@@ -260,15 +263,15 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned leaf_nsamples_;
     unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
-    mutable AOT::state_node_t<T> *root_;
+    mutable state_node_t<T> *root_;
 #ifdef USE_BDD_PQ
-    mutable AOT::bdd_priority_queue_t<T> inside_bdd_priority_queue_;
-    mutable AOT::bdd_priority_queue_t<T> outside_bdd_priority_queue_;
+    mutable bdd_priority_queue_t<T> inside_bdd_priority_queue_;
+    mutable bdd_priority_queue_t<T> outside_bdd_priority_queue_;
 #else
-    mutable AOT::priority_queue_t<T> inside_priority_queue_;
-    mutable AOT::priority_queue_t<T> outside_priority_queue_;
+    mutable priority_queue_t<T> inside_priority_queue_;
+    mutable priority_queue_t<T> outside_priority_queue_;
 #endif
-    mutable AOT::hash_t<T> table_;
+    mutable hash_t<T> table_;
     mutable float from_inside_;
     mutable float from_outside_;
     mutable unsigned total_number_expansions_;
@@ -323,16 +326,16 @@ template<typename T> class aot_t : public improvement_t<T> {
 
         // expand leaves and propagate values
         unsigned expanded = 0;
-        std::vector<AOT::node_t<T>*> to_propagate;
+        std::vector<node_t<T>*> nodes_to_propagate;
         for( unsigned i = 0; (i < width_) && !empty_priority_queues(); ) {
             unsigned expanded_in_iteration = 0;
             while( (i < width_) &&
                    (expanded_in_iteration < expansions_per_iteration_) &&
                    !empty_priority_queues() ) {
-                expand(to_propagate);
-                for( int j = 0, jsz = to_propagate.size(); j < jsz; ++j )
-                    propagate(to_propagate[j]);
-                to_propagate.clear();
+                expand(nodes_to_propagate);
+                for( int j = 0, jsz = nodes_to_propagate.size(); j < jsz; ++j )
+                    propagate(nodes_to_propagate[j]);
+                nodes_to_propagate.clear();
                 ++expanded_in_iteration;
                 ++i;
             }
@@ -381,13 +384,13 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // lookup a node in hash table; if not found, create a new entry.
-    std::pair<AOT::state_node_t<T>*, bool> fetch_node(const T &state,
+    std::pair<state_node_t<T>*, bool> fetch_node(const T &state,
                                                       unsigned depth) const {
-        typename AOT::hash_t<T>::iterator it =
+        typename hash_t<T>::iterator it =
           table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
             ++num_nodes_;
-            AOT::state_node_t<T> *node = new AOT::state_node_t<T>(state, depth);
+            state_node_t<T> *node = new state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth),
                                          node));
             if( policy_t<T>::problem().terminal(state) ) {
@@ -415,15 +418,19 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
     }
 
+    node_t<T> *select_node_for_expansion() const {
+        return select_from_priority_queue();
+    }
+
     // expansion of state and action nodes. The binding of appropriate method
     // is done at run-time with virtual methods
-    void expand(std::vector<AOT::node_t<T>*> &to_propagate) const {
+    void expand(std::vector<node_t<T>*> &nodes_to_propagate) const {
         ++total_number_expansions_;
-        AOT::node_t<T> *node = select_from_priority_queue();
-        node->expand(this, to_propagate);
+        node_t<T> *node = select_node_for_expansion();
+        node->expand(this, nodes_to_propagate);
     }
-    void expand(AOT::action_node_t<T> *a_node,
-                std::vector<AOT::node_t<T>*> &to_propagate,
+    void expand(action_node_t<T> *a_node,
+                std::vector<node_t<T>*> &nodes_to_propagate,
                 bool picked_from_queue = true) const {
         assert(a_node->is_leaf());
         assert(!a_node->parent_->is_dead_end_);
@@ -435,11 +442,11 @@ template<typename T> class aot_t : public improvement_t<T> {
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
             float prob = outcomes[i].second;
-            std::pair<AOT::state_node_t<T>*, bool> p =
+            std::pair<state_node_t<T>*, bool> p =
               fetch_node(state, 1 + a_node->parent_->depth_);
             if( p.second ) {
                 assert(p.first->is_leaf());
-                to_propagate.push_back(p.first);
+                nodes_to_propagate.push_back(p.first);
             }
             p.first->parents_.push_back(std::make_pair(i, a_node));
             a_node->children_.push_back(std::make_pair(prob, p.first));
@@ -447,15 +454,15 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
         a_node->value_ = a_node->action_cost_ +
           policy_t<T>::problem().discount() * a_node->value_;
-        to_propagate.push_back(a_node);
+        nodes_to_propagate.push_back(a_node);
 
         // re-sample sibling action nodes that are still leaves
         if( picked_from_queue ) {
-            AOT::state_node_t<T> *parent = a_node->parent_;
+            state_node_t<T> *parent = a_node->parent_;
             const T &state = parent->state_;
             unsigned depth = 1 + parent->depth_;
             for( int i = 0, isz = parent->children_.size(); i < isz; ++i ) {
-                AOT::action_node_t<T> *sibling = parent->children_[i];
+                action_node_t<T> *sibling = parent->children_[i];
                 if( sibling->is_leaf() ) {
                     float oval = (sibling->value_ - sibling->action_cost_) /
                       policy_t<T>::problem().discount();
@@ -475,8 +482,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
-    void expand(AOT::state_node_t<T> *s_node,
-                std::vector<AOT::node_t<T>*> &to_propagate) const {
+    void expand(state_node_t<T> *s_node,
+                std::vector<node_t<T>*> &nodes_to_propagate) const {
         assert(s_node->is_leaf());
         assert(!s_node->is_dead_end_);
         s_node->children_.reserve(policy_t<T>::problem().number_actions(s_node->state_));
@@ -484,14 +491,14 @@ template<typename T> class aot_t : public improvement_t<T> {
             if( policy_t<T>::problem().applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
-                AOT::action_node_t<T> *a_node = new AOT::action_node_t<T>(a);
+                action_node_t<T> *a_node = new action_node_t<T>(a);
                 a_node->action_cost_ = policy_t<T>::problem().cost(s_node->state_, a);
                 a_node->parent_ = s_node;
                 s_node->children_.push_back(a_node);
 
                 // expand node
                 if( !delayed_evaluation_ ) {
-                    expand(a_node, to_propagate, false);
+                    expand(a_node, nodes_to_propagate, false);
                 } else {
                     // instead of full-width expansion to calculate value,
                     // estimate it by sampling states and applying rollouts
@@ -504,30 +511,30 @@ template<typename T> class aot_t : public improvement_t<T> {
                 }
             }
         }
-        to_propagate.push_back(s_node);
+        nodes_to_propagate.push_back(s_node);
     }
 
     // propagate new values bottom-up using BFS and stopping when values changes no further
-    void propagate(AOT::node_t<T> *node) const {
+    void propagate(node_t<T> *node) const {
         node->propagate(this);
     }
-    void propagate(AOT::action_node_t<T> *a_node) const {
+    void propagate(action_node_t<T> *a_node) const {
         assert(a_node->parent_ != 0);
         propagate(a_node->parent_);
     }
-    void propagate(AOT::state_node_t<T> *s_node) const {
-        std::deque<AOT::state_node_t<T>*> queue;
+    void propagate(state_node_t<T> *s_node) const {
+        std::deque<state_node_t<T>*> queue;
         queue.push_back(s_node);
         s_node->in_queue_ = true;
         while( !queue.empty() ) {
-            AOT::state_node_t<T> *s_node = queue.front();
+            state_node_t<T> *s_node = queue.front();
             queue.pop_front();
             s_node->in_queue_ = false;
             float old_value = s_node->value_;
             if( !s_node->is_leaf() ) s_node->update_value();
             if( s_node->is_leaf() || (old_value != s_node->value_) ) {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
-                    AOT::action_node_t<T> *a_node = s_node->parents_[i].second;
+                    action_node_t<T> *a_node = s_node->parents_[i].second;
                     float old_value = a_node->value_;
                     a_node->update_value(policy_t<T>::problem().discount());
                     assert(a_node->parent_ != 0);
@@ -541,13 +548,13 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // recompute delta values for nodes in top-down BFS manner
-    void recompute_delta(AOT::state_node_t<T> *root) const {
+    void recompute_delta(state_node_t<T> *root) const {
         assert(!root->is_goal_);
         assert(!root->is_dead_end_);
 
-        std::deque<AOT::state_node_t<T>*> s_queue;
+        std::deque<state_node_t<T>*> s_queue;
         bool expanding_from_s_queue = true;
-        std::deque<AOT::action_node_t<T>*> a_queue;
+        std::deque<action_node_t<T>*> a_queue;
         bool expanding_from_a_queue = false;
 
         root->delta_ = std::numeric_limits<float>::max();
@@ -558,7 +565,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             // expand from the state queue
             if( expanding_from_s_queue ) {
                 while( !s_queue.empty() ) {
-                    AOT::state_node_t<T> *s_node = s_queue.back();
+                    state_node_t<T> *s_node = s_queue.back();
                     s_queue.pop_back();
                     s_node->in_queue_ = false;
                     recompute(s_node, a_queue);
@@ -570,7 +577,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             // expand from the action queue
             if( expanding_from_a_queue ) {
                 while( !a_queue.empty() ) {
-                    AOT::action_node_t<T> *a_node = a_queue.back();
+                    action_node_t<T> *a_node = a_queue.back();
                     a_queue.pop_back();
                     recompute(a_node, s_queue);
                 }
@@ -579,8 +586,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
-    void recompute(AOT::state_node_t<T> *s_node,
-                   std::deque<AOT::action_node_t<T>*> &a_queue) const {
+    void recompute(state_node_t<T> *s_node,
+                   std::deque<action_node_t<T>*> &a_queue) const {
         assert(!s_node->is_goal_);
         assert(!s_node->is_dead_end_);
         if( s_node->is_leaf() ) {
@@ -598,7 +605,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 float Delta = std::numeric_limits<float>::max();
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     if( i != s_node->best_action_ ) {
-                        AOT::action_node_t<T> *a_node = s_node->children_[i];
+                        action_node_t<T> *a_node = s_node->children_[i];
                         float d = a_node->value_ - best_value;
                         Delta = Utils::min(Delta, d);
                     }
@@ -606,7 +613,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
                 // compute delta
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-                    AOT::action_node_t<T> *a_node = s_node->children_[i];
+                    action_node_t<T> *a_node = s_node->children_[i];
                     if( i == s_node->best_action_ ) {
                         a_node->delta_ = Utils::min(s_node->delta_, Delta);
                         a_node->in_best_policy_ = true;
@@ -621,7 +628,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             } else {
                 assert(s_node->delta_ <= 0);
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-                    AOT::action_node_t<T> *a_node = s_node->children_[i];
+                    action_node_t<T> *a_node = s_node->children_[i];
                     a_node->delta_ = s_node->delta_ + best_value - a_node->value_;
                     a_node->in_best_policy_ = false;
                     assert(a_node->delta_ <= 0);
@@ -630,8 +637,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
-    void recompute(AOT::action_node_t<T> *a_node,
-                   std::deque<AOT::state_node_t<T>*> &s_queue) const {
+    void recompute(action_node_t<T> *a_node,
+                   std::deque<state_node_t<T>*> &s_queue) const {
         if( a_node->is_leaf() ) {
             // insert tip node into priority queue
             if( a_node->parent_->depth_ < depth_bound_ ) {
@@ -639,13 +646,13 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         } else {
             for( int i = 0, isz = a_node->children_.size(); i < isz; ++i ) {
-                AOT::state_node_t<T> *s_node = a_node->children_[i].second;
+                state_node_t<T> *s_node = a_node->children_[i].second;
                 if( !s_node->in_queue_ && !s_node->is_goal_ && !s_node->is_dead_end_ ) {
                     float delta = std::numeric_limits<float>::max();
                     bool in_best_policy = false;
                     for( int j = 0, jsz = s_node->parents_.size(); j < jsz; ++j ) {
                         int child_index = s_node->parents_[j].first;
-                        AOT::action_node_t<T> *parent = s_node->parents_[j].second;
+                        action_node_t<T> *parent = s_node->parents_[j].second;
                         assert(parent->children_[child_index].second == s_node);
                         float d = parent->delta_ /
                                   (policy_t<T>::problem().discount() *
@@ -664,13 +671,27 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // evaluate a state with base policy, and evaluate an action node by
     // sampling states
+#ifdef EXPERIMENT
+    float evaluate(const T &s, unsigned depth) const {
+        extern const Heuristic::heuristic_t<T> *global_heuristic;
+        total_evaluations_ += leaf_nsamples_;
+        if( depth >= depth_bound_ ) {
+            return 0;
+        } else if( global_heuristic != 0 ) {
+            return global_heuristic->value(s);
+        } else {
+            return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
+                                          leaf_nsamples_, depth_bound_ - depth);
+        }
+    }
+#else
     float evaluate(const T &s, unsigned depth) const {
         total_evaluations_ += leaf_nsamples_;
         return depth < depth_bound_ ?
-          Evaluation::evaluation(improvement_t<T>::base_policy_,
-                                 s,
+          Evaluation::evaluation(improvement_t<T>::base_policy_, s,
                                  leaf_nsamples_, depth_bound_ - depth) : 0;
     }
+#endif
     float evaluate(const T &state,
                    Problem::action_t action,
                    unsigned depth) const {
@@ -708,17 +729,17 @@ template<typename T> class aot_t : public improvement_t<T> {
     bool empty_priority_queues() const {
         return empty_inside_priority_queue() && empty_outside_priority_queue();
     }
-    void clear(AOT::priority_queue_t<T> &pq) const {
+    void clear(priority_queue_t<T> &pq) const {
         while( !pq.empty() ) {
-            AOT::node_t<T> *node = pq.top();
+            node_t<T> *node = pq.top();
             pq.pop();
             assert(node->in_pq_);
             node->in_pq_ = false;
         }
     }
-    void clear(AOT::bdd_priority_queue_t<T> &pq) const {
+    void clear(bdd_priority_queue_t<T> &pq) const {
         while( !pq.empty() ) {
-            AOT::node_t<T> *node = pq.top();
+            node_t<T> *node = pq.top();
             pq.pop();
             assert(node->in_pq_);
             node->in_pq_ = false;
@@ -733,12 +754,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         clear(outside_priority_queue_);
 #endif
     }
-    void insert_into_inside_priority_queue(AOT::node_t<T> *node) const {
+    void insert_into_inside_priority_queue(node_t<T> *node) const {
 #ifdef USE_BDD_PQ
         std::pair<bool, bool> p = inside_bdd_priority_queue_.push(node);
         node->in_pq_ = p.first;
         if( p.second ) {
-            AOT::node_t<T> *removed = inside_bdd_priority_queue_.removed_element();
+            node_t<T> *removed = inside_bdd_priority_queue_.removed_element();
             assert(removed != 0);
             assert(removed->in_pq_);
             removed->in_pq_ = false;
@@ -748,12 +769,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         node->in_pq_ = true;
 #endif
     }
-    void insert_into_outside_priority_queue(AOT::node_t<T> *node) const {
+    void insert_into_outside_priority_queue(node_t<T> *node) const {
 #ifdef USE_BDD_PQ
         std::pair<bool, bool> p = outside_bdd_priority_queue_.push(node);
         node->in_pq_ = p.first;
         if( p.second ) {
-            AOT::node_t<T> *removed = outside_bdd_priority_queue_.removed_element();
+            node_t<T> *removed = outside_bdd_priority_queue_.removed_element();
             assert(removed != 0);
             assert(removed->in_pq_);
             removed->in_pq_ = false;
@@ -763,7 +784,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         node->in_pq_ = true;
 #endif
     }
-    void insert_into_priority_queue(AOT::node_t<T> *node) const {
+    void insert_into_priority_queue(node_t<T> *node) const {
         if( !node->in_pq_ ) {
             float sign = copysignf(1, node->delta_);
             if( sign == 1 ) {
@@ -783,8 +804,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
-    AOT::node_t<T>* select_from_inside() const {
-        AOT::node_t<T> *node = 0;
+    node_t<T>* select_from_inside() const {
+        node_t<T> *node = 0;
 #ifdef USE_BDD_PQ
         node = inside_bdd_priority_queue_.top();
         inside_bdd_priority_queue_.pop();
@@ -797,8 +818,8 @@ template<typename T> class aot_t : public improvement_t<T> {
         ++from_inside_;
         return node;
     }
-    AOT::node_t<T>* select_from_outside() const {
-       AOT::node_t<T> *node = 0;
+    node_t<T>* select_from_outside() const {
+       node_t<T> *node = 0;
 #ifdef USE_BDD_PQ
         node = outside_bdd_priority_queue_.top();
         outside_bdd_priority_queue_.pop();
@@ -811,8 +832,8 @@ template<typename T> class aot_t : public improvement_t<T> {
         ++from_outside_;
         return node;
     }
-    AOT::node_t<T>* select_from_priority_queue() const {
-        AOT::node_t<T> *node = 0;
+    node_t<T>* select_from_priority_queue() const {
+        node_t<T> *node = 0;
         if( parameter_ < 0 ) {
             float in_size = (float)inside_bdd_priority_queue_.size();
             float out_size = (float)outside_bdd_priority_queue_.size();
