@@ -218,7 +218,6 @@ template<typename T> class hash_t :
 template<typename T> struct min_priority_t {
     bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
         float v1 = fabs(n1->delta_), v2 = fabs(n2->delta_);
-        //return (v1 > v2) || ((v1 == v2) && (n1->value_ > n2->value_));
         return v1 > v2;
     }
 };
@@ -226,7 +225,6 @@ template<typename T> struct min_priority_t {
 template<typename T> struct max_priority_t {
     bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
         float v1 = fabs(n1->delta_), v2 = fabs(n2->delta_);
-        //return (v2 > v1) || ((v2 == v1) && (n2->value_ > n1->value_));
         return v2 > v1;
     }
 };
