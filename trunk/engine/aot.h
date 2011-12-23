@@ -261,7 +261,6 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned leaf_nsamples_;
     unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
-    mutable state_node_t<T> *root_;
 #ifdef USE_BDD_PQ
     mutable bdd_priority_queue_t<T> inside_bdd_priority_queue_;
     mutable bdd_priority_queue_t<T> outside_bdd_priority_queue_;
@@ -274,6 +273,12 @@ template<typename T> class aot_t : public improvement_t<T> {
     mutable float from_outside_;
     mutable unsigned total_number_expansions_;
     mutable unsigned total_evaluations_;
+
+    // abstraction of selection strategy
+    void (aot_t::*setup_expansion_loop_ptr_)(state_node_t<T>*) const;
+    void (aot_t::*prepare_next_expansion_iteration_ptr_)(state_node_t<T>*) const;
+    bool (aot_t::*exist_nodes_to_expand_ptr_)() const;
+    node_t<T>* (aot_t::*select_node_for_expansion_ptr_)(state_node_t<T>*) const;
 
   public:
     aot_t(const policy_t<T> &base_policy,
@@ -293,7 +298,6 @@ template<typename T> class aot_t : public improvement_t<T> {
         leaf_nsamples_(leaf_nsamples),
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         num_nodes_(0),
-        root_(0),
 #ifdef USE_BDD_PQ
         inside_bdd_priority_queue_(expansions_per_iteration),
         outside_bdd_priority_queue_(expansions_per_iteration),
@@ -302,8 +306,45 @@ template<typename T> class aot_t : public improvement_t<T> {
         from_outside_(0) {
         total_number_expansions_ = 0;
         total_evaluations_ = 0;
+        set_node_selection_strategy(0);
     }
     virtual ~aot_t() { }
+
+    virtual Problem::action_t operator()(const T &s) const {
+        // initialize tree and setup expansion loop for selection strategy
+        ++policy_t<T>::decisions_;
+        clear();
+        state_node_t<T> *root = fetch_node(s, 0).first;
+        (this->*setup_expansion_loop_ptr_)(root);
+
+        // expand leaves and propagate values
+        unsigned expanded = 0;
+        std::vector<node_t<T>*> nodes_to_propagate;
+        for( unsigned i = 0; (i < width_) && (this->*exist_nodes_to_expand_ptr_)(); ) {
+            unsigned expanded_in_iteration = 0;
+            while( (i < width_) &&
+                   (expanded_in_iteration < expansions_per_iteration_) &&
+                   (this->*exist_nodes_to_expand_ptr_)() ) {
+                select_and_expand(root, nodes_to_propagate);
+                for( int j = 0, jsz = nodes_to_propagate.size(); j < jsz; ++j )
+                    propagate(nodes_to_propagate[j]);
+                nodes_to_propagate.clear();
+                ++expanded_in_iteration;
+                ++i;
+            }
+            expanded += expanded_in_iteration;
+            (this->*prepare_next_expansion_iteration_ptr_)(root);
+        }
+        assert((width_ == 0) ||
+               ((root != 0) &&
+                policy_t<T>::problem().applicable(s, root->best_action())));
+        assert(expanded <= width_);
+
+        // select best action
+        return width_ == 0 ?
+          improvement_t<T>::base_policy_(s) : root->best_action();
+    }
+
     virtual const policy_t<T>* clone() const {
         return new aot_t(improvement_t<T>::base_policy_,
                          width_,
@@ -315,41 +356,6 @@ template<typename T> class aot_t : public improvement_t<T> {
                          delayed_evaluation_nsamples_);
     }
 
-    virtual Problem::action_t operator()(const T &s) const {
-        // initialize tree and priority queue
-        ++policy_t<T>::decisions_;
-        clear();
-        root_ = fetch_node(s, 0).first;
-        insert_into_priority_queue(root_);
-
-        // expand leaves and propagate values
-        unsigned expanded = 0;
-        std::vector<node_t<T>*> nodes_to_propagate;
-        for( unsigned i = 0; (i < width_) && !empty_priority_queues(); ) {
-            unsigned expanded_in_iteration = 0;
-            while( (i < width_) &&
-                   (expanded_in_iteration < expansions_per_iteration_) &&
-                   !empty_priority_queues() ) {
-                expand(nodes_to_propagate);
-                for( int j = 0, jsz = nodes_to_propagate.size(); j < jsz; ++j )
-                    propagate(nodes_to_propagate[j]);
-                nodes_to_propagate.clear();
-                ++expanded_in_iteration;
-                ++i;
-            }
-            expanded += expanded_in_iteration;
-            clear_priority_queues();
-            recompute_delta(root_);
-        }
-        assert((width_ == 0) ||
-               ((root_ != 0) &&
-                policy_t<T>::problem().applicable(s, root_->best_action())));
-        assert(expanded <= width_);
-
-        // select best action
-        return width_ == 0 ?
-          improvement_t<T>::base_policy_(s) : root_->best_action();
-    }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=aot(width="
            << width_ << ",depth="
@@ -375,10 +381,8 @@ template<typename T> class aot_t : public improvement_t<T> {
         table_.clear();
     }
     void clear() const {
-        clear_priority_queues();
         clear_table();
         num_nodes_ = 0;
-        root_ = 0;
     }
 
     // lookup a node in hash table; if not found, create a new entry.
@@ -416,15 +420,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
     }
 
-    node_t<T> *select_node_for_expansion() const {
-        return select_from_priority_queue();
-    }
-
     // expansion of state and action nodes. The binding of appropriate method
     // is done at run-time with virtual methods
-    void expand(std::vector<node_t<T>*> &nodes_to_propagate) const {
+    void select_and_expand(state_node_t<T> *root,
+                std::vector<node_t<T>*> &nodes_to_propagate) const {
         ++total_number_expansions_;
-        node_t<T> *node = select_node_for_expansion();
+        node_t<T> *node = (this->*select_node_for_expansion_ptr_)(root);
         node->expand(this, nodes_to_propagate);
     }
     void expand(action_node_t<T> *a_node,
@@ -545,7 +546,72 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
     }
 
-    // recompute delta values for nodes in top-down BFS manner
+    // evaluate a state with base policy, and evaluate an action node by
+    // sampling states
+#ifdef EXPERIMENT
+    float evaluate(const T &s, unsigned depth) const {
+        extern const Heuristic::heuristic_t<T> *global_heuristic;
+        total_evaluations_ += leaf_nsamples_;
+        if( depth >= depth_bound_ ) {
+            return 0;
+        } else if( global_heuristic != 0 ) {
+            return global_heuristic->value(s);
+        } else {
+            return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
+                                          leaf_nsamples_, depth_bound_ - depth);
+        }
+    }
+#else
+    float evaluate(const T &s, unsigned depth) const {
+        total_evaluations_ += leaf_nsamples_;
+        return depth < depth_bound_ ?
+          Evaluation::evaluation(improvement_t<T>::base_policy_, s,
+                                 leaf_nsamples_, depth_bound_ - depth) : 0;
+    }
+#endif
+    float evaluate(const T &state,
+                   Problem::action_t action,
+                   unsigned depth) const {
+        float value = 0;
+        for( unsigned i = 0; i < delayed_evaluation_nsamples_; ++i ) {
+            std::pair<T, bool> sample =
+              policy_t<T>::problem().sample(state, action);
+            value += evaluate(sample.first, depth);
+        }
+        return value / delayed_evaluation_nsamples_;
+    }
+
+    // abstraction of selection strategy
+    void set_node_selection_strategy(int strategy) {
+        if( strategy == 0 ) {
+            delta_setup_selection_strategy();
+        } else if( strategy == 1 ) {
+            random_setup_selection_strategy();
+        }
+    }
+
+    // selection strategy based on delta values
+    void delta_setup_selection_strategy() {
+        setup_expansion_loop_ptr_ = &aot_t::delta_setup_expansion_loop;
+        prepare_next_expansion_iteration_ptr_ = &aot_t::delta_prepare_next_expansion_iteration;
+        exist_nodes_to_expand_ptr_ = &aot_t::delta_exist_nodes_to_expand;
+        select_node_for_expansion_ptr_ = &aot_t::delta_select_node_for_expansion;
+    }
+    void delta_setup_expansion_loop(state_node_t<T> *root) const {
+        clear_priority_queues();
+        insert_into_priority_queue(root);
+    }
+    void delta_prepare_next_expansion_iteration(state_node_t<T> *root) const {
+        clear_priority_queues();
+        recompute_delta(root);
+    }
+    bool delta_exist_nodes_to_expand() const {
+        return !empty_priority_queues();
+    }
+    node_t<T> *delta_select_node_for_expansion(state_node_t<T>*) const {
+        return select_from_priority_queue();
+    }
+
     void recompute_delta(state_node_t<T> *root) const {
         assert(!root->is_goal_);
         assert(!root->is_dead_end_);
@@ -566,7 +632,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                     state_node_t<T> *s_node = s_queue.back();
                     s_queue.pop_back();
                     s_node->in_queue_ = false;
-                    recompute(s_node, a_queue);
+                    recompute_delta(s_node, a_queue);
                 }
                 expanding_from_s_queue = false;
                 expanding_from_a_queue = true;
@@ -577,15 +643,15 @@ template<typename T> class aot_t : public improvement_t<T> {
                 while( !a_queue.empty() ) {
                     action_node_t<T> *a_node = a_queue.back();
                     a_queue.pop_back();
-                    recompute(a_node, s_queue);
+                    recompute_delta(a_node, s_queue);
                 }
                 expanding_from_a_queue = false;
                 expanding_from_s_queue = true;
             }
         }
     }
-    void recompute(state_node_t<T> *s_node,
-                   std::deque<action_node_t<T>*> &a_queue) const {
+    void recompute_delta(state_node_t<T> *s_node,
+                         std::deque<action_node_t<T>*> &a_queue) const {
         assert(!s_node->is_goal_);
         assert(!s_node->is_dead_end_);
         if( s_node->is_leaf() ) {
@@ -635,8 +701,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
-    void recompute(action_node_t<T> *a_node,
-                   std::deque<state_node_t<T>*> &s_queue) const {
+    void recompute_delta(action_node_t<T> *a_node,
+                         std::deque<state_node_t<T>*> &s_queue) const {
         if( a_node->is_leaf() ) {
             // insert tip node into priority queue
             if( a_node->parent_->depth_ < depth_bound_ ) {
@@ -665,41 +731,6 @@ template<typename T> class aot_t : public improvement_t<T> {
                 }
             }
         }
-    }
-
-    // evaluate a state with base policy, and evaluate an action node by
-    // sampling states
-#ifdef EXPERIMENT
-    float evaluate(const T &s, unsigned depth) const {
-        extern const Heuristic::heuristic_t<T> *global_heuristic;
-        total_evaluations_ += leaf_nsamples_;
-        if( depth >= depth_bound_ ) {
-            return 0;
-        } else if( global_heuristic != 0 ) {
-            return global_heuristic->value(s);
-        } else {
-            return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
-                                          leaf_nsamples_, depth_bound_ - depth);
-        }
-    }
-#else
-    float evaluate(const T &s, unsigned depth) const {
-        total_evaluations_ += leaf_nsamples_;
-        return depth < depth_bound_ ?
-          Evaluation::evaluation(improvement_t<T>::base_policy_, s,
-                                 leaf_nsamples_, depth_bound_ - depth) : 0;
-    }
-#endif
-    float evaluate(const T &state,
-                   Problem::action_t action,
-                   unsigned depth) const {
-        float value = 0;
-        for( unsigned i = 0; i < delayed_evaluation_nsamples_; ++i ) {
-            std::pair<T, bool> sample =
-              policy_t<T>::problem().sample(state, action);
-            value += evaluate(sample.first, depth);
-        }
-        return value / delayed_evaluation_nsamples_;
     }
 
     // implementation of priority queue for storing the deltas
@@ -861,6 +892,25 @@ template<typename T> class aot_t : public improvement_t<T> {
 
         return node;
     }
+
+    // selection strategy based on random selection
+    void random_setup_selection_strategy() {
+        setup_expansion_loop_ptr_ = &aot_t::random_setup_expansion_loop;
+        prepare_next_expansion_iteration_ptr_ = &aot_t::random_prepare_next_expansion_iteration;
+        exist_nodes_to_expand_ptr_ = &aot_t::random_exist_nodes_to_expand;
+        select_node_for_expansion_ptr_ = &aot_t::random_select_node_for_expansion;
+    }
+    void random_setup_expansion_loop(state_node_t<T> *root) const {
+    }
+    void random_prepare_next_expansion_iteration(state_node_t<T> *root) const {
+    }
+    bool random_exist_nodes_to_expand() const {
+        return false;
+    }
+    node_t<T> *random_select_node_for_expansion(state_node_t<T> *node) const {
+        return 0;
+    }
+
 };
 
 }; // namespace AOT
