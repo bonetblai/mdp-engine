@@ -1,0 +1,12 @@
+#!/bin/bash
+
+bundles=$*
+for b in $bundles; do
+    echo extracting ${b} ...
+    name=`basename $b`
+    dir=${name/.zip/}
+    rm -fr raw/$dir
+    mkdir -p raw/$dir
+    unzip -q $b -d raw/$dir
+done
+
