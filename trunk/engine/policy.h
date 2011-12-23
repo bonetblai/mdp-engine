@@ -24,6 +24,7 @@
 #include "random.h"
 
 #include <iostream>
+#include <iomanip>
 #include <cassert>
 #include <limits>
 #include <vector>
@@ -194,12 +195,18 @@ inline std::pair<float, float>
                         unsigned number_trials,
                         unsigned max_depth,
                         bool verbose = false) {
+    float sum = 0;
     std::vector<float> values;
     values.reserve(number_trials);
     if( verbose ) std::cout << "#trials=" << number_trials << ":";
-    for( unsigned i = 0; i < number_trials; ++i ) {
-        if( verbose ) std::cout << " " << i << std::flush;
+    for( unsigned trial = 0; trial < number_trials; ++trial ) {
+        if( verbose ) std::cout << " " << trial << std::flush;
         values.push_back(evaluation_trial(policy, s, max_depth));
+        sum += values.back();
+        if( verbose ) {
+            std::cout << "(" << std::setprecision(1) << sum/(1+trial) << ")"
+                      << std::flush;
+        }
     }
     if( verbose ) std::cout << std::endl;
 

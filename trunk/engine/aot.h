@@ -28,13 +28,9 @@
 #include <vector>
 #include <queue>
 
-#define USE_BDD_PQ
 //#define DEBUG
-#define EXPERIMENT
-
-#ifdef EXPERIMENT
-//template<typename T> extern const Heuristic::heuristic_t<T> *global_heuristic;
-#endif
+#define USE_BDD_PQ
+#define RANDOM_STRATEGY
 
 namespace Policy {
 
@@ -124,7 +120,8 @@ template<typename T> struct state_node_t : public node_t<T> {
     }
 
     bool is_leaf() const {
-        return is_dead_end_ || (!is_goal_ && children_.empty());
+        //return is_dead_end_ || (!is_goal_ && children_.empty());
+        return is_dead_end_ || is_goal_ || children_.empty();
     }
     void update_value() {
         assert(!is_goal_);
@@ -261,6 +258,8 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned leaf_nsamples_;
     unsigned delayed_evaluation_nsamples_;
     mutable unsigned num_nodes_;
+    mutable hash_t<T> table_;
+
 #ifdef USE_BDD_PQ
     mutable bdd_priority_queue_t<T> inside_bdd_priority_queue_;
     mutable bdd_priority_queue_t<T> outside_bdd_priority_queue_;
@@ -268,9 +267,13 @@ template<typename T> class aot_t : public improvement_t<T> {
     mutable priority_queue_t<T> inside_priority_queue_;
     mutable priority_queue_t<T> outside_priority_queue_;
 #endif
-    mutable hash_t<T> table_;
     mutable float from_inside_;
     mutable float from_outside_;
+
+#ifdef RANDOM_STRATEGY
+    mutable node_t<T> *random_leaf_;
+#endif
+
     mutable unsigned total_number_expansions_;
     mutable unsigned total_evaluations_;
 
@@ -279,6 +282,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     void (aot_t::*prepare_next_expansion_iteration_ptr_)(state_node_t<T>*) const;
     bool (aot_t::*exist_nodes_to_expand_ptr_)() const;
     node_t<T>* (aot_t::*select_node_for_expansion_ptr_)(state_node_t<T>*) const;
+    void (aot_t::*clear_internal_state_ptr_)() const;
 
   public:
     aot_t(const policy_t<T> &base_policy,
@@ -303,9 +307,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         outside_bdd_priority_queue_(expansions_per_iteration),
 #endif
         from_inside_(0),
-        from_outside_(0) {
-        total_number_expansions_ = 0;
-        total_evaluations_ = 0;
+        from_outside_(0),
+#ifdef RANDOM_STRATEGY
+        random_leaf_(0),
+#endif
+        total_number_expansions_(0),
+        total_evaluations_(0) {
         set_node_selection_strategy(0);
     }
     virtual ~aot_t() { }
@@ -335,6 +342,8 @@ template<typename T> class aot_t : public improvement_t<T> {
             expanded += expanded_in_iteration;
             (this->*prepare_next_expansion_iteration_ptr_)(root);
         }
+        (this->*clear_internal_state_ptr_)();
+
         assert((width_ == 0) ||
                ((root != 0) &&
                 policy_t<T>::problem().applicable(s, root->best_action())));
@@ -408,7 +417,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             return std::make_pair(node, false);
         } else {
             bool re_evaluated = false;
-            if( it->second->is_leaf() && !it->second->is_dead_end_ ) {
+            if( it->second->is_leaf() && !it->second->is_dead_end_ && !it->second->is_goal_ ) {
                 // resample: throw other rollouts to get better estimation
                 float oval = it->second->value_;
                 float nval = oval * it->second->nsamples_ + evaluate(state, depth);
@@ -432,6 +441,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 std::vector<node_t<T>*> &nodes_to_propagate,
                 bool picked_from_queue = true) const {
         assert(a_node->is_leaf());
+        assert(!a_node->parent_->is_goal_);
         assert(!a_node->parent_->is_dead_end_);
         std::vector<std::pair<T, float> > outcomes;
         policy_t<T>::problem().next(a_node->parent_->state_,
@@ -484,6 +494,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     void expand(state_node_t<T> *s_node,
                 std::vector<node_t<T>*> &nodes_to_propagate) const {
         assert(s_node->is_leaf());
+        assert(!s_node->is_goal_);
         assert(!s_node->is_dead_end_);
         s_node->children_.reserve(policy_t<T>::problem().number_actions(s_node->state_));
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s_node->state_); ++a ) {
@@ -505,8 +516,8 @@ template<typename T> class aot_t : public improvement_t<T> {
                     float eval = evaluate(s_node->state_, a, 1+s_node->depth_);
                     a_node->value_ = a_node->action_cost_ +
                       policy_t<T>::problem().discount() * eval;
-                    a_node->nsamples_
-                      = delayed_evaluation_nsamples_ * leaf_nsamples_;
+                    a_node->nsamples_ =
+                      delayed_evaluation_nsamples_ * leaf_nsamples_;
                 }
             }
         }
@@ -586,7 +597,9 @@ template<typename T> class aot_t : public improvement_t<T> {
         if( strategy == 0 ) {
             delta_setup_selection_strategy();
         } else if( strategy == 1 ) {
+#ifdef RANDOM_STRATEGY
             random_setup_selection_strategy();
+#endif
         }
     }
 
@@ -596,9 +609,10 @@ template<typename T> class aot_t : public improvement_t<T> {
         prepare_next_expansion_iteration_ptr_ = &aot_t::delta_prepare_next_expansion_iteration;
         exist_nodes_to_expand_ptr_ = &aot_t::delta_exist_nodes_to_expand;
         select_node_for_expansion_ptr_ = &aot_t::delta_select_node_for_expansion;
+        clear_internal_state_ptr_ = &aot_t::delta_clear_internal_state;
     }
     void delta_setup_expansion_loop(state_node_t<T> *root) const {
-        clear_priority_queues();
+        assert(empty_priority_queues());
         insert_into_priority_queue(root);
     }
     void delta_prepare_next_expansion_iteration(state_node_t<T> *root) const {
@@ -610,6 +624,9 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     node_t<T> *delta_select_node_for_expansion(state_node_t<T>*) const {
         return select_from_priority_queue();
+    }
+    void delta_clear_internal_state() const {
+        clear_priority_queues();
     }
 
     void recompute_delta(state_node_t<T> *root) const {
@@ -656,7 +673,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(!s_node->is_dead_end_);
         if( s_node->is_leaf() ) {
             // insert tip node into priority queue
-            if( !s_node->is_dead_end_ && (s_node->depth_ < depth_bound_) ) {
+            if( !s_node->is_dead_end_ && !s_node->is_goal_ && (s_node->depth_ < depth_bound_) ) {
                 insert_into_priority_queue(s_node);
             }
         } else {
@@ -818,14 +835,14 @@ template<typename T> class aot_t : public improvement_t<T> {
             float sign = copysignf(1, node->delta_);
             if( sign == 1 ) {
 #ifdef DEBUG
-                std::cout << "push:in  ";
+                std::cout << "push:in  " << node << "=";
                 node->print(std::cout, false);
                 std::cout << std::endl;
 #endif
                 insert_into_inside_priority_queue(node);
             } else {
 #ifdef DEBUG
-                std::cout << "push:out ";
+                std::cout << "push:out " << node << "=";
                 node->print(std::cout, false);
                 std::cout << std::endl;
 #endif
@@ -863,25 +880,15 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     node_t<T>* select_from_priority_queue() const {
         node_t<T> *node = 0;
-        if( parameter_ < 0 ) {
-            float in_size = (float)inside_bdd_priority_queue_.size();
-            float out_size = (float)outside_bdd_priority_queue_.size();
-            float threshold = in_size / (in_size + out_size);
-            if( Random::real() < threshold )
+        if( empty_inside_priority_queue() ) {
+            node = select_from_outside();
+        } else if( empty_outside_priority_queue() ) {
+            node = select_from_inside();
+        } else {
+            if( Random::real() < parameter_ )
                 node = select_from_inside();
             else
                 node = select_from_outside();
-        } else {
-            if( empty_inside_priority_queue() ) {
-                node = select_from_outside();
-            } else if( empty_outside_priority_queue() ) {
-                node = select_from_inside();
-            } else {
-                if( Random::real() < parameter_ )
-                    node = select_from_inside();
-                else
-                    node = select_from_outside();
-            }
         }
 
 #ifdef DEBUG
@@ -893,23 +900,48 @@ template<typename T> class aot_t : public improvement_t<T> {
         return node;
     }
 
+#ifdef RANDOM_STRATEGY
     // selection strategy based on random selection
     void random_setup_selection_strategy() {
         setup_expansion_loop_ptr_ = &aot_t::random_setup_expansion_loop;
         prepare_next_expansion_iteration_ptr_ = &aot_t::random_prepare_next_expansion_iteration;
         exist_nodes_to_expand_ptr_ = &aot_t::random_exist_nodes_to_expand;
         select_node_for_expansion_ptr_ = &aot_t::random_select_node_for_expansion;
+        clear_internal_state_ptr_ = &aot_t::random_clear_internal_state;
     }
     void random_setup_expansion_loop(state_node_t<T> *root) const {
+        random_leaf_ = root;
     }
-    void random_prepare_next_expansion_iteration(state_node_t<T> *root) const {
+    void random_prepare_next_expansion_iteration(state_node_t<T> *node) const {
+        if( node->is_leaf() ) {
+            if( !node->is_goal_ && !node->is_dead_end_ && (node->depth_ < depth_bound_) ) {
+                if( (random_leaf_ == 0) || (Random::real() < 0.5) )
+                    random_leaf_ = node;
+            }
+        } else {
+            assert(!node->children_.empty());
+            for( int i = 0, isz = node->children_.size(); i < isz; ++i ) {
+                action_node_t<T> *a_node = node->children_[i];
+                assert(!a_node->children_.empty());
+                for( int j = 0, jsz = a_node->children_.size(); j < jsz; ++j ) {
+                    state_node_t<T> *s_node = a_node->children_[j].second;
+                    random_prepare_next_expansion_iteration(s_node);
+                }
+            }
+        }
     }
     bool random_exist_nodes_to_expand() const {
-        return false;
+        return random_leaf_ != 0;
     }
     node_t<T> *random_select_node_for_expansion(state_node_t<T> *node) const {
-        return 0;
+        node_t<T> *leaf = random_leaf_;
+        random_leaf_ = 0;
+        return leaf;
     }
+    void random_clear_internal_state() const {
+        random_leaf_ = 0;
+    }
+#endif
 
 };
 

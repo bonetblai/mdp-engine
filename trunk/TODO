@@ -1,5 +1,3 @@
 - Delete ao1.h, ao2.h and ao3.h
-- Rename UCT correctly
-- Implement better print out
-- Implement better revision strategy for aot-i to increase convergence time
+- Implement better revision strategy for aot* to increase convergence time
 - Move evaluation.h to engine

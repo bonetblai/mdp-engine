@@ -13,7 +13,6 @@
 
 #include "policy.h"
 #include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
@@ -319,7 +318,8 @@ struct state_t {
 
     void compute_heuristic() const {
         if( heuristic_ == -1 ) {
-            heuristic_ = graph_->bfs(current_, num_nodes_ - 1, info_.known_, info_.blocked_, true);
+            heuristic_ = graph_->bfs(current_ == -1 ? 0 : current_, num_nodes_ - 1,
+                                     info_.known_, info_.blocked_, true);
         }
     }
 

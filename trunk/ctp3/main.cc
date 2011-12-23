@@ -2,11 +2,19 @@
 #include <fstream>
 #include <vector>
 
+#define EXPERIMENT
+
 #include "ctp3.h"
 
 #include "../evaluation.h"
 
 using namespace std;
+
+namespace Policy {
+  namespace AOT {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
+};
 
 void usage(ostream &os) {
     os << "usage: ctp3 [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <file>"
@@ -128,7 +136,8 @@ int main(int argc, const char **argv) {
     if( h == 1 ) {
         heuristic = new min_min_t;
     } else if( h == 2 ) {
-        //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
+        heuristic = new min_min_t;
+        Policy::AOT::global_heuristic = heuristic;
     }
 
     // solve problem with algorithms

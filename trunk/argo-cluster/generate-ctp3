@@ -5,7 +5,7 @@ import re
 
 problem = "ctp3"
 microtask_number = 1
-microtask_file = problem + "_mutask3_"
+microtask_file = problem + "_mutask5_"
 
 tasks = [
     ## 20 vertices
@@ -29,8 +29,8 @@ policies = [
 rollout_widths = [ 10, 100 ]
 uct_widths = [ 1, 5, 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0, -10, -25, -50, -100, -250, -500, -1000 ]
-ao_widths = [ 100, 500, 1000 ]
-ao_parameters = [ 0.9 ]
+ao_widths = [ 100, 500, 1000, 5000 ]
+ao_parameters = [ 0.5 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
@@ -76,6 +76,6 @@ for t in tasks:
                 for par in ao_parameters:
                     f = open_file()
                     f.write(t + ' ' + p + ' ')
-                    f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' 500')
+                    f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' 100')
                     close_file(f)
 

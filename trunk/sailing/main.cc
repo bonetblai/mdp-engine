@@ -139,18 +139,24 @@ int main(int argc, const char **argv) {
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    Policy::hash_policy_t<state_t> optimal(*hash);
-    bases.push_back(make_pair(&optimal, "optimal"));
-    Policy::greedy_t<state_t> greedy(problem, *heuristic);
-    bases.push_back(make_pair(&greedy, "greedy"));
+    if( hash != 0 ) {
+        Policy::hash_policy_t<state_t> optimal(*hash);
+        bases.push_back(make_pair(optimal.clone(), "optimal"));
+    }
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        bases.push_back(make_pair(greedy.clone(), "greedy"));
+    }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
-    cout << policy.second << "= " << flush;
-    pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par);
-    cout << setprecision(5) << eval.first.first << " " << eval.first.second << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+    pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par, true);
+    cout << policy.second
+         << "= " << setprecision(5) << eval.first.first
+         << " " << eval.first.second
+         << setprecision(2) << " ( " << eval.second << " secs)" << endl;
 
     // free resources
     delete policy.first;
