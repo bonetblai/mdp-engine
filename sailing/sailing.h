@@ -2,16 +2,15 @@
 #include <iomanip>
 #include <strings.h>
 
-#define DISCOUNT .95
-
 #include "algorithm.h"
 #include "parameters.h"
 #include "heuristic.h"
 
 #include "policy.h"
 #include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
+
+#define DISCOUNT .95
 
 class state_t {
     short x_;
@@ -103,7 +102,8 @@ class problem_t : public Problem::problem_t<state_t> {
               int goal_x = std::numeric_limits<int>::max(),
               int goal_y = std::numeric_limits<int>::max(),
               float *wind_transition = 0, float *costs = 0)
-      : rows_(rows), cols_(cols), init_(init_x, init_y), goal_(goal_x, goal_y) {
+      : Problem::problem_t<state_t>(DISCOUNT),
+        rows_(rows), cols_(cols), init_(init_x, init_y), goal_(goal_x, goal_y) {
 
         if( (goal_x == std::numeric_limits<int>::max()) ||
             (goal_y == std::numeric_limits<int>::max()) ) {

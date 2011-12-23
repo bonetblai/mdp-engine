@@ -24,7 +24,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cassert>
-#include <limits.h>
+#include <limits>
 #include <vector>
 #include <math.h>
 
@@ -214,7 +214,7 @@ template<typename T> class uct_t : public improvement_t<T> {
                                     bool add_bonus) const {
         float log_ns = logf(data.counts_[0]);
         Problem::action_t best_action = Problem::noop;
-        float best_value = FLT_MAX;
+        float best_value = std::numeric_limits<float>::max();
 
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
             if( policy_t<T>::problem().applicable(state, a) ) {

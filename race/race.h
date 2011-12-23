@@ -10,10 +10,9 @@
 
 #include "policy.h"
 #include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
-#define DISCOUNT 0.95
+#define DISCOUNT 1.00
 
 class state_t {
     short x_;

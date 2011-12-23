@@ -25,7 +25,7 @@
 #include <strings.h>
 
 #include "aot.h"
-#include "mcts.h"
+#include "uct.h"
 
 namespace Evaluation {
 
@@ -37,7 +37,7 @@ struct parameters_t {
     float par1_;
     unsigned par2_;
     parameters_t()
-      : evaluation_trials_((unsigned)1e1), evaluation_depth_(100),
+      : evaluation_trials_((unsigned)1e3), evaluation_depth_(100),
         width_(0), depth_(0), par1_(0), par2_(0) { }
 };
 
@@ -89,8 +89,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
-    } else if( policy_type == "aot-i" ) {
-        ss << "aot-i(" << base_str
+    } else if( policy_type == "aot*" ) {
+        ss << "aot*(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
