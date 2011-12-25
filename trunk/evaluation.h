@@ -98,6 +98,24 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+    } else if( policy_type == "aot-value" ) {
+        ss << "aot-value(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "aot-random" ) {
+        ss << "aot-value(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
     } else {
         ss << "<inexistent-policy-type>";
     }
