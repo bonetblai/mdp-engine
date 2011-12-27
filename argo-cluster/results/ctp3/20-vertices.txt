@@ -30,6 +30,16 @@ test00_20_T  aot        random       5000   50  200.84       3.75            521
 test00_20_T  aot        random       5000  100  184.12       3.20            61771.44
 test00_20_T  aot        random       5000  500  177.55       2.88           130937.06
 test00_20_T  aot        random      10000  500  177.25       2.85           172954.17
+test00_20_T  uct        optimistic    100   NA  388.95       6.78              121.46
+test00_20_T  uct        optimistic    500   NA  270.14       4.61              549.31
+test00_20_T  uct        optimistic   1000   NA  232.97       3.87             1052.56
+test00_20_T  uct        optimistic   5000   NA  187.42       3.20             4816.43
+test00_20_T  uct        optimistic  10000   NA  181.22       3.28             9352.20
+test00_20_T  uct        random        100   NA  320.65       5.54              118.47
+test00_20_T  uct        random        500   NA  248.50       4.56              537.15
+test00_20_T  uct        random       1000   NA  233.49       4.24             1054.52
+test00_20_T  uct        random       5000   NA  219.40       4.03             4963.72
+test00_20_T  uct        random      10000   NA  215.00       3.98             9667.47
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -59,6 +69,16 @@ test01_20_T  aot        random       5000   50  176.60       2.35            446
 test01_20_T  aot        random       5000  100  171.78       2.13            53367.82
 test01_20_T  aot        random       5000  500  168.54       1.87           106065.64
 test01_20_T  aot        random      10000  500  170.63       1.98           143116.52
+test01_20_T  uct        optimistic    100   NA  295.21       4.24              115.46
+test01_20_T  uct        optimistic    500   NA  232.89       3.05              545.00
+test01_20_T  uct        optimistic   1000   NA  201.84       2.72             1007.57
+test01_20_T  uct        optimistic   5000   NA  165.69       2.20             4434.15
+test01_20_T  uct        optimistic  10000   NA  163.88       2.15             8613.63
+test01_20_T  uct        random        100   NA  264.37       3.93              103.68
+test01_20_T  uct        random        500   NA  213.85       3.25              470.39
+test01_20_T  uct        random       1000   NA  197.46       2.90              901.90
+test01_20_T  uct        random       5000   NA  178.19       2.56             4187.61
+test01_20_T  uct        random      10000   NA  173.53       2.32             8129.70
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -88,6 +108,16 @@ test02_20_T  aot        random       5000   50  145.76       3.55            531
 test02_20_T  aot        random       5000  100  145.09       3.48            59678.12
 test02_20_T  aot        random       5000  500  138.76       3.11           104910.02
 test02_20_T  aot        random      10000  500  138.55       3.21           148060.09
+test02_20_T  uct        optimistic    100   NA  207.52       5.26               65.31
+test02_20_T  uct        optimistic    500   NA  167.03       4.30              284.21
+test02_20_T  uct        optimistic   1000   NA  147.81       3.80              521.65
+test02_20_T  uct        optimistic   5000   NA  143.59       3.43             2480.57
+test02_20_T  uct        optimistic  10000   NA  141.94       3.28             4851.87
+test02_20_T  uct        random        100   NA  202.98       5.68               64.65
+test02_20_T  uct        random        500   NA  171.86       4.92              278.33
+test02_20_T  uct        random       1000   NA  173.68       4.90              554.33
+test02_20_T  uct        random       5000   NA  170.66       4.64             2597.61
+test02_20_T  uct        random      10000   NA  163.35       4.29             4924.98
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -117,6 +147,16 @@ test03_20_T  aot        random       5000   50  294.92       4.72            471
 test03_20_T  aot        random       5000  100  287.57       4.63            54544.48
 test03_20_T  aot        random       5000  500  280.59       4.59           105453.55
 test03_20_T  aot        random      10000  500  270.49       4.28           140242.48
+test03_20_T  uct        optimistic    100   NA  455.17       8.01              132.66
+test03_20_T  uct        optimistic    500   NA  397.01       6.52              651.95
+test03_20_T  uct        optimistic   1000   NA  372.11       5.96             1282.94
+test03_20_T  uct        optimistic   5000   NA  301.22       4.54             6082.42
+test03_20_T  uct        optimistic  10000   NA  286.67       4.41            11773.73
+test03_20_T  uct        random        100   NA  380.86       7.25              103.25
+test03_20_T  uct        random        500   NA  313.10       5.72              489.79
+test03_20_T  uct        random       1000   NA  283.00       4.96              959.60
+test03_20_T  uct        random       5000   NA  257.59       4.53             4548.91
+test03_20_T  uct        random      10000   NA  246.34       4.08             8856.71
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -146,6 +186,16 @@ test04_20_T  aot        random       5000   50  127.73       3.66            544
 test04_20_T  aot        random       5000  100  119.47       3.23            61286.88
 test04_20_T  aot        random       5000  500  113.27       2.96           118809.81
 test04_20_T  aot        random      10000  500  122.07       3.21           163225.14
+test04_20_T  uct        optimistic    100   NA  228.06       6.90               80.45
+test04_20_T  uct        optimistic    500   NA  172.05       5.29              357.84
+test04_20_T  uct        optimistic   1000   NA  167.26       5.20              701.32
+test04_20_T  uct        optimistic   5000   NA  138.06       3.85             3096.37
+test04_20_T  uct        optimistic  10000   NA  130.41       3.57             5870.11
+test04_20_T  uct        random        100   NA  182.86       6.05               70.66
+test04_20_T  uct        random        500   NA  144.12       4.39              314.31
+test04_20_T  uct        random       1000   NA  134.75       4.32              587.56
+test04_20_T  uct        random       5000   NA  124.99       3.71             2654.15
+test04_20_T  uct        random      10000   NA  128.91       3.83             5241.53
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -175,6 +225,16 @@ test05_20_T  aot        random       5000   50  165.71       2.84            427
 test05_20_T  aot        random       5000  100  163.58       2.70            48173.83
 test05_20_T  aot        random       5000  500  162.02       2.66            89699.80
 test05_20_T  aot        random      10000  500  160.12       2.60           120901.67
+test05_20_T  uct        optimistic    100   NA  194.07       3.69               78.20
+test05_20_T  uct        optimistic    500   NA  177.89       3.16              381.98
+test05_20_T  uct        optimistic   1000   NA  172.93       2.93              755.60
+test05_20_T  uct        optimistic   5000   NA  165.94       2.78             3621.57
+test05_20_T  uct        optimistic  10000   NA  159.94       2.64             7137.35
+test05_20_T  uct        random        100   NA  219.53       4.62               86.99
+test05_20_T  uct        random        500   NA  189.75       4.00              406.29
+test05_20_T  uct        random       1000   NA  180.69       3.79              782.76
+test05_20_T  uct        random       5000   NA  179.77       3.53             3787.83
+test05_20_T  uct        random      10000   NA  171.30       3.45             7153.89
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -204,6 +264,16 @@ test06_20_T  aot        random       5000   50  177.06       3.11            604
 test06_20_T  aot        random       5000  100  167.53       2.85            73327.14
 test06_20_T  aot        random       5000  500  153.46       2.32           156527.75
 test06_20_T  aot        random      10000  500  165.48       2.89           202563.78
+test06_20_T  uct        optimistic    100   NA  289.31       4.79              100.09
+test06_20_T  uct        optimistic    500   NA  208.93       3.40              462.04
+test06_20_T  uct        optimistic   1000   NA  189.87       3.11              904.94
+test06_20_T  uct        optimistic   5000   NA  171.82       2.75             4266.71
+test06_20_T  uct        optimistic  10000   NA  166.26       2.62             8163.10
+test06_20_T  uct        random        100   NA  293.47       5.05              114.30
+test06_20_T  uct        random        500   NA  218.52       3.95              484.57
+test06_20_T  uct        random       1000   NA  217.34       3.85              953.92
+test06_20_T  uct        random       5000   NA  208.68       3.90             4228.38
+test06_20_T  uct        random      10000   NA  205.23       3.59             8179.34
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -233,6 +303,16 @@ test07_20_T  aot        random       5000   50  165.56       3.49            424
 test07_20_T  aot        random       5000  100  160.93       3.17            50652.40
 test07_20_T  aot        random       5000  500  145.61       2.84           106199.73
 test07_20_T  aot        random      10000  500  148.68       2.95           140170.08
+test07_20_T  uct        optimistic    100   NA  291.28       5.55               96.06
+test07_20_T  uct        optimistic    500   NA  231.10       4.63              447.91
+test07_20_T  uct        optimistic   1000   NA  202.69       4.16              851.81
+test07_20_T  uct        optimistic   5000   NA  160.13       3.34             3774.82
+test07_20_T  uct        optimistic  10000   NA  156.16       3.37             7347.51
+test07_20_T  uct        random        100   NA  316.91       6.13               96.79
+test07_20_T  uct        random        500   NA  251.54       5.17              443.04
+test07_20_T  uct        random       1000   NA  241.20       5.00              874.89
+test07_20_T  uct        random       5000   NA  209.98       4.51             3949.28
+test07_20_T  uct        random      10000   NA  200.07       4.52             7526.72
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -262,6 +342,16 @@ test08_20_T  aot        random       5000   50  212.50       2.88            578
 test08_20_T  aot        random       5000  100  204.25       2.55            69836.72
 test08_20_T  aot        random       5000  500  198.63       2.40           149691.38
 test08_20_T  aot        random      10000  500  199.76       2.48           189884.39
+test08_20_T  uct        optimistic    100   NA  349.47       5.69              112.82
+test08_20_T  uct        optimistic    500   NA  259.98       3.70              534.61
+test08_20_T  uct        optimistic   1000   NA  234.17       3.38             1035.15
+test08_20_T  uct        optimistic   5000   NA  197.16       2.72             4874.21
+test08_20_T  uct        optimistic  10000   NA  191.99       2.64             9512.29
+test08_20_T  uct        random        100   NA  318.50       4.75              120.54
+test08_20_T  uct        random        500   NA  259.75       3.48              567.31
+test08_20_T  uct        random       1000   NA  255.84       3.54             1095.89
+test08_20_T  uct        random       5000   NA  245.27       3.37             5141.92
+test08_20_T  uct        random      10000   NA  248.47       3.54            10158.27
 --------------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------------
@@ -291,4 +381,14 @@ test09_20_T  aot        random       5000   50  181.67       3.32            453
 test09_20_T  aot        random       5000  100  179.09       3.34            54134.00
 test09_20_T  aot        random       5000  500  172.93       2.93           109713.12
 test09_20_T  aot        random      10000  500  167.88       2.78           143915.75
+test09_20_T  uct        optimistic    100   NA  326.64       6.36               97.55
+test09_20_T  uct        optimistic    500   NA  259.42       5.03              472.01
+test09_20_T  uct        optimistic   1000   NA  226.01       4.20              898.76
+test09_20_T  uct        optimistic   5000   NA  188.58       3.47             4072.34
+test09_20_T  uct        optimistic  10000   NA  186.71       3.36             8000.68
+test09_20_T  uct        random        100   NA  270.81       5.94               98.05
+test09_20_T  uct        random        500   NA  203.79       4.36              431.56
+test09_20_T  uct        random       1000   NA  204.19       4.15              853.62
+test09_20_T  uct        random       5000   NA  192.66       3.70             3904.39
+test09_20_T  uct        random      10000   NA  184.10       3.66             7364.74
 --------------------------------------------------------------------------------------
