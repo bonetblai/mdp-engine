@@ -1,0 +1,13 @@
+1. aot-random is tagged incorrectly in raw files. Run the following
+   to correct:
+
+   for f in `grep -l aot-random raw/igbundle4834469292013856289/*`; do
+       sed "s/aot-value/aot-random/" < $f > xxx
+       mv xxx $f
+   done
+
+   for f in `grep -l aot-random raw/igbundle1441459230467437975/*`; do
+       sed "s/aot-value/aot-random/" < $f > xxx
+       mv xxx $f
+   done
+
