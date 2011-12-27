@@ -1,8 +1,8 @@
 all:
 	@rm -f tasks.zip
 	@#./generate-ctp2
-	@#./generate-ctp3-paper
-	@./generate-race
+	@./generate-ctp3-paper
+	@#./generate-race
 	@#./generate-rect
 	@#./generate-sailing
 	@#./generate-tree
