@@ -13,6 +13,7 @@ using namespace std;
 namespace Policy {
   namespace AOT {
     const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    float scale_factor = 0.5;
   };
 };
 

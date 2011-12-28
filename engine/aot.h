@@ -562,11 +562,12 @@ template<typename T> class aot_t : public improvement_t<T> {
 #ifdef EXPERIMENT
     float evaluate(const T &s, unsigned depth) const {
         extern const Heuristic::heuristic_t<T> *global_heuristic;
+        extern float scale_factor;
         total_evaluations_ += leaf_nsamples_;
         if( depth >= depth_bound_ ) {
             return 0;
         } else if( global_heuristic != 0 ) {
-            return global_heuristic->value(s);
+            return global_heuristic->value(s) * scale_factor;
         } else {
             return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
                                           leaf_nsamples_, depth_bound_ - depth);
