@@ -718,7 +718,7 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
     virtual ~min_min_t() { }
     virtual float value(const state_t &s) const {
         s.compute_heuristic();
-        return (float)s.heuristic_;
+        return (float)s.heuristic_ / 2.0;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
