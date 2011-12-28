@@ -3,13 +3,12 @@
 domain=$1
 problems=`../print-problems $domain`
 
-rm -fr data.csv data/*
+rm -fr data.csv data
 for p in $problems; do
     echo "Extracting: $p"
-    ../extract-problem-data $domain $p
-    ../extract-problem-csv $p
+    ../new-extract-csv2 $domain $p
 done
 
-cat ../header.csv data.csv > csv
+cat ../header.csv data/* > data.csv
 mv csv data.csv
 
