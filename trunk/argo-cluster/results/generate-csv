@@ -6,9 +6,8 @@ problems=`../print-problems $domain`
 rm -fr data.csv data
 for p in $problems; do
     echo "Extracting: $p"
-    ../new-extract-csv2 $domain $p
+    ../extract-csv $domain $p
 done
 
 cat ../header.csv data/* > data.csv
-mv csv data.csv
 
