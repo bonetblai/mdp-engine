@@ -56,11 +56,6 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
-            case 'c':
-                shortcut_cost = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
             case 'e':
                 parameters.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
@@ -87,7 +82,6 @@ int main(int argc, const char **argv) {
         }
     }
 
-    CTP::graph_t graph(false, shortcut_cost);
     if( argc >= 3 ) {
         dim = strtoul(argv[0], 0, 0);
         base_name = argv[1];
@@ -104,13 +98,15 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
-    //state_t::initialize(graph, false, (int)5e5);
-    //problem_t problem(graph, false, (int)5e5);
+    belief_t::initialize(dim);
+    problem_t problem(dim);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 1 ) {
-        //heuristic = new min_min_t;
+        heuristic = new window_heuristic_t;
+    } else if( h == 2 ) {
+        heuristic = new cardinality_heuristic_t;
     }
 
     // solve problem with algorithms
@@ -137,17 +133,24 @@ int main(int argc, const char **argv) {
     if( heuristic != 0 ) {
         Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
+        Policy::random_greedy_t<state_t> random_greedy(problem, *heuristic);
+        bases.push_back(make_pair(random_greedy.clone(), "random-greedy"));
     }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
-    pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par, true);
-    cout << policy.second
-         << "= " << setprecision(5) << eval.first.first
-         << " " << eval.first.second
-         << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+    if( policy.first != 0 ) {
+        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par, true);
+        cout << policy.second
+             << "= " << setprecision(5) << eval.first.first
+             << " " << eval.first.second
+             << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+        policy.first->print_stats(cout);
+    } else {
+        cout << "error: " << policy.second << endl;
+    }
 
     // free resources
     delete policy.first;
