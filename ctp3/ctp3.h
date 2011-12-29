@@ -16,6 +16,7 @@
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
+#define SCALE 1.00
 
 #define WORDS_FOR_NODES 4 // max. 128 nodes
 #define WORDS_FOR_EDGES 9 // max. 288 edges
@@ -718,7 +719,7 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
     virtual ~min_min_t() { }
     virtual float value(const state_t &s) const {
         s.compute_heuristic();
-        return (float)s.heuristic_ / 2.0;
+        return (float)s.heuristic_ * SCALE;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
@@ -741,7 +742,7 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
         for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
             if( problem().applicable(s, a) ) {
                 float cost = problem().cost(s, a);
-                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true) / 2.0;
+                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true) * SCALE;
                 if( cost < best_cost ) {
                     best_cost = cost;
                     best_action = a;
