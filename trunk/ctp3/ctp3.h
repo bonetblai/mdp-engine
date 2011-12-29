@@ -741,7 +741,7 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
         for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
             if( problem().applicable(s, a) ) {
                 float cost = problem().cost(s, a);
-                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true);
+                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true) / 2.0;
                 if( cost < best_cost ) {
                     best_cost = cost;
                     best_action = a;
