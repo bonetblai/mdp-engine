@@ -14,6 +14,9 @@ namespace Policy {
   namespace AOT {
     const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
   };
+  namespace AOT2 {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
 };
 
 void usage(ostream &os) {
@@ -138,6 +141,7 @@ int main(int argc, const char **argv) {
     } else if( h == 2 ) {
         heuristic = new min_min_t;
         Policy::AOT::global_heuristic = heuristic;
+        Policy::AOT2::global_heuristic = heuristic;
     }
 
     // solve problem with algorithms

@@ -25,7 +25,9 @@
 #include <strings.h>
 
 #include "aot.h"
+#include "aot2.h"
 #include "uct.h"
+#include "uct2.h"
 
 namespace Evaluation {
 
@@ -37,7 +39,7 @@ struct parameters_t {
     float par1_;
     unsigned par2_;
     parameters_t()
-      : evaluation_trials_((unsigned)1e3), evaluation_depth_(100),
+      : evaluation_trials_(10), evaluation_depth_(100),
         width_(0), depth_(0), par1_(0), par2_(0) { }
 };
 
@@ -80,6 +82,13 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",par=" << par.par1_
            << ")";
         policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_);
+    } else if( policy_type == "nuct" ) {
+        ss << "nuct(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",par=" << par.par1_
+           << ")";
+        policy = Policy::make_uct2(*base, par.width_, par.depth_, par.par1_);
     } else if( policy_type == "aot" ) {
         ss << "aot(" << base_str
            << ",width=" << par.width_
@@ -116,6 +125,42 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "naot" ) {
+        ss << "naot(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "naot*" ) {
+        ss << "naot*(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+    } else if( policy_type == "naot-value" ) {
+        ss << "naot-value(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "naot-random" ) {
+        ss << "naot-random(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
     } else {
         ss << "<inexistent-policy-type>";
     }

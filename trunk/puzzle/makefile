@@ -1,5 +1,5 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
+CCFLAGS	=	-Wall -g -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
 OBJS	=	main.o
 TARGET	=	puzzle
 
