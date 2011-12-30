@@ -651,9 +651,9 @@ struct window_heuristic_t : public Heuristic::heuristic_t<state_t> {
 
 class fwd_random_policy_t : public Policy::policy_t<state_t> {
   public:
-    fwd_random_polity_t(const Problem::problem_t<state_t> &problem)
+    fwd_random_policy_t(const Problem::problem_t<state_t> &problem)
       : Policy::policy_t<state_t>(problem) { }
-    virtual ~fwd_random_polity_t() { }
+    virtual ~fwd_random_policy_t() { }
     virtual Problem::action_t operator()(const state_t &s) const {
         return 1 + Random::uniform(3);
     }

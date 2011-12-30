@@ -138,6 +138,8 @@ int main(int argc, const char **argv) {
     }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
+    fwd_random_policy_t fwd_random(problem);
+    bases.push_back(make_pair(&fwd_random, "fwd-random"));
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
