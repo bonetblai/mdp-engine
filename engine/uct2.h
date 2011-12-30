@@ -213,7 +213,7 @@ template<typename T> class uct2_t : public improvement_t<T> {
                                     int depth,
                                     bool add_bonus) const {
         float log_ns = logf(data.counts_[0]);
-        std::vetor<Problem::action_t> best_actions;
+        std::vector<Problem::action_t> best_actions;
         float best_value = std::numeric_limits<float>::max();
 
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
