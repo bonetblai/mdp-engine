@@ -91,7 +91,7 @@ template<typename T> class cow_vector_t {
         } else {
             int i = 0;
             while( (vector_[i] < element) && (i < size_) ) ++i;
-            if( vector_[i] != element ) {
+            if( (i == size_) || (vector_[i] != element) ) {
                 if( size_ == capacity_ ) reserve(1 + capacity_);
                 for( int j = size_ - 1; i <= j; --j ) {
                     vector_[1+j] = vector_[j];
