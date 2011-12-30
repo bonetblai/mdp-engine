@@ -98,7 +98,7 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << parameters.seed_ << endl;
     Random::seeds(parameters.seed_);
-    belief_t::initialize(dim);
+    state_t::initialize(dim);
     problem_t problem(dim);
 
     // create heuristic
