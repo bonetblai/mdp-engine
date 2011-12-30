@@ -26,8 +26,8 @@
 #define UNKNOWN     3
 #define AGENT       0xFF
 
-#define MOVE_FWD    0
-#define MOVE_BWD    1
+#define MOVE_BWD    0
+#define MOVE_FWD    1
 #define CLOSE       2
 #define LOCK        3
 #define GRAB_KEY    4
@@ -457,13 +457,14 @@ inline std::ostream& operator<<(std::ostream &os, const belief_component_t &bc) 
     return os;
 }
 
-struct belief_t {
+struct state_t {
     //std::vector<belief_component_t> components_;
     std::vector<cow_belief_component_t> components_;
     static int dim_;
 
-    belief_t() : components_(dim_) { }
-    ~belief_t() { }
+    state_t() : components_(dim_) { }
+    state_t(const state_t &bel) : components_(bel.components_) { }
+    ~state_t() { }
 
     static void initialize(int dim) {
         dim_ = dim;
@@ -490,7 +491,7 @@ struct belief_t {
     }
     bool goal() const { return locked(); }
 
-    void apply(int action, belief_t &result) const {
+    void apply(int action, state_t &result) const {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
             if( action == MOVE_FWD ) {
@@ -507,24 +508,24 @@ struct belief_t {
         }
     }
 
-    const belief_t& operator=(const belief_t &bel) {
+    const state_t& operator=(const state_t &bel) {
         for( int i = 0; i < dim_; ++i ) {
             components_[i] = bel.components_[i];
         }
         return *this;
     }
-    bool operator==(const belief_t &bel) const {
+    bool operator==(const state_t &bel) const {
         for( int i = 0; i < dim_; ++i ) {
             if( components_[i] != bel.components_[i] )
                 return false;
         }
         return true;
     }
-    bool operator!=(const belief_t &bel) const {
+    bool operator!=(const state_t &bel) const {
         return *this == bel ? false : true;
     }
 #if 0
-    bool operator<(const belief_t &bel) const {
+    bool operator<(const state_t &bel) const {
         for( int i = 0; i < dim_; ++i ) {
             if( components_[i] < bel.components_[i] )
                 return true;
@@ -542,15 +543,12 @@ struct belief_t {
     }
 };
 
-int belief_t::dim_ = 0;
+int state_t::dim_ = 0;
 
-inline std::ostream& operator<<(std::ostream &os, const belief_t &b) {
+inline std::ostream& operator<<(std::ostream &os, const state_t &b) {
     b.print(os);
     return os;
 }
-
-struct state_t : public belief_t { };
-
 
 struct problem_t : public Problem::problem_t<state_t> {
     int dim_;
@@ -650,5 +648,20 @@ struct window_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual void dump(std::ostream &os) const { }
     float operator()(const state_t &s) const { return value(s); }
 };
+
+class fwd_random_policy_t : public Policy::policy_t<state_t> {
+  public:
+    fwd_random_polity_t(const Problem::problem_t<state_t> &problem)
+      : Policy::policy_t<state_t>(problem) { }
+    virtual ~fwd_random_polity_t() { }
+    virtual Problem::action_t operator()(const state_t &s) const {
+        return 1 + Random::uniform(3);
+    }
+    virtual const Policy::policy_t<state_t>* clone() const {
+        return new fwd_random_policy_t(problem());
+    }
+    virtual void print_stats(std::ostream &os) const { }
+};
+
 
 
