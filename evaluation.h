@@ -39,7 +39,7 @@ struct parameters_t {
     float par1_;
     unsigned par2_;
     parameters_t()
-      : evaluation_trials_(10), evaluation_depth_(100),
+      : evaluation_trials_(1000), evaluation_depth_(100),
         width_(0), depth_(0), par1_(0), par2_(0) { }
 };
 
