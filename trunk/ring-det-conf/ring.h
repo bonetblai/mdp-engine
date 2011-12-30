@@ -36,6 +36,265 @@ inline unsigned rotation(unsigned x) {
     return (x << 16) | (x >> 16);
 }
 
+template<typename T> class cow_vector_t {
+  private:
+    mutable int nrefs_;
+    int capacity_;
+    int size_;
+    T *vector_;
+
+  public:
+    cow_vector_t() : nrefs_(1), capacity_(0), size_(0), vector_(0) {
+    }
+    cow_vector_t(const cow_vector_t &vec)
+      : nrefs_(1), capacity_(0), size_(0), vector_(0) {
+        *this = vec;
+    }
+    ~cow_vector_t() {
+        delete[] vector_;
+    }
+
+    static void deallocate(const cow_vector_t *vec) {
+        assert(vec != 0);
+        if( --vec->nrefs_ == 0 ) delete vec;
+    }
+    static cow_vector_t* ref(const cow_vector_t *vec) {
+        assert(vec != 0);
+        ++vec->nrefs_;
+        return const_cast<cow_vector_t*>(vec);
+    }
+
+    void reserve(int ncapacity) {
+        if( capacity_ < ncapacity ) {
+            capacity_ = ncapacity;
+            T *nvector = new T[capacity_];
+            for( int i = 0; i < size_; ++i )
+                nvector[i] = vector_[i];
+            delete[] vector_;
+            vector_ = nvector;
+        }
+    }
+
+    int nrefs() const { return nrefs_; }
+    int size() const { return size_; }
+    void clear() { size_ = 0; }
+
+    void push_back(const T &element) {
+        if( size_ == capacity_ ) reserve(1 + capacity_);
+        vector_[size_++] = element;
+    }
+    void insert(const T &element) {
+        if( capacity_ == 0 ) {
+            reserve(1);
+            vector_[0] = element;
+            ++size_;
+        } else {
+            int i = 0;
+            while( (vector_[i] < element) && (i < size_) ) ++i;
+            if( vector_[i] != element ) {
+                if( size_ == capacity_ ) reserve(1 + capacity_);
+                for( int j = size_ - 1; i <= j; --j ) {
+                    vector_[1+j] = vector_[j];
+                }
+                vector_[i] = element;
+                ++size_;
+            }
+        }
+    }
+
+    const T& operator[](int i) const { return vector_[i]; }
+    cow_vector_t& operator=(const cow_vector_t &vec) {
+        reserve(vec.size_);
+        for( int i = 0; i < vec.size_; ++i )
+            vector_[i] = vec[i];
+        size_ = vec.size_;
+        return *this;
+    }
+    bool operator==(const cow_vector_t &vec) const {
+        if( size_ != vec.size_ )
+            return false;
+        else {
+            for( int i = 0; i < size_; ++i ) {
+                if( vector_[i] != vec[i] )
+                    return false;
+            }
+            return true;
+        }
+    }
+    bool operator!=(const cow_vector_t &vec) const {
+        return *this == vec ? false : true;
+    }
+
+    struct const_iterator {
+        const T *ptr_;
+        const_iterator(const T *ptr) : ptr_(ptr) { }
+        ~const_iterator() { }
+        const_iterator& operator++() {
+            ++ptr_;
+            return *this;
+        }
+        const T& operator*() const { return *ptr_; }
+        bool operator==(const const_iterator &it) const {
+            return ptr_ == it.ptr_;
+        }
+        bool operator!=(const const_iterator &it) const {
+            return ptr_ != it.ptr_;
+        }
+    };
+    const_iterator begin() const {
+        return const_iterator(vector_);
+    }
+    const_iterator end() const {
+        return const_iterator(&vector_[size_]);
+    }
+
+};
+
+struct cow_belief_component_t {
+    cow_vector_t<int> *cow_vector_;
+   
+    cow_belief_component_t()
+      : cow_vector_(new cow_vector_t<int>) { }
+    cow_belief_component_t(const cow_belief_component_t &bc)
+      : cow_vector_(ref(bc.cow_vector_)) { }
+    ~cow_belief_component_t() { deallocate(cow_vector_); }
+
+    static void deallocate(cow_vector_t<int> *vec) {
+        cow_vector_t<int>::deallocate(vec);
+    }
+    static cow_vector_t<int>* ref(const cow_vector_t<int> *vec) {
+        return cow_vector_t<int>::ref(vec);
+    }
+
+    unsigned hash() const {
+        unsigned value = 0;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            value = value ^ (i & 0x1 ? rotation(sample) : sample);
+        }
+        return value;
+    }
+
+    int nrefs() const {
+        return cow_vector_->nrefs();
+    }
+    void reserve(int cap) {
+        cow_vector_->reserve(cap);
+    }
+    void clear() {
+        if( nrefs() > 1 ) {
+            deallocate(cow_vector_);
+            cow_vector_ = new cow_vector_t<int>;
+        } else
+            cow_vector_->clear();
+    }
+    int size() const {
+        return cow_vector_->size();
+    }
+    void insert(int e) {
+        if( nrefs() > 1 ) {
+            deallocate(cow_vector_);
+            cow_vector_t<int> *nvec = new cow_vector_t<int>(*cow_vector_);
+            cow_vector_ = nvec;
+        }
+        cow_vector_->insert(e);
+    }
+
+    int operator[](int i) const { return (*cow_vector_)[i]; }
+    const cow_belief_component_t& operator=(const cow_belief_component_t &bc) {
+        deallocate(cow_vector_);
+        cow_vector_ = ref(bc.cow_vector_);
+        return *this;
+    }
+    bool operator==(const cow_belief_component_t &bc) const {
+        return *cow_vector_ == *bc.cow_vector_;
+    }
+    bool operator!=(const cow_belief_component_t &bc) const {
+        return *cow_vector_ != *bc.cow_vector_;
+    }
+
+    int window_status() const {
+        int rv = -1;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            if( rv == -1 )
+                rv = status;
+            else if( rv != status )
+                return UNKNOWN;
+        }
+        assert(rv != -1);
+        return rv;
+    }
+
+    void apply_close(int window_pos, cow_belief_component_t &result) const {
+        result.reserve(size());
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( (status != LOCKED) && (agent_pos == window_pos) )
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+            else
+                result.insert(sample);
+        }
+    }
+    void apply_lock(int window_pos, cow_belief_component_t &result) const {
+        result.reserve(size());
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) )
+                result.insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
+            else
+                result.insert(sample);
+        }
+    }
+    void apply_move(int dim, int steps, cow_belief_component_t &result) const {
+        result.reserve(size());
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            int new_pos = (agent_pos + steps) % dim;
+            new_pos = new_pos < 0 ? -new_pos : new_pos;
+            result.insert(status | (key_pos << 2) | (new_pos << 10));
+        }
+    }
+    void apply_grab_key(cow_belief_component_t &result) const {
+        result.reserve(size());
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( key_pos == agent_pos )
+                result.insert(status | (AGENT << 2) | (agent_pos << 10));
+            else
+                result.insert(sample);
+        }
+    }
+
+    void print(std::ostream &os) const {
+        os << "{";
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            os << sample << ",";
+        }
+        os << "}";
+    }
+};
+
+inline std::ostream& operator<<(std::ostream &os, const cow_belief_component_t &bc) {
+    bc.print(os);
+    return os;
+}
+
+
 struct myset {
     int *set_;
     int capacity_;
@@ -43,13 +302,6 @@ struct myset {
     myset() : set_(0), capacity_(0), size_(0) { }
     myset(const myset &ms) : set_(0), capacity_(0), size_(0) { *this = ms; }
     ~myset() { delete[] set_; }
-    unsigned hash() const {
-        unsigned value = 0;
-        for( int i = 0; i < size_; ++i ) {
-            value = value ^ (i & 0x1 ? rotation(set_[i]) : set_[i]);
-        }
-        return value;
-    }
     void reserve(int new_capacity) {
         if( capacity_ < new_capacity ) {
             capacity_ = new_capacity;
@@ -61,22 +313,25 @@ struct myset {
     }
     void clear() { size_ = 0; }
     int size() const { return size_; }
-    void insert(int e) {
+    void push_back(int e) {
         if( size_ == capacity_ ) reserve(1 + capacity_);
         set_[size_++] = e;
     }
-    void ordered_insert(int e) {
-        if( size_ == capacity_ ) reserve(1 + capacity_);
+    void insert(int e) {
         int i = 0;
         while( (set_[i] < e) && (i < size_) ) ++i;
-        for( int j = size_ - 1; i <= j; --j ) {
-            set_[1+j] = set_[j];
+        if( set_[i] != e ) {
+            if( size_ == capacity_ ) reserve(1 + capacity_);
+            for( int j = size_ - 1; i <= j; --j ) {
+                set_[1+j] = set_[j];
+            }
+            set_[i] = e;
+            ++size_;
         }
-        set_[i] = e;
-        ++size_;
     }
+
+    int operator[](int i) const { return set_[i]; }
     const myset& operator=(const myset &ms) {
-        clear();
         reserve(ms.size_);
         memcpy(set_, ms.set_, ms.size_ * sizeof(int));
         size_ = ms.size_;
@@ -119,6 +374,15 @@ struct belief_component_t : public myset { //: public std::set<int> {
     belief_component_t() { }
     ~belief_component_t() { }
 
+    unsigned hash() const {
+        int i = 0;
+        unsigned value = 0;
+        for( const_iterator it = begin(); it != end(); ++it, ++i ) {
+            value = value ^ (i & 0x1 ? rotation(*it) : *it);
+        }
+        return value;
+    }
+
     int window_status() const {
         int rv = -1;
         for( const_iterator it = begin(); it != end(); ++it ) {
@@ -139,9 +403,9 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( (status != LOCKED) && (agent_pos == window_pos) )
-                result.ordered_insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
             else
-                result.ordered_insert(*it);
+                result.insert(*it);
         }
     }
     void apply_lock(int window_pos, belief_component_t &result) const {
@@ -151,9 +415,9 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) )
-                result.ordered_insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
+                result.insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
             else
-                result.ordered_insert(*it);
+                result.insert(*it);
         }
     }
     void apply_move(int dim, int steps, belief_component_t &result) const {
@@ -164,7 +428,7 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int agent_pos = ((*it) >> 10) & 0xFF;
             int new_pos = (agent_pos + steps) % dim;
             new_pos = new_pos < 0 ? -new_pos : new_pos;
-            result.ordered_insert(status | (key_pos << 2) | (new_pos << 10));
+            result.insert(status | (key_pos << 2) | (new_pos << 10));
         }
     }
     void apply_grab_key(belief_component_t &result) const {
@@ -174,9 +438,9 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( key_pos == agent_pos )
-                result.ordered_insert(status | (AGENT << 2) | (agent_pos << 10));
+                result.insert(status | (AGENT << 2) | (agent_pos << 10));
             else
-                result.ordered_insert(*it);
+                result.insert(*it);
         }
     }
 
@@ -194,7 +458,8 @@ inline std::ostream& operator<<(std::ostream &os, const belief_component_t &bc) 
 }
 
 struct belief_t {
-    std::vector<belief_component_t> components_;
+    //std::vector<belief_component_t> components_;
+    std::vector<cow_belief_component_t> components_;
     static int dim_;
 
     belief_t() : components_(dim_) { }
@@ -304,7 +569,7 @@ struct problem_t : public Problem::problem_t<state_t> {
                     }
 #endif
                     int sample = status | (AGENT << 2) | (agent_pos << 10);
-                    init_.components_[window].ordered_insert(sample);
+                    init_.components_[window].insert(sample);
                 }
             }
         }
