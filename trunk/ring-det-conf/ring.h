@@ -36,19 +36,88 @@ inline unsigned rotation(unsigned x) {
     return (x << 16) | (x >> 16);
 }
 
-struct belief_component_t : public std::set<int> {
-   
-    belief_component_t() { }
-    ~belief_component_t() { }
-
+struct myset {
+    int *set_;
+    int capacity_;
+    int size_;
+    myset() : set_(0), capacity_(0), size_(0) { }
+    myset(const myset &ms) : set_(0), capacity_(0), size_(0) { *this = ms; }
+    ~myset() { delete[] set_; }
     unsigned hash() const {
-        int i = 0;
         unsigned value = 0;
-        for( const_iterator it = begin(); it != end(); ++it, ++i ) {
-            value = value ^ (i & 0x1 ? rotation(*it) : *it);
+        for( int i = 0; i < size_; ++i ) {
+            value = value ^ (i & 0x1 ? rotation(set_[i]) : set_[i]);
         }
         return value;
     }
+    void reserve(int new_capacity) {
+        if( capacity_ < new_capacity ) {
+            capacity_ = new_capacity;
+            int *nset = new int[capacity_];
+            memcpy(nset, set_, size_ * sizeof(int));
+            delete[] set_;
+            set_ = nset;
+        }
+    }
+    void clear() { size_ = 0; }
+    int size() const { return size_; }
+    void insert(int e) {
+        if( size_ == capacity_ ) reserve(1 + capacity_);
+        set_[size_++] = e;
+    }
+    void ordered_insert(int e) {
+        if( size_ == capacity_ ) reserve(1 + capacity_);
+        int i = 0;
+        while( (set_[i] < e) && (i < size_) ) ++i;
+        for( int j = size_ - 1; i <= j; --j ) {
+            set_[1+j] = set_[j];
+        }
+        set_[i] = e;
+        ++size_;
+    }
+    const myset& operator=(const myset &ms) {
+        clear();
+        reserve(ms.size_);
+        memcpy(set_, ms.set_, ms.size_ * sizeof(int));
+        size_ = ms.size_;
+        return *this;
+    }
+    bool operator==(const myset &ms) const {
+        return size_ != ms.size_ ? false : memcmp(set_, ms.set_, size_ * sizeof(int)) == 0;
+    }
+    bool operator!=(const myset &ms) const {
+        return *this == ms ? false : true;
+    }
+
+    struct const_iterator {
+        const int *ptr_;
+        const_iterator(const int *ptr) : ptr_(ptr) { }
+        ~const_iterator() { }
+        const_iterator& operator++() {
+            ++ptr_;
+            return *this;
+        }
+        int operator*() const { return *ptr_; }
+        bool operator==(const const_iterator &it) const {
+            return ptr_ == it.ptr_;
+        }
+        bool operator!=(const const_iterator &it) const {
+            return ptr_ != it.ptr_;
+        }
+    };
+    const_iterator begin() const {
+        return const_iterator(set_);
+    }
+    const_iterator end() const {
+        return const_iterator(&set_[size_]);
+    }
+
+};
+
+struct belief_component_t : public myset { //: public std::set<int> {
+   
+    belief_component_t() { }
+    ~belief_component_t() { }
 
     int window_status() const {
         int rv = -1;
@@ -64,46 +133,50 @@ struct belief_component_t : public std::set<int> {
     }
 
     void apply_close(int window_pos, belief_component_t &result) const {
+        result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( (status != LOCKED) && (agent_pos == window_pos) )
-                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+                result.ordered_insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
             else
-                result.insert(*it);
+                result.ordered_insert(*it);
         }
     }
     void apply_lock(int window_pos, belief_component_t &result) const {
+        result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) )
-                result.insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
+                result.ordered_insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
             else
-                result.insert(*it);
+                result.ordered_insert(*it);
         }
     }
     void apply_move(int dim, int steps, belief_component_t &result) const {
+        result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             int new_pos = (agent_pos + steps) % dim;
             new_pos = new_pos < 0 ? -new_pos : new_pos;
-            result.insert(status | (key_pos << 2) | (new_pos << 10));
+            result.ordered_insert(status | (key_pos << 2) | (new_pos << 10));
         }
     }
     void apply_grab_key(belief_component_t &result) const {
+        result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
             if( key_pos == agent_pos )
-                result.insert(status | (AGENT << 2) | (agent_pos << 10));
+                result.ordered_insert(status | (AGENT << 2) | (agent_pos << 10));
             else
-                result.insert(*it);
+                result.ordered_insert(*it);
         }
     }
 
@@ -185,6 +258,7 @@ struct belief_t {
     bool operator!=(const belief_t &bel) const {
         return *this == bel ? false : true;
     }
+#if 0
     bool operator<(const belief_t &bel) const {
         for( int i = 0; i < dim_; ++i ) {
             if( components_[i] < bel.components_[i] )
@@ -194,6 +268,7 @@ struct belief_t {
         }
         return false;
     }
+#endif
 
     void print(std::ostream &os) const {
         for( int i = 0; i < dim_; ++i ) {
@@ -217,10 +292,11 @@ struct problem_t : public Problem::problem_t<state_t> {
     state_t init_;
 
     problem_t(int dim) : Problem::problem_t<state_t>(DISCOUNT), dim_(dim) {
-        // set initial state
+        // set initial belief
         for( int window = 0; window < dim_; ++window) {
+            init_.components_[window].reserve(2 * dim_);
             for( int agent_pos = 0; agent_pos < dim_; ++agent_pos ) {
-                for( int status = 0; status < 3; ++status ) {
+                for( int status = 0; status < 2; ++status ) {
 #if 0
                     for( int key_pos = 0; key_pos < dim_; ++key_pos ) {
                         int sample = status | (key_pos << 2) | (agent_pos << 10);
@@ -228,7 +304,7 @@ struct problem_t : public Problem::problem_t<state_t> {
                     }
 #endif
                     int sample = status | (AGENT << 2) | (agent_pos << 10);
-                    init_.components_[window].insert(sample);
+                    init_.components_[window].ordered_insert(sample);
                 }
             }
         }
