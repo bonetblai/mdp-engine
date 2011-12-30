@@ -103,7 +103,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=hash()" << std::endl;
-        os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
 
@@ -142,7 +142,7 @@ template<typename T> class greedy_t : public policy_t<T> {
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=greedy()" << std::endl;
-        os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
 
@@ -185,7 +185,7 @@ template<typename T> class random_greedy_t : public policy_t<T> {
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=random-greedy()" << std::endl;
-        os << "stats: decisions = " << policy_t<T>::decisions_ << std::endl;
+        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
 
