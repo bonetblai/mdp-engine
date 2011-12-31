@@ -29,6 +29,7 @@ void usage(ostream &os) {
 
 int main(int argc, const char **argv) {
     int dim = 0;
+    bool non_det = false;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
@@ -71,6 +72,11 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
+            case 'n':
+                non_det = true;
+                ++argv;
+                --argc;
+                break;
             case 's':
                 alg_pars.seed_ = strtoul(argv[1], 0, 0);
                 argv += 2;
@@ -104,7 +110,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::seeds(alg_pars.seed_);
     state_t::initialize(dim);
-    problem_t problem(dim);
+    problem_t problem(dim, non_det);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;

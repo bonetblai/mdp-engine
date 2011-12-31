@@ -227,33 +227,41 @@ struct cow_belief_component_t {
         return rv;
     }
 
-    void apply_close(int window_pos, cow_belief_component_t &result) const {
+    void apply_close(int window_pos, cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int status = sample & 0x3;
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            if( (status != LOCKED) && (agent_pos == window_pos) )
+            if( (status != LOCKED) && (agent_pos == window_pos) ) {
                 result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
-            else
+            } else if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+            } else {
                 result.insert(sample);
+            }
         }
     }
-    void apply_lock(int window_pos, cow_belief_component_t &result) const {
+    void apply_lock(int window_pos, cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int status = sample & 0x3;
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) )
+            if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) ) {
                 result.insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
-            else
+            } else if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+            } else {
                 result.insert(sample);
+            }
         }
     }
-    void apply_move(int dim, int steps, cow_belief_component_t &result) const {
+    void apply_move(int dim, int steps, cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
@@ -262,20 +270,36 @@ struct cow_belief_component_t {
             int agent_pos = (sample >> 10) & 0xFF;
             int new_pos = (agent_pos + steps) % dim;
             new_pos = new_pos < 0 ? -new_pos : new_pos;
-            result.insert(status | (key_pos << 2) | (new_pos << 10));
+            if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (new_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (new_pos << 10));
+            } else {
+                result.insert(status | (key_pos << 2) | (new_pos << 10));
+            }
         }
     }
-    void apply_grab_key(cow_belief_component_t &result) const {
+    void apply_grab_key(cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int status = sample & 0x3;
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            if( key_pos == agent_pos )
-                result.insert(status | (AGENT << 2) | (agent_pos << 10));
-            else
-                result.insert(sample);
+            if( key_pos == agent_pos ) {
+                if( non_det && (status != LOCKED) ) {
+                    result.insert(OPEN | (AGENT << 2) | (agent_pos << 10));
+                    result.insert(CLOSED | (AGENT << 2) | (agent_pos << 10));
+                } else {
+                    result.insert(status | (AGENT << 2) | (agent_pos << 10));
+                }
+            } else {
+                if( non_det && (status != LOCKED) ) {
+                    result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                    result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+                } else {
+                    result.insert(sample);
+                }
+            }
         }
     }
 
@@ -396,31 +420,39 @@ struct belief_component_t : public myset { //: public std::set<int> {
         return rv;
     }
 
-    void apply_close(int window_pos, belief_component_t &result) const {
+    void apply_close(int window_pos, belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
-            if( (status != LOCKED) && (agent_pos == window_pos) )
+            if( (status != LOCKED) && (agent_pos == window_pos) ) {
                 result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
-            else
+            } else if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+            } else {
                 result.insert(*it);
+            }
         }
     }
-    void apply_lock(int window_pos, belief_component_t &result) const {
+    void apply_lock(int window_pos, belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
-            if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) )
+            if( (status == CLOSED) && (key_pos == AGENT) && (agent_pos == window_pos) ) {
                 result.insert(LOCKED | (AGENT << 2) | (agent_pos << 10));
-            else
+            } else if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+            } else {
                 result.insert(*it);
+            }
         }
     }
-    void apply_move(int dim, int steps, belief_component_t &result) const {
+    void apply_move(int dim, int steps, belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
@@ -428,19 +460,35 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int agent_pos = ((*it) >> 10) & 0xFF;
             int new_pos = (agent_pos + steps) % dim;
             new_pos = new_pos < 0 ? -new_pos : new_pos;
-            result.insert(status | (key_pos << 2) | (new_pos << 10));
+            if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (key_pos << 2) | (new_pos << 10));
+                result.insert(CLOSED | (key_pos << 2) | (new_pos << 10));
+            } else {
+                result.insert(status | (key_pos << 2) | (new_pos << 10));
+            }
         }
     }
-    void apply_grab_key(belief_component_t &result) const {
+    void apply_grab_key(belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( const_iterator it = begin(); it != end(); ++it ) {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
-            if( key_pos == agent_pos )
-                result.insert(status | (AGENT << 2) | (agent_pos << 10));
-            else
-                result.insert(*it);
+            if( key_pos == agent_pos ) {
+                if( non_det && (status != LOCKED) ) {
+                    result.insert(OPEN | (AGENT << 2) | (agent_pos << 10));
+                    result.insert(CLOSED | (AGENT << 2) | (agent_pos << 10));
+                } else {
+                    result.insert(status | (AGENT << 2) | (agent_pos << 10));
+                }
+            } else {
+                if( non_det && (status != LOCKED) ) {
+                    result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
+                    result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
+                } else {
+                    result.insert(*it);
+                }
+            }
         }
     }
 
@@ -491,19 +539,19 @@ struct state_t {
     }
     bool goal() const { return locked(); }
 
-    void apply(int action, state_t &result) const {
+    void apply(int action, state_t &result, bool non_det = false) const {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
             if( action == MOVE_FWD ) {
-                components_[i].apply_move(dim_, 1, result.components_[i]);
+                components_[i].apply_move(dim_, 1, result.components_[i], non_det);
             } else if( action == MOVE_BWD ) {
-                components_[i].apply_move(dim_, -1, result.components_[i]);
+                components_[i].apply_move(dim_, -1, result.components_[i], non_det);
             } else if( action == CLOSE ) {
-                components_[i].apply_close(i, result.components_[i]);
+                components_[i].apply_close(i, result.components_[i], non_det);
             } else if( action == LOCK ) {
-                components_[i].apply_lock(i, result.components_[i]);
+                components_[i].apply_lock(i, result.components_[i], non_det);
             } else if( action == GRAB_KEY ) {
-                components_[i].apply_grab_key(result.components_[i]);
+                components_[i].apply_grab_key(result.components_[i], non_det);
             }
         }
     }
@@ -552,15 +600,17 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &b) {
 
 struct problem_t : public Problem::problem_t<state_t> {
     int dim_;
+    bool non_det_;
     state_t init_;
 
-    problem_t(int dim) : Problem::problem_t<state_t>(DISCOUNT), dim_(dim) {
+    problem_t(int dim, bool non_det = false)
+      : Problem::problem_t<state_t>(DISCOUNT), dim_(dim), non_det_(non_det) {
         // set initial belief
         for( int window = 0; window < dim_; ++window) {
             init_.components_[window].reserve(2 * dim_);
             for( int agent_pos = 0; agent_pos < dim_; ++agent_pos ) {
                 for( int status = 0; status < 2; ++status ) {
-#if 0
+#if 1
                     for( int key_pos = 0; key_pos < dim_; ++key_pos ) {
                         int sample = status | (key_pos << 2) | (agent_pos << 10);
                         init_.components_[window].insert(sample);
@@ -571,13 +621,13 @@ struct problem_t : public Problem::problem_t<state_t> {
                 }
             }
         }
-        std::cout << "Initial Belief:" << std::endl << init_ << std::endl;
+        //std::cout << "Initial Belief:" << std::endl << init_ << std::endl;
     }
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
-        //return 5;
-        return 4;
+        return 5;
+        //return 4;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return true;
@@ -602,7 +652,7 @@ struct problem_t : public Problem::problem_t<state_t> {
         outcomes.reserve(1);
 
         state_t next;
-        s.apply(a, next);
+        s.apply(a, next, non_det_);
         outcomes.push_back(std::make_pair(next, 1));
         //std::cout << "    " << next << " w.p. " << 1 << std::endl;
     }
