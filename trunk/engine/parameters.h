@@ -43,6 +43,11 @@ struct parameters_t {
             epsilon_greedy_(0) { }
     } rtdp;
 
+    struct simple_bfs_parameters_t {
+        bool pure_heuristic_search_;
+        simple_bfs_parameters_t() : pure_heuristic_search_(false) { }
+    } simple_bfs;
+
     struct eval_parameters_t {
         unsigned number_trials_;
         unsigned max_number_steps_;

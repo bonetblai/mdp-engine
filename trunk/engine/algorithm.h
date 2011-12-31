@@ -35,7 +35,8 @@ namespace Algorithm {
 template<typename T>
 struct min_priority_t {
     bool operator()(const std::pair<T, Hash::data_t*> &p1, const std::pair<T, Hash::data_t*> &p2) const {
-        return p1.second->f() > p2.second->f();
+        //return p1.second->f() > p2.second->f();
+        return p1.second->h() > p2.second->h();
     }
 };
 
@@ -93,7 +94,7 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
                 assert(outcomes.size() == 1);
                 Hash::data_t *ptr = hash.data_ptr(outcomes[0].first);
                 float g = n.second->g() + problem.cost(n.first, a);
-                if( !ptr->marked() || (g + ptr->h() < ptr->f()) ) {
+                if( !ptr->marked() ) { //|| (g + ptr->h() < ptr->f()) ) {
                     ptr->set_g(g);
                     open.push(std::make_pair(outcomes[0].first, ptr));
                     ptr->mark();
