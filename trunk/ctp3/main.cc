@@ -111,7 +111,6 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             default:
-            default:
                 usage(cout);
                 exit(-1);
         }
