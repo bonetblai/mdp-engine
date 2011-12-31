@@ -35,10 +35,10 @@ int main(int argc, const char **argv) {
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t par;
+    Evaluation::parameters_t eval_pars;
 
     cout << fixed;
-    Algorithm::parameters_t parameters;
+    Algorithm::parameters_t alg_pars;
 
     // parse arguments
     ++argv;
@@ -52,12 +52,12 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 'b':
-                parameters.rtdp.bound_ = strtol(argv[1], 0, 0);
+                alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
             case 'e':
-                parameters.epsilon_ = strtod(argv[1], 0);
+                alg_pars.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -72,7 +72,12 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 's':
-                parameters.seed_ = strtoul(argv[1], 0, 0);
+                alg_pars.seed_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 't':
+                eval_pars.evaluation_trials_ = strtoul(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -86,18 +91,18 @@ int main(int argc, const char **argv) {
         dim = strtoul(argv[0], 0, 0);
         base_name = argv[1];
         policy_type = argv[2];
-        if( argc >= 4 ) par.width_ = strtoul(argv[3], 0, 0);
-        if( argc >= 5 ) par.depth_ = strtoul(argv[4], 0, 0);
-        if( argc >= 6 ) par.par1_ = strtod(argv[5], 0);
-        if( argc >= 7 ) par.par2_ = strtoul(argv[6], 0, 0);
+        if( argc >= 4 ) eval_pars.width_ = strtoul(argv[3], 0, 0);
+        if( argc >= 5 ) eval_pars.depth_ = strtoul(argv[4], 0, 0);
+        if( argc >= 6 ) eval_pars.par1_ = strtod(argv[5], 0);
+        if( argc >= 7 ) eval_pars.par2_ = strtoul(argv[6], 0, 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
-    cout << "seed=" << parameters.seed_ << endl;
-    Random::seeds(parameters.seed_);
+    cout << "seed=" << alg_pars.seed_ << endl;
+    Random::seeds(alg_pars.seed_);
     state_t::initialize(dim);
     problem_t problem(dim);
 
@@ -111,7 +116,7 @@ int main(int argc, const char **argv) {
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
-    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, parameters, results);
+    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, alg_pars, results);
 
     // print results
     if( !results.empty() ) {
@@ -142,9 +147,9 @@ int main(int argc, const char **argv) {
     bases.push_back(make_pair(&fwd_random, "fwd-random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
+    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
     if( policy.first != 0 ) {
-        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, par, true);
+        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, eval_pars, true);
         cout << policy.second
              << "= " << setprecision(5) << eval.first.first
              << " " << eval.first.second
