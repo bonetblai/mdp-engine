@@ -36,6 +36,7 @@ size_t astar(const Problem::problem_t<T> &problem,
              const T &s,
              Problem::hash_t<T> &hash,
              const parameters_t &parameters) {
+    assert(0);
     return 0;
 }
 
