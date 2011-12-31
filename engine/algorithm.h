@@ -43,14 +43,15 @@ size_t astar(const Problem::problem_t<T> &problem,
 template<typename T>
 class policy_graph_t {
   protected:
+    typedef typename std::list<std::pair<T, Hash::data_t*> > pair_list;
     typedef typename std::vector<T>::iterator vector_iterator;
-    typedef typename std::list<std::pair<T, Hash::data_t*> >::iterator list_iterator;
+    typedef typename pair_list::iterator list_iterator;
     const Problem::problem_t<T> &problem_;
     Problem::hash_t<T> &hash_;
     size_t size_;
     std::vector<T> roots_;
-    std::list<std::pair<T, Hash::data_t*> > tips_;
-    std::list<std::pair<T, Hash::data_t*> > nodes_;
+    pair_list tips_;
+    pair_list nodes_;
 
   public:
     policy_graph_t(const Problem::problem_t<T> &problem, Problem::hash_t<T> &hash)
@@ -60,8 +61,8 @@ class policy_graph_t {
 
     size_t size() const { return size_; }
     void add_root(const T &s) { roots_.push_back(s); }
-    const std::list<std::pair<T, Hash::data_t*> >& tips() const { return tips_; }
-    const std::list<std::pair<T, Hash::data_t*> >& nodes() const { return nodes_; }
+    const pair_list& tips() const { return tips_; }
+    const pair_list& nodes() const { return nodes_; }
 
     void recompute() {
         std::vector<std::pair<T, float> > outcomes;
@@ -69,7 +70,7 @@ class policy_graph_t {
         tips_.clear();
         nodes_.clear();
 
-        std::list<std::pair<T, Hash::data_t*> > open;
+        pair_list open;
         for( vector_iterator si = roots_.begin(); si != roots_.end(); ++si ) {
             Hash::data_t *dptr = hash_.data_ptr(*si);
             open.push_back(std::make_pair(*si, dptr));
@@ -126,8 +127,8 @@ class policy_graph_t {
             si->second->unmark();
     }
 
-    void postorder_dfs(const T &s, std::list<std::pair<T, Hash::data_t*> > &visited) {
-        std::list<std::pair<T, Hash::data_t*> > open;
+    void postorder_dfs(const T &s, pair_list &visited) {
+        pair_list open;
 
         std::vector<std::pair<T, float> > outcomes;
         Hash::data_t *dptr = hash_.data_ptr(s);
@@ -164,7 +165,7 @@ class policy_graph_t {
             si->second->unmark();
     }
 
-    void update(std::list<std::pair<T, Hash::data_t*> > &visited) {
+    void update(pair_list &visited) {
         for( list_iterator si = visited.begin(); si != visited.end(); ++si ) {
             std::pair<Problem::action_t, float> p = hash_.bestQValue(si->first);
             si->second->update(p.second);
@@ -421,8 +422,9 @@ size_t improved_lao(const Problem::problem_t<T> &problem,
                     const T &s,
                     Problem::hash_t<T> &hash,
                     const parameters_t &parameters) {
-    typedef typename std::list<std::pair<T, Hash::data_t*> >::const_iterator list_const_iterator;
-    std::list<std::pair<T, Hash::data_t*> > visited;
+    typedef typename std::list<std::pair<T, Hash::data_t*> > pair_list;
+    typedef typename pair_list::const_iterator const_list_iterator;
+    pair_list visited;
 
     policy_graph_t<T> graph(problem, hash);
     graph.add_root(s);
@@ -443,7 +445,7 @@ size_t improved_lao(const Problem::problem_t<T> &problem,
     float residual = 1.0 + parameters.epsilon_;
     while( residual > parameters.epsilon_ ) {
         residual = 0.0;
-        for( list_const_iterator si = graph.nodes().begin(); si != graph.nodes().end(); ++si ) {
+        for( const_list_iterator si = graph.nodes().begin(); si != graph.nodes().end(); ++si ) {
             float hv = si->second->value();
             std::pair<Problem::action_t, float> p = hash.bestQValue(si->first);
             residual = Utils::max(residual, (float)fabs(p.second - hv));
