@@ -24,6 +24,7 @@
 
 #include <cassert>
 #include <list>
+#include <queue>
 #include <vector>
 #include <math.h>
 
@@ -32,12 +33,82 @@
 namespace Algorithm {
 
 template<typename T>
-size_t astar(const Problem::problem_t<T> &problem,
-             const T &s,
-             Problem::hash_t<T> &hash,
-             const parameters_t &parameters) {
-    assert(0);
-    return 0;
+struct min_priority_t {
+    bool operator()(const std::pair<T, Hash::data_t*> &p1, const std::pair<T, Hash::data_t*> &p2) const {
+        return p1.second->f() > p2.second->f();
+    }
+};
+
+template<typename T>
+size_t simple_astar(const Problem::problem_t<T> &problem,
+                    const T &s,
+                    Problem::hash_t<T> &hash,
+                    const parameters_t &parameters) {
+
+    typedef typename std::priority_queue<std::pair<T, Hash::data_t*>,
+                                         std::vector<std::pair<T, Hash::data_t*> >,
+                                         min_priority_t<T> >
+            priority_queue;
+
+    priority_queue open;
+    std::vector<std::pair<T, float> > outcomes;
+
+    Hash::data_t *dptr = hash.data_ptr(s);
+    dptr->set_g(0);
+    open.push(std::make_pair(s, dptr));
+    dptr->mark();
+
+#ifdef DEBUG
+    std::cout << "push " << "state" //s
+              << " w/ g=" << dptr->g()
+              << " and h=" << dptr->h()
+              << " => f=" << dptr->f()
+              << std::endl;
+#endif
+
+    while( !open.empty() ) {
+        std::pair<T, Hash::data_t*> n = open.top();
+        open.pop();
+
+#ifdef DEBUG
+        std::cout << "pop  " << "state" //s
+                  << " w/ g=" << n.second->g()
+                  << " and h=" << n.second->h()
+                  << " => f=" << n.second->f()
+                  << std::endl;
+#endif
+
+        // check for termination
+        if( problem.terminal(n.first) ) {
+#ifdef DEBUG
+            std::cout << "GOAL FOUND!" << std::endl;
+#endif
+            return (int)n.second->g();
+        }
+
+        // expand state
+        for( Problem::action_t a = 0; a < problem.number_actions(n.first); ++a ) {
+            if( problem.applicable(n.first, a) ) {
+                problem.next(n.first, a, outcomes);
+                assert(outcomes.size() == 1);
+                Hash::data_t *ptr = hash.data_ptr(outcomes[0].first);
+                float g = n.second->g() + problem.cost(n.first, a);
+                if( !ptr->marked() || (g + ptr->h() < ptr->f()) ) {
+                    ptr->set_g(g);
+                    open.push(std::make_pair(outcomes[0].first, ptr));
+                    ptr->mark();
+#ifdef DEBUG
+                    std::cout << "push " << "state" //outcomes[0].first
+                              << " w/ g=" << ptr->g()
+                              << " and h=" << ptr->h()
+                              << " => f=" << ptr->f()
+                              << std::endl;
+#endif
+                }
+            }
+        }
+    }
+    return std::numeric_limits<size_t>::max();
 }
 
 template<typename T>

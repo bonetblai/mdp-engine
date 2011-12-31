@@ -52,10 +52,14 @@ class data_t {
     size_t count_;
     Problem::action_t action_;
 
-    struct {
-        size_t low_;
-        size_t idx_;
-    } scc_;
+    union {
+        struct {
+            size_t low_;
+            size_t idx_;
+        } scc_;
+
+        float g_;
+    };
 
   public:
     data_t(float value = 0, bool solved = false, bool marked = false, size_t count = 0)
@@ -92,6 +96,11 @@ class data_t {
     void set_scc_low(size_t low) { scc_.low_ = low; }
     size_t scc_idx() const { return scc_.idx_; }
     void set_scc_idx(size_t idx) { scc_.idx_ = idx; }
+
+    float g() const { return g_; }
+    void set_g(float g) { g_ = g; }
+    float h() const { return value_; }
+    float f() const { return g_ + value_; }
 
     void print(std::ostream &os) const {
         os << "(" << value_
