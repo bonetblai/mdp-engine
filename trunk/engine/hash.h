@@ -115,18 +115,22 @@ inline std::ostream& operator<<(std::ostream &os, const Hash::data_t &data) {
 namespace Hash {
 
 // Hash function for state
-template<typename T> class hash_function_t {
+template<typename T>
+class hash_function_t {
   public:
     size_t operator()(const T &s) const { return s.hash(); }
 };
 
-template<typename T, typename D, typename F=Hash::hash_function_t<T> > class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
+template<typename T, typename D, typename F=Hash::hash_function_t<T> >
+class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> > class generic_hash_set_t : public std::tr1::unordered_map<T, F> {
+template<typename T, typename F=Hash::hash_function_t<T> >
+class generic_hash_set_t : public std::tr1::unordered_map<T, F> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> > class hash_map_t : public generic_hash_map_t<T, Hash::data_t*, F> {
+template<typename T, typename F=Hash::hash_function_t<T> >
+class hash_map_t : public generic_hash_map_t<T, Hash::data_t*, F> {
   public: // iterators
     typedef generic_hash_map_t<T, Hash::data_t*, F> base_type;
     typedef typename base_type::iterator iterator;
