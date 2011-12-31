@@ -33,7 +33,7 @@
 namespace Dispatcher {
 
 const char *algorithm_name[] = {
-    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "check", "hdp", "ldfs+", "ldfs", "hdp-i", "a*"
+    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "check", "hdp", "ldfs+", "ldfs", "hdp-i", "simple-a*"
 };
 
 template<typename T> struct algorithm_table_t {
