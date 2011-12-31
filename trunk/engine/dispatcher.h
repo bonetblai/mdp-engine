@@ -50,7 +50,7 @@ template<typename T> struct algorithm_table_t {
             case  7: return Algorithm::ldfs_plus_driver<T>;
             case  8: return Algorithm::ldfs_driver<T>;
             case  9: return 0; //Algorithm::hdp_i<T>
-            case 10: return Algorithm::astar<T>;
+            case 10: return Algorithm::simple_astar<T>;
             default: return 0;
         }
         return 0;
