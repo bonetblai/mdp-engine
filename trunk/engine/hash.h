@@ -58,7 +58,10 @@ class data_t {
             size_t idx_;
         } scc_;
 
-        float g_;
+        struct {
+            float g_;
+            const data_t *parent_;
+        } bfs_;
     };
 
   public:
@@ -97,10 +100,12 @@ class data_t {
     size_t scc_idx() const { return scc_.idx_; }
     void set_scc_idx(size_t idx) { scc_.idx_ = idx; }
 
-    float g() const { return g_; }
-    void set_g(float g) { g_ = g; }
+    float g() const { return bfs_.g_; }
+    void set_g(float g) { bfs_.g_ = g; }
     float h() const { return value_; }
-    float f() const { return g_ + value_; }
+    float f() const { return bfs_.g_ + value_; }
+    const data_t* parent() const { return bfs_.parent_; }
+    void set_parent(const data_t *parent) { bfs_.parent_ = parent; }
 
     void print(std::ostream &os) const {
         os << "(" << value_
