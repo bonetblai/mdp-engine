@@ -56,8 +56,10 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
 
     Hash::data_t *dptr = hash.data_ptr(s);
     dptr->set_g(0);
-    open.push(std::make_pair(s, dptr));
+    dptr->set_parent(0);
+    dptr->set_action(Problem::noop);
     dptr->mark();
+    open.push(std::make_pair(s, dptr));
 
 #ifdef DEBUG
     std::cout << "push " << "state" //s
@@ -96,8 +98,10 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
                 float g = n.second->g() + problem.cost(n.first, a);
                 if( !ptr->marked() ) { //|| (g + ptr->h() < ptr->f()) ) {
                     ptr->set_g(g);
-                    open.push(std::make_pair(outcomes[0].first, ptr));
+                    ptr->set_parent(n.second);
+                    ptr->set_action(a);
                     ptr->mark();
+                    open.push(std::make_pair(outcomes[0].first, ptr));
 #ifdef DEBUG
                     std::cout << "push " << "state" //outcomes[0].first
                               << " w/ g=" << ptr->g()
