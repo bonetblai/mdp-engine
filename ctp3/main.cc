@@ -181,7 +181,6 @@ int main(int argc, const char **argv) {
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
-
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph);
         vector<int> distances;
@@ -248,10 +247,12 @@ int main(int argc, const char **argv) {
         }
         stdev = sqrt(stdev) / (eval_pars.evaluation_trials_ - 1);
 
-        cout << policy.second << "= " << flush;
-        cout << setprecision(5) << avg << " " << stdev << setprecision(2)
-             << " ( " << Utils::read_time_in_seconds() - start_time << " secs)";
-        cout << std::endl;
+        cout << policy.second
+             << "= " << setprecision(5) << avg
+             << " " << stdev << setprecision(2)
+             << " ( " << Utils::read_time_in_seconds() - start_time
+             << " secs)" << std::endl;
+        policy.first->print_stats(cout);
     }
 
     // free resources
