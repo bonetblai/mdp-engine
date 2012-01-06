@@ -7,6 +7,6 @@ all:
 	@#./generate-sailing
 	@#./generate-tree
 	@#./generate-wet
-	@echo "#tasks=" `ls *_mutask?_* | wc -l`
-	@zip -qr tasks.zip *_mutask?_*
-	@rm -f *_mutask?_*
+	@echo "#tasks=" `ls *_mutask*_* | wc -l`
+	@zip -qr tasks.zip *_mutask*_*
+	@rm -f *_mutask*_*
