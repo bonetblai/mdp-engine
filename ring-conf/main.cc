@@ -30,6 +30,7 @@ void usage(ostream &os) {
 int main(int argc, const char **argv) {
     int dim = 0;
     bool non_det = false;
+    bool contingent = false;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
@@ -56,6 +57,11 @@ int main(int argc, const char **argv) {
                 alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
+                break;
+            case 'c':
+                contingent = true;
+                ++argv;
+                --argc;
                 break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
@@ -110,7 +116,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::seeds(alg_pars.seed_);
     state_t::initialize(dim);
-    problem_t problem(dim, non_det);
+    problem_t problem(dim, non_det, contingent);
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -118,6 +124,8 @@ int main(int argc, const char **argv) {
         heuristic = new window_heuristic_t;
     } else if( h == 2 ) {
         heuristic = new cardinality_heuristic_t;
+    } else if( h == 3 ) {
+        heuristic = new probability_heuristic_t;
     }
 
     // solve problem with algorithms

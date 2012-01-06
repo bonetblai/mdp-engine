@@ -16,6 +16,8 @@
 
 #define DISCOUNT 1.00
 
+#define USE_COW_COMPONENTS // use copy-no-write belief components
+
 // 2 bits indicate: open=0, closed=1, locked=2
 // 8 bits indicate position of agent
 // 8 bits indicate position of key
@@ -44,8 +46,7 @@ template<typename T> class cow_vector_t {
     T *vector_;
 
   public:
-    cow_vector_t() : nrefs_(1), capacity_(0), size_(0), vector_(0) {
-    }
+    cow_vector_t() : nrefs_(1), capacity_(0), size_(0), vector_(0) { }
     cow_vector_t(const cow_vector_t &vec)
       : nrefs_(1), capacity_(0), size_(0), vector_(0) {
         *this = vec;
@@ -76,27 +77,48 @@ template<typename T> class cow_vector_t {
     }
 
     int nrefs() const { return nrefs_; }
-    int size() const { return size_; }
     void clear() { size_ = 0; }
+    bool empty() const { return size_ == 0; }
+    int size() const { return size_; }
 
     void push_back(const T &element) {
         if( size_ == capacity_ ) reserve(1 + capacity_);
         vector_[size_++] = element;
     }
     void insert(const T &element) {
-        if( capacity_ == 0 ) {
+        if( size_ == 0 ) {
             reserve(1);
             vector_[0] = element;
             ++size_;
         } else {
-            int i = 0;
-            while( (vector_[i] < element) && (i < size_) ) ++i;
-            if( (i == size_) || (vector_[i] != element) ) {
-                if( size_ == capacity_ ) reserve(1 + capacity_);
-                for( int j = size_ - 1; i <= j; --j ) {
-                    vector_[1+j] = vector_[j];
+            // locate insertion point w/ binary search
+            int lb = 0, ub = size_ - 1, mid = (lb + ub) / 2;
+            if( element < vector_[lb] ) {
+                mid = lb - 1;
+            } else if( vector_[ub] <= element ) {
+                mid = ub;
+            } else {
+                assert(vector_[lb] <= element);
+                assert(element < vector_[ub]);
+                while( lb != mid ) {
+                    if( vector_[mid] <= element ) {
+                        lb = mid;
+                    } else {
+                        ub = mid;
+                    }
+                    mid = (lb + ub) / 2;
                 }
-                vector_[i] = element;
+                assert(vector_[mid] <= element);
+                assert(element < vector_[mid+1]);
+            }
+
+            // make insertion
+            if( (mid == -1) || (vector_[mid] != element) ) {
+                if( size_ == capacity_ ) reserve(1 + capacity_);
+                for( int i = size_ - 1; i > mid; --i ) {
+                    vector_[1+i] = vector_[i];
+                }
+                vector_[mid+1] = element;
                 ++size_;
             }
         }
@@ -175,6 +197,16 @@ struct cow_belief_component_t {
         return value;
     }
 
+    float value() const {
+        float value = 0;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int status = sample & 0x3;
+            value += 2 - status;
+        }
+        return value / (float) cow_vector_->size();
+    }
+
     int nrefs() const {
         return cow_vector_->nrefs();
     }
@@ -187,6 +219,9 @@ struct cow_belief_component_t {
             cow_vector_ = new cow_vector_t<int>;
         } else
             cow_vector_->clear();
+    }
+    bool empty() const {
+        return cow_vector_->empty();
     }
     int size() const {
         return cow_vector_->size();
@@ -268,8 +303,8 @@ struct cow_belief_component_t {
             int status = sample & 0x3;
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            int new_pos = (agent_pos + steps) % dim;
-            new_pos = new_pos < 0 ? -new_pos : new_pos;
+            int new_pos = (dim + agent_pos + steps) % dim;
+            assert(new_pos >= 0);
             if( non_det && (status != LOCKED) ) {
                 result.insert(OPEN | (key_pos << 2) | (new_pos << 10));
                 result.insert(CLOSED | (key_pos << 2) | (new_pos << 10));
@@ -302,6 +337,21 @@ struct cow_belief_component_t {
             }
         }
     }
+    void filter(bool key_in_current_pos, cow_belief_component_t &result) const {
+        result.reserve(size());
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( key_in_current_pos ) {
+                if( key_pos == agent_pos )
+                    result.insert(sample);
+            } else {
+                if( key_pos != agent_pos )
+                    result.insert(sample);
+            }
+        }
+    }
 
     void print(std::ostream &os) const {
         os << "{";
@@ -319,13 +369,16 @@ inline std::ostream& operator<<(std::ostream &os, const cow_belief_component_t &
 }
 
 
-struct myset {
+struct ordered_vector_t {
     int *set_;
     int capacity_;
     int size_;
-    myset() : set_(0), capacity_(0), size_(0) { }
-    myset(const myset &ms) : set_(0), capacity_(0), size_(0) { *this = ms; }
-    ~myset() { delete[] set_; }
+    ordered_vector_t() : set_(0), capacity_(0), size_(0) { }
+    ordered_vector_t(const ordered_vector_t &vec)
+      : set_(0), capacity_(0), size_(0) {
+        *this = vec;
+    }
+    ~ordered_vector_t() { delete[] set_; }
     void reserve(int new_capacity) {
         if( capacity_ < new_capacity ) {
             capacity_ = new_capacity;
@@ -336,14 +389,16 @@ struct myset {
         }
     }
     void clear() { size_ = 0; }
+    bool empty() const { return size_ == 0; }
     int size() const { return size_; }
     void push_back(int e) {
         if( size_ == capacity_ ) reserve(1 + capacity_);
         set_[size_++] = e;
     }
     void insert(int e) {
+        // TODO: implement binary search
         int i = 0;
-        while( (set_[i] < e) && (i < size_) ) ++i;
+        while( (i < size_) && (set_[i] < e) ) ++i;
         if( set_[i] != e ) {
             if( size_ == capacity_ ) reserve(1 + capacity_);
             for( int j = size_ - 1; i <= j; --j ) {
@@ -355,17 +410,17 @@ struct myset {
     }
 
     int operator[](int i) const { return set_[i]; }
-    const myset& operator=(const myset &ms) {
-        reserve(ms.size_);
-        memcpy(set_, ms.set_, ms.size_ * sizeof(int));
-        size_ = ms.size_;
+    const ordered_vector_t& operator=(const ordered_vector_t &vec) {
+        reserve(vec.size_);
+        memcpy(set_, vec.set_, vec.size_ * sizeof(int));
+        size_ = vec.size_;
         return *this;
     }
-    bool operator==(const myset &ms) const {
-        return size_ != ms.size_ ? false : memcmp(set_, ms.set_, size_ * sizeof(int)) == 0;
+    bool operator==(const ordered_vector_t &vec) const {
+        return size_ != vec.size_ ? false : memcmp(set_, vec.set_, size_ * sizeof(int)) == 0;
     }
-    bool operator!=(const myset &ms) const {
-        return *this == ms ? false : true;
+    bool operator!=(const ordered_vector_t &vec) const {
+        return *this == vec ? false : true;
     }
 
     struct const_iterator {
@@ -393,7 +448,7 @@ struct myset {
 
 };
 
-struct belief_component_t : public myset { //: public std::set<int> {
+struct belief_component_t : public ordered_vector_t {
    
     belief_component_t() { }
     ~belief_component_t() { }
@@ -405,6 +460,16 @@ struct belief_component_t : public myset { //: public std::set<int> {
             value = value ^ (i & 0x1 ? rotation(*it) : *it);
         }
         return value;
+    }
+
+    float value() const {
+        float value = 0;
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            int sample = *it;
+            int status = sample & 0x3;
+            value += 2 - status;
+        }
+        return value / (float)size();
     }
 
     int window_status() const {
@@ -458,8 +523,8 @@ struct belief_component_t : public myset { //: public std::set<int> {
             int status = *it & 0x3;
             int key_pos = ((*it) >> 2) & 0xFF;
             int agent_pos = ((*it) >> 10) & 0xFF;
-            int new_pos = (agent_pos + steps) % dim;
-            new_pos = new_pos < 0 ? -new_pos : new_pos;
+            int new_pos = (dim + agent_pos + steps) % dim;
+            assert(new_pos >= 0);
             if( non_det && (status != LOCKED) ) {
                 result.insert(OPEN | (key_pos << 2) | (new_pos << 10));
                 result.insert(CLOSED | (key_pos << 2) | (new_pos << 10));
@@ -506,8 +571,11 @@ inline std::ostream& operator<<(std::ostream &os, const belief_component_t &bc) 
 }
 
 struct state_t {
-    //std::vector<belief_component_t> components_;
+#ifdef USE_COW_COMPONENTS
     std::vector<cow_belief_component_t> components_;
+#else
+    std::vector<belief_component_t> components_;
+#endif
     static int dim_;
 
     state_t() : components_(dim_) { }
@@ -530,22 +598,30 @@ struct state_t {
             components_[i].clear();
     }
 
-    bool locked() const {
+    bool empty() const {
+        for( int i = 0; i < dim_; ++i ) {
+            if( components_[i].empty() )
+                return true;
+        }
+        return false;
+    }
+
+    bool all_locked() const {
         for( int i = 0; i < dim_; ++i ) {
             if( components_[i].window_status() != LOCKED )
                 return false;
         }
         return true;
     }
-    bool goal() const { return locked(); }
+    bool goal() const { return all_locked(); }
 
     void apply(int action, state_t &result, bool non_det = false) const {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
-            if( action == MOVE_FWD ) {
-                components_[i].apply_move(dim_, 1, result.components_[i], non_det);
-            } else if( action == MOVE_BWD ) {
+            if( action == MOVE_BWD ) {
                 components_[i].apply_move(dim_, -1, result.components_[i], non_det);
+            } else if( action == MOVE_FWD ) {
+                components_[i].apply_move(dim_, 1, result.components_[i], non_det);
             } else if( action == CLOSE ) {
                 components_[i].apply_close(i, result.components_[i], non_det);
             } else if( action == LOCK ) {
@@ -553,6 +629,12 @@ struct state_t {
             } else if( action == GRAB_KEY ) {
                 components_[i].apply_grab_key(result.components_[i], non_det);
             }
+        }
+    }
+    void filter(bool key_in_current_pos, state_t &result) const {
+        result.clear();
+        for( int i = 0; i < dim_; ++i ) {
+            components_[i].filter(key_in_current_pos, result.components_[i]);
         }
     }
 
@@ -601,23 +683,23 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &b) {
 struct problem_t : public Problem::problem_t<state_t> {
     int dim_;
     bool non_det_;
+    bool contingent_;
     state_t init_;
 
-    problem_t(int dim, bool non_det = false)
-      : Problem::problem_t<state_t>(DISCOUNT), dim_(dim), non_det_(non_det) {
+    problem_t(int dim, bool non_det = false, bool contingent = false)
+      : Problem::problem_t<state_t>(DISCOUNT),
+        dim_(dim), non_det_(non_det), contingent_(contingent) {
         // set initial belief
         for( int window = 0; window < dim_; ++window) {
             init_.components_[window].reserve(2 * dim_);
             for( int agent_pos = 0; agent_pos < dim_; ++agent_pos ) {
                 for( int status = 0; status < 2; ++status ) {
-#if 1
                     for( int key_pos = 0; key_pos < dim_; ++key_pos ) {
                         int sample = status | (key_pos << 2) | (agent_pos << 10);
                         init_.components_[window].insert(sample);
                     }
-#endif
-                    int sample = status | (AGENT << 2) | (agent_pos << 10);
-                    init_.components_[window].insert(sample);
+                    //int sample = status | (AGENT << 2) | (agent_pos << 10);
+                    //init_.components_[window].insert(sample);
                 }
             }
         }
@@ -627,7 +709,6 @@ struct problem_t : public Problem::problem_t<state_t> {
 
     virtual Problem::action_t number_actions(const state_t &s) const {
         return 5;
-        //return 4;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return true;
@@ -649,12 +730,41 @@ struct problem_t : public Problem::problem_t<state_t> {
         //std::cout << "next " << s << " w/ a=" << a << " is:" << std::endl;
         ++expansions_;
         outcomes.clear();
-        outcomes.reserve(1);
 
+        outcomes.reserve(1);
         state_t next;
-        s.apply(a, next, non_det_);
-        outcomes.push_back(std::make_pair(next, 1));
-        //std::cout << "    " << next << " w.p. " << 1 << std::endl;
+
+        if( !contingent_ ) {
+            s.apply(a, next, non_det_);
+            outcomes.push_back(std::make_pair(next, 1));
+            //std::cout << "    " << next << " w.p. " << 1 << std::endl;
+        } else {
+            if( (a == MOVE_FWD) || (a == MOVE_BWD) ) {
+                outcomes.reserve(2);
+                s.apply(a, next, non_det_);
+
+                state_t next1, next2;
+                next.filter(true, next1);
+                next.filter(false, next2);
+                assert(!next1.empty() || !next2.empty());
+                if( next1.empty() ) {
+                    outcomes.push_back(std::make_pair(next2, 1));
+                    //std::cout << "    " << next2 << " w.p. " << 1 << std::endl;
+                } else if( next2.empty() ) {
+                    outcomes.push_back(std::make_pair(next1, 1));
+                    //std::cout << "    " << next1 << " w.p. " << 1 << std::endl;
+                } else {
+                    outcomes.push_back(std::make_pair(next1, 0.5));
+                    //std::cout << "    " << next1 << " w.p. " << 0.5 << std::endl;
+                    outcomes.push_back(std::make_pair(next2, 0.5));
+                    //std::cout << "    " << next2 << " w.p. " << 0.5 << std::endl;
+                }
+            } else {
+                s.apply(a, next, non_det_);
+                outcomes.push_back(std::make_pair(next, 1));
+                //std::cout << "    " << next << " w.p. " << 1 << std::endl;
+            }
+        }
     }
     virtual void print(std::ostream &os) const { }
 
@@ -687,7 +797,27 @@ struct window_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual float value(const state_t &s) const {
         int value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
-            value += s.components_[i].window_status() != LOCKED ? 2 : 0;
+            int status = s.components_[i].window_status();
+            value += status != LOCKED ? 2 : 0;
+        }
+        return value;
+    }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
+
+struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
+  public:
+    probability_heuristic_t() { }
+    virtual ~probability_heuristic_t() { }
+    virtual float value(const state_t &s) const {
+        float value = 0;
+        for( int i = 0; i < s.dim_; ++i ) {
+            value += s.components_[i].value();
         }
         return value;
     }
