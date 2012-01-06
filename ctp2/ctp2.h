@@ -12,7 +12,6 @@
 
 #include "policy.h"
 #include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
