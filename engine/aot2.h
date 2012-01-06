@@ -16,6 +16,8 @@
  *
  */
 
+// NOTE: implement random best action instead of fixed tie breaking
+
 #ifndef AOT2_H
 #define AOT2_H
 
