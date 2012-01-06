@@ -39,14 +39,14 @@ int main(int argc, const char **argv) {
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
-    int shortcut_cost = 200;
+    int shortcut_cost = (int)5e3;
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t par;
+    Evaluation::parameters_t eval_pars;
 
     cout << fixed;
-    Algorithm::parameters_t parameters;
+    Algorithm::parameters_t alg_pars;
 
     // parse arguments
     ++argv;
@@ -60,7 +60,7 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 'b':
-                parameters.rtdp.bound_ = strtol(argv[1], 0, 0);
+                alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -70,7 +70,7 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 'e':
-                parameters.epsilon_ = strtod(argv[1], 0);
+                alg_pars.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -80,7 +80,7 @@ int main(int argc, const char **argv) {
                 --argc;
                 break;
             case 'g':
-                parameters.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
+                alg_pars.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -90,7 +90,12 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 's':
-                parameters.seed_ = strtoul(argv[1], 0, 0);
+                alg_pars.seed_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 't':
+                eval_pars.evaluation_trials_ = strtoul(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -107,18 +112,18 @@ int main(int argc, const char **argv) {
         is.close();
         base_name = argv[1];
         policy_type = argv[2];
-        if( argc >= 4 ) par.width_ = strtoul(argv[3], 0, 0);
-        if( argc >= 5 ) par.depth_ = strtoul(argv[4], 0, 0);
-        if( argc >= 6 ) par.par1_ = strtod(argv[5], 0);
-        if( argc >= 7 ) par.par2_ = strtoul(argv[6], 0, 0);
+        if( argc >= 4 ) eval_pars.width_ = strtoul(argv[3], 0, 0);
+        if( argc >= 5 ) eval_pars.depth_ = strtoul(argv[4], 0, 0);
+        if( argc >= 6 ) eval_pars.par1_ = strtod(argv[5], 0);
+        if( argc >= 7 ) eval_pars.par2_ = strtoul(argv[6], 0, 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
-    cout << "seed=" << parameters.seed_ << endl;
-    Random::seeds(parameters.seed_);
+    cout << "seed=" << alg_pars.seed_ << endl;
+    Random::seeds(alg_pars.seed_);
     state_t::initialize(graph);
     problem_t problem(graph);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
@@ -133,7 +138,7 @@ int main(int argc, const char **argv) {
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
-    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, parameters, results);
+    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, alg_pars, results);
 
     // print results
     if( !results.empty() ) {
@@ -160,17 +165,17 @@ int main(int argc, const char **argv) {
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, par);
-
+    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph);
         vector<int> distances;
         vector<float> values;
-        values.reserve(par.evaluation_trials_);
+        values.reserve(eval_pars.evaluation_trials_);
         float start_time = Utils::read_time_in_seconds();
-        cout << "#trials=" << par.evaluation_trials_ << ":";
-        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
-            cout << " " << i << flush;
+        float sum = 0;
+        cout << "#trials=" << eval_pars.evaluation_trials_ << ":";
+        for( unsigned trial = 0; trial < eval_pars.evaluation_trials_; ++trial ) {
+            cout << " " << trial << flush;
             // sample a good weather
             state_t hidden(0);
             sample_weather(graph, hidden);
@@ -187,8 +192,11 @@ int main(int argc, const char **argv) {
             size_t steps = 0;
             float cost = 0;
             state_t state = pwhs.init();
-            while( (steps < par.evaluation_depth_) && !pwhs.terminal(state) ) {
+            while( (steps < eval_pars.evaluation_depth_) && !pwhs.terminal(state) ) {
+                //cout << "state=" << state << " " << (state.is_dead_end() ? 1 : 0) << endl;
+                //cout << "dist=" << state.distances_ << endl;
                 Problem::action_t action = (*policy.first)(state);
+                //cout << "act=" << action << endl;
                 assert(action != Problem::noop);
                 assert(problem.applicable(state, action));
                 std::pair<state_t, bool> p = pwhs.sample(state, action);
@@ -202,27 +210,31 @@ int main(int argc, const char **argv) {
                 ++steps;
             }
             values.push_back(cost);
+            sum += cost;
+            cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
 
         // compute avg
         float avg = 0;
-        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
             avg += values[i];
         }
-        avg /= par.evaluation_trials_;
+        avg /= eval_pars.evaluation_trials_;
 
         // compute stdev
         float stdev = 0;
-        for( unsigned i = 0; i < par.evaluation_trials_; ++i ) {
+        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
             stdev += (avg - values[i]) * (avg - values[i]);
         }
-        stdev = sqrt(stdev) / (par.evaluation_trials_ - 1);
+        stdev = sqrt(stdev) / (eval_pars.evaluation_trials_ - 1);
 
-        cout << policy.second << "= " << flush;
-        cout << setprecision(5) << avg << " " << stdev << setprecision(2)
-             << " ( " << Utils::read_time_in_seconds() - start_time << " secs)";
-        cout << std::endl;
+        cout << policy.second
+             << "= " << setprecision(5) << avg
+             << " " << stdev << setprecision(2)
+             << " ( " << Utils::read_time_in_seconds() - start_time
+             << " secs)" << std::endl;
+        policy.first->print_stats(cout);
     }
 
     // free resources
