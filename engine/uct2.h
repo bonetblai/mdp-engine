@@ -226,7 +226,7 @@ template<typename T> class uct2_t : public improvement_t<T> {
                 // compute score of action adding bonus (if applicable)
                 assert(data.counts_[0] > 0);
                 float par = parameter_ == 0 ? -data.values_[1+a] : parameter_;
-                float bonus = add_bonus ? par * sqrtf(log_ns / data.counts_[1+a]) : 0;
+                float bonus = add_bonus ? par * sqrtf(2 * log_ns / data.counts_[1+a]) : 0;
                 float value = data.values_[1+a] + bonus;
 
                 // update best action so far
