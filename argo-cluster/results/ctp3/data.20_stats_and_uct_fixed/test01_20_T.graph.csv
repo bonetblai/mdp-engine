@@ -1,0 +1,10 @@
+ctp3,test01_20_T.graph,uct,random,100,20,0,NA,262.20099,3.96987,103.92
+ctp3,test01_20_T.graph,uct,random,500,20,0,NA,210.27400,3.16722,478.84
+ctp3,test01_20_T.graph,uct,random,1000,20,0,NA,196.10699,2.97888,924.08
+ctp3,test01_20_T.graph,uct,random,5000,20,0,NA,181.03799,2.60229,4274.10
+ctp3,test01_20_T.graph,uct,random,10000,20,0,NA,178.25800,2.48463,8484.59
+ctp3,test01_20_T.graph,uct,optimistic,100,20,0,NA,296.55399,4.58386,115.52
+ctp3,test01_20_T.graph,uct,optimistic,500,20,0,NA,256.24701,3.46837,569.64
+ctp3,test01_20_T.graph,uct,optimistic,1000,20,0,NA,227.86800,3.02728,1090.73
+ctp3,test01_20_T.graph,uct,optimistic,5000,20,0,NA,173.39500,2.37329,4607.34
+ctp3,test01_20_T.graph,uct,optimistic,10000,20,0,NA,169.00200,2.24088,8919.48

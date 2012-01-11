@@ -16,7 +16,7 @@ test00_20_T  aot        optimistic   1000  500  200.35       4.42       42840.36
 test00_20_T  aot        optimistic   5000   50  189.52       3.47       91460.42
 test00_20_T  aot        optimistic   5000  100  190.67       3.89      102374.88
 test00_20_T  aot        optimistic   5000  500  179.05       3.58      155019.41
-test00_20_T  aot        optimistic  10000  500  176.19       3.37      255002.75
+test00_20_T  aot        optimistic  10000  500  176.19       3.37      255002.75 **
 test00_20_T  aot        random        100   50  214.67       4.14        5079.17
 test00_20_T  aot        random        100  100  220.08       4.38        5281.34
 test00_20_T  aot        random        100  500  218.21       4.48        5292.93
@@ -54,7 +54,7 @@ test01_20_T  aot        optimistic   1000  100  168.18       2.08       28602.83
 test01_20_T  aot        optimistic   1000  500  164.29       2.36       37300.48
 test01_20_T  aot        optimistic   5000   50  164.74       2.10       62661.65
 test01_20_T  aot        optimistic   5000  100  164.60       2.03       73187.40
-test01_20_T  aot        optimistic   5000  500  155.25       1.86      120999.78
+test01_20_T  aot        optimistic   5000  500  155.25       1.86      120999.78 **
 test01_20_T  aot        optimistic  10000  500  158.00       1.85      177616.97
 test01_20_T  aot        random        100   50  187.04       2.67        3717.36
 test01_20_T  aot        random        100  100  195.83       2.85        3916.71
@@ -90,7 +90,7 @@ test02_20_T  aot        optimistic    500  100  133.40       2.98       12749.00
 test02_20_T  aot        optimistic    500  500  134.19       3.16       13667.37
 test02_20_T  aot        optimistic   1000   50  135.36       3.05       17731.02
 test02_20_T  aot        optimistic   1000  100  133.51       2.97       21074.79
-test02_20_T  aot        optimistic   1000  500  129.77       3.01       27334.43
+test02_20_T  aot        optimistic   1000  500  129.77       3.01       27334.43 **
 test02_20_T  aot        optimistic   5000   50  139.75       3.11       61726.47
 test02_20_T  aot        optimistic   5000  100  137.87       3.07       65897.00
 test02_20_T  aot        optimistic   5000  500  140.29       3.11      101012.76
@@ -156,7 +156,7 @@ test03_20_T  uct        random        100   NA  380.86       7.25         103.25
 test03_20_T  uct        random        500   NA  313.10       5.72         489.79
 test03_20_T  uct        random       1000   NA  283.00       4.96         959.60
 test03_20_T  uct        random       5000   NA  257.59       4.53        4548.91
-test03_20_T  uct        random      10000   NA  246.34       4.08        8856.71
+test03_20_T  uct        random      10000   NA  246.34       4.08        8856.71 **
 --------------------------------------------------------------------------------
 problem      algorithm  base        width  exp  quality.avg  quality.stdev  time
 --------------------------------------------------------------------------------
@@ -184,7 +184,7 @@ test04_20_T  aot        random       1000  100  131.30       3.70       26959.40
 test04_20_T  aot        random       1000  500  115.53       3.00       36769.11
 test04_20_T  aot        random       5000   50  127.73       3.66       54401.55
 test04_20_T  aot        random       5000  100  119.47       3.23       61286.88
-test04_20_T  aot        random       5000  500  113.27       2.96      118809.81
+test04_20_T  aot        random       5000  500  113.27       2.96      118809.81 **
 test04_20_T  aot        random      10000  500  122.07       3.21      163225.14
 test04_20_T  uct        optimistic    100   NA  228.06       6.90          80.45
 test04_20_T  uct        optimistic    500   NA  172.05       5.29         357.84
@@ -211,7 +211,7 @@ test05_20_T  aot        optimistic   1000  500  144.49       2.54       26372.51
 test05_20_T  aot        optimistic   5000   50  142.50       1.81       61808.73
 test05_20_T  aot        optimistic   5000  100  142.83       1.77       66189.25
 test05_20_T  aot        optimistic   5000  500  142.80       2.02       90941.55
-test05_20_T  aot        optimistic  10000  500  138.49       1.83      150754.75
+test05_20_T  aot        optimistic  10000  500  138.49       1.83      150754.75 **
 test05_20_T  aot        random        100   50  174.89       3.15        3431.83
 test05_20_T  aot        random        100  100  171.92       3.17        3596.98
 test05_20_T  aot        random        100  500  170.98       2.97        3607.77
@@ -249,7 +249,7 @@ test06_20_T  aot        optimistic   1000  100  154.76       2.53       31069.95
 test06_20_T  aot        optimistic   1000  500  153.65       2.56       38721.16
 test06_20_T  aot        optimistic   5000   50  154.31       2.40       74714.98
 test06_20_T  aot        optimistic   5000  100  156.37       2.39       84437.28
-test06_20_T  aot        optimistic   5000  500  145.40       2.28      139772.75
+test06_20_T  aot        optimistic   5000  500  145.40       2.28      139772.75 **
 test06_20_T  aot        optimistic  10000  500  150.73       2.23      205680.25
 test06_20_T  aot        random        100   50  176.77       3.19        5718.78
 test06_20_T  aot        random        100  100  185.50       3.42        5819.94
@@ -301,7 +301,7 @@ test07_20_T  aot        random       1000  100  156.31       3.08       24003.20
 test07_20_T  aot        random       1000  500  154.52       3.04       36465.33
 test07_20_T  aot        random       5000   50  165.56       3.49       42486.73
 test07_20_T  aot        random       5000  100  160.93       3.17       50652.40
-test07_20_T  aot        random       5000  500  145.61       2.84      106199.73
+test07_20_T  aot        random       5000  500  145.61       2.84      106199.73 **
 test07_20_T  aot        random      10000  500  148.68       2.95      140170.08
 test07_20_T  uct        optimistic    100   NA  291.28       5.55          96.06
 test07_20_T  uct        optimistic    500   NA  231.10       4.63         447.91
@@ -328,7 +328,7 @@ test08_20_T  aot        optimistic   1000  500  210.79       3.43       46520.81
 test08_20_T  aot        optimistic   5000   50  198.82       2.73       89542.02
 test08_20_T  aot        optimistic   5000  100  202.90       2.64      102545.59
 test08_20_T  aot        optimistic   5000  500  193.33       2.72      164764.03
-test08_20_T  aot        optimistic  10000  500  191.20       2.53      252778.39
+test08_20_T  aot        optimistic  10000  500  191.20       2.53      252778.39 **
 test08_20_T  aot        random        100   50  218.92       3.38        5516.24
 test08_20_T  aot        random        100  100  238.51       3.72        5548.73
 test08_20_T  aot        random        100  500  236.22       3.64        5585.08
@@ -380,7 +380,7 @@ test09_20_T  aot        random       1000  500  175.03       3.12       38004.29
 test09_20_T  aot        random       5000   50  181.67       3.32       45384.95
 test09_20_T  aot        random       5000  100  179.09       3.34       54134.00
 test09_20_T  aot        random       5000  500  172.93       2.93      109713.12
-test09_20_T  aot        random      10000  500  167.88       2.78      143915.75
+test09_20_T  aot        random      10000  500  167.88       2.78      143915.75 **
 test09_20_T  uct        optimistic    100   NA  326.64       6.36          97.55
 test09_20_T  uct        optimistic    500   NA  259.42       5.03         472.01
 test09_20_T  uct        optimistic   1000   NA  226.01       4.20         898.76
@@ -392,3 +392,77 @@ test09_20_T  uct        random       1000   NA  204.19       4.15         853.62
 test09_20_T  uct        random       5000   NA  192.66       3.70        3904.39
 test09_20_T  uct        random      10000   NA  184.10       3.66        7364.74
 --------------------------------------------------------------------------------
+
+
+
+
+test00_20_T  aot        random       1000  100  181.84       3.16       29897.12
+test01_20_T  aot        random       1000  100  174.74       2.26       25100.38
+test02_20_T  aot        random       1000  100  141.28       3.35       23483.22
+test03_20_T  aot        random       1000  100  292.89       4.82       24121.44
+test04_20_T  aot        random       1000  100  131.30       3.70       26959.40
+test05_20_T  aot        random       1000  100  162.73       2.66       20890.31
+test06_20_T  aot        random       1000  100  173.26       3.00       36946.25
+test07_20_T  aot        random       1000  100  156.31       3.08       24003.20
+test08_20_T  aot        random       1000  100  211.54       2.86       35855.50
+test09_20_T  aot        random       1000  100  176.71       3.14       26377.19
+
+
+test00_20_T  aot        random       5000  100  184.12       3.20       61771.44
+test01_20_T  aot        random       5000  100  171.78       2.13       53367.82
+test02_20_T  aot        random       5000  100  145.09       3.48       59678.12
+test03_20_T  aot        random       5000  100  287.57       4.63       54544.48
+test04_20_T  aot        random       5000  100  119.47       3.23       61286.88
+test05_20_T  aot        random       5000  100  163.58       2.70       48173.83
+test06_20_T  aot        random       5000  100  167.53       2.85       73327.14
+test07_20_T  aot        random       5000  100  160.93       3.17       50652.40
+test08_20_T  aot        random       5000  100  204.25       2.55       69836.72
+test09_20_T  aot        random       5000  100  179.09       3.34       54134.00
+
+test00_20_T  aot        random       5000  500  177.55       2.88      130937.06
+test01_20_T  aot        random       5000  500  168.54       1.87      106065.64
+test02_20_T  aot        random       5000  500  138.76       3.11      104910.02
+test03_20_T  aot        random       5000  500  280.59       4.59      105453.55
+test04_20_T  aot        random       5000  500  113.27       2.96      118809.81 **
+test05_20_T  aot        random       5000  500  162.02       2.66       89699.80
+test06_20_T  aot        random       5000  500  153.46       2.32      156527.75
+test07_20_T  aot        random       5000  500  145.61       2.84      106199.73 **
+test08_20_T  aot        random       5000  500  198.63       2.40      149691.38
+test09_20_T  aot        random       5000  500  172.93       2.93      109713.12
+
+
+
+test00_20_T  aot        optimistic   1000  100  190.11       3.87       33616.96
+test01_20_T  aot        optimistic   1000  100  168.18       2.08       28602.83
+test02_20_T  aot        optimistic   1000  100  133.51       2.97       21074.79
+test03_20_T  aot        optimistic   1000  100  431.65       5.83       37522.98
+test04_20_T  aot        optimistic   1000  100  136.17       3.78       32715.73
+test05_20_T  aot        optimistic   1000  100  145.10       1.96       20253.90
+test06_20_T  aot        optimistic   1000  100  154.76       2.53       31069.95
+test07_20_T  aot        optimistic   1000  100  165.93       3.31       27823.63
+test08_20_T  aot        optimistic   1000  100  211.57       3.07       37464.50
+test09_20_T  aot        optimistic   1000  100  188.26       3.39       28208.56
+
+test00_20_T  aot        optimistic   5000  100  190.67       3.89      102374.88
+test01_20_T  aot        optimistic   5000  100  164.60       2.03       73187.40
+test02_20_T  aot        optimistic   5000  100  137.87       3.07       65897.00
+test03_20_T  aot        optimistic   5000  100  385.59       4.95       90048.00
+test04_20_T  aot        optimistic   5000  100  143.63       3.88       97011.96
+test05_20_T  aot        optimistic   5000  100  142.83       1.77       66189.25
+test06_20_T  aot        optimistic   5000  100  156.37       2.39       84437.28
+test07_20_T  aot        optimistic   5000  100  159.66       2.81       78671.52
+test08_20_T  aot        optimistic   5000  100  202.90       2.64      102545.59
+test09_20_T  aot        optimistic   5000  100  183.83       3.25       74523.59
+
+test00_20_T  aot        optimistic   5000  500  179.05       3.58      155019.41
+test01_20_T  aot        optimistic   5000  500  155.25       1.86      120999.78 **
+test02_20_T  aot        optimistic   5000  500  140.29       3.11      101012.76
+test03_20_T  aot        optimistic   5000  500  396.97       5.42      163141.61
+test04_20_T  aot        optimistic   5000  500  139.62       3.93      155694.91
+test05_20_T  aot        optimistic   5000  500  142.80       2.02       90941.55
+test06_20_T  aot        optimistic   5000  500  145.40       2.28      139772.75 **
+test07_20_T  aot        optimistic   5000  500  153.51       2.81      126212.38
+test08_20_T  aot        optimistic   5000  500  193.33       2.72      164764.03
+test09_20_T  aot        optimistic   5000  500  174.58       3.23      115253.44
+
+

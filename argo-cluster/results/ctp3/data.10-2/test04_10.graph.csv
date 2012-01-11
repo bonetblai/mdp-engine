@@ -1,0 +1,17 @@
+ctp3,test04_10.graph,uct2,optimistic,100,10,0,NA,101.55900,1.63066,17.83
+ctp3,test04_10.graph,uct2,optimistic,500,10,0,NA,94.93600,1.38671,84.29
+ctp3,test04_10.graph,uct2,optimistic,1000,10,0,NA,92.72400,1.32813,163.55
+ctp3,test04_10.graph,uct2,optimistic,5000,10,0,NA,88.49900,1.18242,766.03
+ctp3,test04_10.graph,uct2,optimistic,10000,10,0,NA,88.85500,1.25310,1468.27
+ctp3,test04_10.graph,aot2,optimistic,10,10,0.5,100,97.68000,1.51864,23.67
+ctp3,test04_10.graph,aot2,optimistic,50,10,0.5,100,101.51100,1.55363,98.77
+ctp3,test04_10.graph,aot2,optimistic,100,10,0.5,100,101.08300,1.50506,185.01
+ctp3,test04_10.graph,aot2,optimistic,500,10,0.5,100,95.61100,1.28257,556.55
+ctp3,test04_10.graph,aot2,optimistic,1000,10,0.5,100,91.95300,1.22343,852.96
+ctp3,test04_10.graph,aot2,optimistic,5000,10,0.5,100,90.36200,1.24668,2979.79
+ctp3,test04_10.graph,aot-value2,optimistic,10,10,0.5,100,88.58000,1.25821,2.86
+ctp3,test04_10.graph,aot-value2,optimistic,50,10,0.5,100,89.40500,1.33080,12.66
+ctp3,test04_10.graph,aot-value2,optimistic,100,10,0.5,100,89.73700,1.26144,24.50
+ctp3,test04_10.graph,aot-value2,optimistic,500,10,0.5,100,88.57200,1.23198,115.90
+ctp3,test04_10.graph,aot-value2,optimistic,1000,10,0.5,100,93.04500,1.35953,210.76
+ctp3,test04_10.graph,aot-value2,optimistic,5000,10,0.5,100,86.64600,1.15566,1869.14
