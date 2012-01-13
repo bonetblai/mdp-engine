@@ -469,3 +469,56 @@ test09_10  uct         random       1000   83.68       1.69          119.48
 test09_10  uct         random       5000   80.00       1.65          554.06
 test09_10  uct         random      10000   79.59       1.60         1063.20
 ---------------------------------------------------------------------------
+
+
+test00_10  aot123456789optimistic1234500  102.26       1.90          384.15
+test00_10  aot123456789random12345678500  103.19       1.95          435.55
+
+test00_10  aot         optimistic    500  102.26       1.90          384.15
+test01_10  aot         optimistic    500   99.13       1.10          319.93
+test02_10  aot         optimistic    500  116.55       1.53          588.52
+test03_10  aot         optimistic    500   52.56       1.37          545.12
+test04_10  aot         optimistic    500   94.42       1.30          537.71
+test05_10  aot         optimistic    500   96.08       1.39          533.92
+test06_10  aot         optimistic    500   69.03       0.93          492.46
+test07_10  aot         optimistic    500   76.14       0.91          523.36
+test08_10  aot         optimistic    500   66.79       1.47          263.37
+test09_10  aot         optimistic    500   82.75       1.43          401.37
+
+test00_10  aot         random        500  103.19       1.95          435.55
+test01_10  aot         random        500   98.36       1.01          336.01
+test02_10  aot         random        500  125.39       1.68          659.63
+test03_10  aot         random        500   54.45       1.42          656.08
+test04_10  aot         random        500   90.08       1.22          584.82
+test05_10  aot         random        500  102.93       1.55          617.61
+test06_10  aot         random        500   69.93       1.06          584.82
+test07_10  aot         random        500   78.36       0.91          584.53
+test08_10  aot         random        500   66.78       1.44          325.70
+test09_10  aot         random        500   74.56       1.33          392.22
+
+test00_10  uct123456789optimistic1210000  106.10       1.94         1452.33
+test00_10  uct123456789random12345610000  108.47       1.96         1442.66
+
+test00_10  uct         optimistic  10000  106.10       1.94         1452.33
+test01_10  uct         optimistic  10000   97.94       1.06         1176.73
+test02_10  uct         optimistic  10000  118.75       1.57         1601.90
+test03_10  uct         optimistic  10000   53.66       1.41         1041.98
+test04_10  uct         optimistic  10000   89.33       1.20         1469.74
+test05_10  uct         optimistic  10000  105.43       1.74         1952.97
+test06_10  uct         optimistic  10000   74.57       0.99         1510.07
+test07_10  uct         optimistic  10000   81.82       0.94         2039.83
+test08_10  uct         optimistic  10000   68.18       1.57          709.94
+test09_10  uct         optimistic  10000   75.21       1.46         1089.68
+
+test00_10  uct         random      10000  108.47       1.96         1442.66
+test01_10  uct         random      10000  101.13       1.12         1176.30
+test02_10  uct         random      10000  127.15       1.68         1524.76
+test03_10  uct         random      10000   55.96       1.48          971.73
+test04_10  uct         random      10000   91.31       1.30         1447.67
+test05_10  uct         random      10000  121.49       1.84         2029.13
+test06_10  uct         random      10000   83.99       1.47         1523.22
+test07_10  uct         random      10000  107.14       1.20         2157.14
+test08_10  uct         random      10000   71.59       1.72          736.34
+test09_10  uct         random      10000   79.59       1.60         1063.20
+
+

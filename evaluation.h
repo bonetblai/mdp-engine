@@ -124,7 +124,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
     } else if( policy_type == "naot" ) {
         ss << "naot(" << base_str
            << ",width=" << par.width_
@@ -160,7 +160,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
     } else {
         ss << "<inexistent-policy-type>";
     }
