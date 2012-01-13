@@ -30,7 +30,6 @@
 
 //#define DEBUG
 #define USE_BDD_PQ
-#define RANDOM_STRATEGY
 
 namespace Policy {
 
@@ -109,8 +108,7 @@ template<typename T> struct state_node_t : public node_t<T> {
     std::vector<action_node_t<T>*> children_;
 
     state_node_t(const T &state, unsigned depth = 0)
-      : state_(state),
-        is_goal_(false), is_dead_end_(false),
+      : state_(state), is_goal_(false), is_dead_end_(false),
         depth_(depth), best_action_(Problem::noop) { }
     virtual ~state_node_t() { }
 
@@ -257,6 +255,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned expansions_per_iteration_;
     unsigned leaf_nsamples_;
     unsigned delayed_evaluation_nsamples_;
+    int leaf_selection_strategy_;
     mutable unsigned num_nodes_;
     mutable hash_t<T> table_;
 
@@ -270,9 +269,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     mutable float from_inside_;
     mutable float from_outside_;
 
-#ifdef RANDOM_STRATEGY
-    mutable node_t<T> *random_leaf_;
-#endif
+    mutable node_t<T> *random_leaf_; // only used for random leaf selection strategy
 
     mutable unsigned total_number_expansions_;
     mutable unsigned total_evaluations_;
@@ -292,7 +289,8 @@ template<typename T> class aot_t : public improvement_t<T> {
           bool delayed_evaluation,
           unsigned expansions_per_iteration,
           unsigned leaf_nsamples,
-          unsigned delayed_evaluation_nsamples)
+          unsigned delayed_evaluation_nsamples,
+          int leaf_selection_strategy)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
@@ -301,6 +299,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         expansions_per_iteration_(expansions_per_iteration),
         leaf_nsamples_(leaf_nsamples),
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
+        leaf_selection_strategy_(leaf_selection_strategy),
         num_nodes_(0),
 #ifdef USE_BDD_PQ
         inside_bdd_priority_queue_(expansions_per_iteration),
@@ -308,12 +307,11 @@ template<typename T> class aot_t : public improvement_t<T> {
 #endif
         from_inside_(0),
         from_outside_(0),
-#ifdef RANDOM_STRATEGY
         random_leaf_(0),
-#endif
         total_number_expansions_(0),
         total_evaluations_(0) {
-        set_node_selection_strategy(0);
+        clear_leaf_selection_strategy();
+        set_leaf_selection_strategy(leaf_selection_strategy_);
     }
     virtual ~aot_t() { }
 
@@ -362,7 +360,8 @@ template<typename T> class aot_t : public improvement_t<T> {
                          delayed_evaluation_,
                          expansions_per_iteration_,
                          leaf_nsamples_,
-                         delayed_evaluation_nsamples_);
+                         delayed_evaluation_nsamples_,
+                         leaf_selection_strategy_);
     }
 
     virtual void print_stats(std::ostream &os) const {
@@ -593,13 +592,18 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // abstraction of selection strategy
-    void set_node_selection_strategy(int strategy) {
-        if( strategy == 0 ) {
-            delta_setup_selection_strategy();
-        } else if( strategy == 1 ) {
-#ifdef RANDOM_STRATEGY
+    void clear_leaf_selection_strategy() {
+        setup_expansion_loop_ptr_ = 0;
+        prepare_next_expansion_iteration_ptr_ = 0;
+        exist_nodes_to_expand_ptr_ = 0;
+        select_node_for_expansion_ptr_ = 0;
+        clear_internal_state_ptr_ = 0;
+    }
+    void set_leaf_selection_strategy(int strategy) {
+        if( strategy == 1 ) {
             random_setup_selection_strategy();
-#endif
+        } else {
+            delta_setup_selection_strategy();
         }
     }
 
@@ -900,7 +904,6 @@ template<typename T> class aot_t : public improvement_t<T> {
         return node;
     }
 
-#ifdef RANDOM_STRATEGY
     // selection strategy based on random selection
     void random_setup_selection_strategy() {
         setup_expansion_loop_ptr_ = &aot_t::random_setup_expansion_loop;
@@ -941,7 +944,6 @@ template<typename T> class aot_t : public improvement_t<T> {
     void random_clear_internal_state() const {
         random_leaf_ = 0;
     }
-#endif
 
 };
 
@@ -955,7 +957,8 @@ inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
                                    bool delayed_evaluation = true,
                                    unsigned expansions_per_iteration = 100,
                                    unsigned leaf_nsamples = 1,
-                                   unsigned delayed_evaluation_nsamples = 1) {
+                                   unsigned delayed_evaluation_nsamples = 1,
+                                   int leaf_selection_strategy = 0) {
     return new AOT::aot_t<T>(base_policy,
                              width,
                              depth_bound,
@@ -963,7 +966,8 @@ inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
                              delayed_evaluation,
                              expansions_per_iteration,
                              leaf_nsamples,
-                             delayed_evaluation_nsamples);
+                             delayed_evaluation_nsamples,
+                             leaf_selection_strategy);
 }
 
 }; // namespace Policy
