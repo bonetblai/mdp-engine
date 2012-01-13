@@ -16,7 +16,6 @@
 #include "dispatcher.h"
 
 #define DISCOUNT 1.00
-#define SCALE 1.00
 
 #define WORDS_FOR_NODES 4 // max. 128 nodes
 #define WORDS_FOR_EDGES 9 // max. 288 edges
@@ -717,12 +716,13 @@ class problem_with_hidden_state_t : public problem_t {
 
 
 class min_min_t : public Heuristic::heuristic_t<state_t> {
+    float multiplier_;
   public:
-    min_min_t() { }
+    min_min_t(float multiplier = 1.0) : multiplier_(multiplier) { }
     virtual ~min_min_t() { }
     virtual float value(const state_t &s) const {
         s.compute_heuristic();
-        return (float)s.heuristic_ * SCALE;
+        return (float)s.heuristic_ * multiplier_;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
@@ -732,12 +732,25 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
     float operator()(const state_t &s) const { return value(s); }
 };
 
+class zero_heuristic_t: public Heuristic::heuristic_t<state_t> {
+  public:
+    zero_heuristic_t() { }
+    virtual ~zero_heuristic_t() { }
+    virtual float value(const state_t &s) const { return 0; }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
 
 class optimistic_policy_t : public Policy::policy_t<state_t> {
     const CTP::graph_t &graph_;
+    float multiplier_;
   public:
-    optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph)
-      : Policy::policy_t<state_t>(problem), graph_(graph) { }
+    optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph, float multiplier = 1.0)
+      : Policy::policy_t<state_t>(problem), graph_(graph), multiplier_(multiplier) { }
     virtual ~optimistic_policy_t() { }
     virtual Problem::action_t operator()(const state_t &s) const {
         float best_cost = FLT_MAX;
@@ -745,7 +758,7 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
         for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
             if( problem().applicable(s, a) ) {
                 float cost = problem().cost(s, a);
-                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true) * SCALE;
+                cost += graph_.bfs(a, graph_.num_nodes_ - 1, s.info_.known_, s.info_.blocked_, true) * multiplier_;
                 if( cost < best_cost ) {
                     best_cost = cost;
                     best_action = a;

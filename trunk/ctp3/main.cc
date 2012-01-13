@@ -141,10 +141,20 @@ int main(int argc, const char **argv) {
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( h == 1 ) {
+    if( (h == 1) || (h == 11) ) {
         heuristic = new min_min_t;
-    } else if( h == 2 ) {
-        heuristic = new min_min_t;
+        if( h == 11 ) {
+            Policy::AOT::global_heuristic = heuristic;
+            Policy::AOT2::global_heuristic = heuristic;
+        }
+    } else if( (h == 2) || (h == 12) ) {
+        heuristic = new min_min_t(0.5);
+        if( h == 12 ) {
+            Policy::AOT::global_heuristic = heuristic;
+            Policy::AOT2::global_heuristic = heuristic;
+        }
+    } else if( h == 10 ) {
+        heuristic = new zero_heuristic_t;
         Policy::AOT::global_heuristic = heuristic;
         Policy::AOT2::global_heuristic = heuristic;
     }
@@ -178,6 +188,8 @@ int main(int argc, const char **argv) {
     bases.push_back(make_pair(&random, "random"));
     optimistic_policy_t optimistic(problem, graph);
     bases.push_back(make_pair(&optimistic, "optimistic"));
+    optimistic_policy_t optimistic_half_scaled(problem, graph, 0.5);
+    bases.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
 
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
