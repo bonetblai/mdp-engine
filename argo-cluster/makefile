@@ -2,7 +2,9 @@ all:
 	@rm -f tasks.zip
 	@#./generate-ctp2
 	@#./generate-ctp3-paper
-	@./generate-ctp3-paper-2
+	@#./generate-ctp3-paper-2
+	@#./generate-ctp3-paper-3
+	@./generate-ctp3-paper-4
 	@#./generate-race
 	@#./generate-race-paper
 	@#./generate-rect
