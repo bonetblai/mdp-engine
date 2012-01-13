@@ -552,6 +552,7 @@ class problem_t : public Problem::problem_t<state_t> {
     const state_t init_;
     int start_, goal_;
     mutable int max_branching_;
+    mutable float avg_branching_;
     bool use_cache_;
     mutable next_cache_t next_cache_;
 
@@ -559,7 +560,7 @@ class problem_t : public Problem::problem_t<state_t> {
     problem_t(CTP::graph_t &graph, bool use_cache = false, unsigned cache_size = (int)1e4)
       : Problem::problem_t<state_t>(DISCOUNT, (int)1e3), // change dead_end_value
         graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1),
-        max_branching_(0), use_cache_(use_cache) {
+        max_branching_(0), avg_branching_(0), use_cache_(use_cache) {
         next_cache_.initialize(graph.num_nodes_, cache_size);
     }
     virtual ~problem_t() { }
@@ -617,6 +618,8 @@ class problem_t : public Problem::problem_t<state_t> {
             }
         }
         max_branching_ = (1<<k) > max_branching_ ? (1<<k) : max_branching_;
+        avg_branching_ = (expansions_ - 1) * avg_branching_ + (float)(1<<k);
+        avg_branching_ /= (float)expansions_;
 
         // generate subsets of unknowns edges and update weathers
         outcomes.clear();
