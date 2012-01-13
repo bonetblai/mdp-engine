@@ -230,6 +230,7 @@ int main(int argc, const char **argv) {
         }
         cout << endl;
         cout << "max-branching=" << problem.max_branching_ << endl;
+        cout << "avg-branching=" << problem.avg_branching_ << endl;
         state_t::print_stats(cout);
         problem.print_stats(cout);
 
