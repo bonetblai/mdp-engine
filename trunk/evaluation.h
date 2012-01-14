@@ -50,6 +50,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
                 std::vector<std::pair<const Policy::policy_t<T>*, std::string> > bases,
                 const parameters_t &par) {
 
+    std::stringstream ss;
+
     // locate base policy
     const Policy::policy_t<T> *base = 0;
     std::string base_str = base_name;
@@ -59,11 +61,13 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
             break;
         }
     }
-    if( base == 0 ) return std::make_pair(base, "<inexistent-base>");
+    if( base == 0 ) {
+        ss << "inexistent base: " << base_name;
+        return std::make_pair(base, ss.str());
+    }
 
     // make compound policy
     const Policy::policy_t<T> *policy = 0;
-    std::stringstream ss;
 
     if( policy_type == "direct" ) {
         policy = base->clone();
@@ -162,7 +166,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         policy =
           Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
     } else {
-        ss << "<inexistent-policy-type>";
+        ss << "inexistent policy: " << policy_type;
     }
 
     return std::make_pair(policy, ss.str());
