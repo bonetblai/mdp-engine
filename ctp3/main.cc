@@ -52,6 +52,9 @@ int main(int argc, const char **argv) {
     bool formatted = false;
     int shortcut_cost = (int)5e3;
 
+    int calculate_feature = 0;
+    int calculate_nsamples = 0;
+
     string base_name;
     string policy_type;
     Evaluation::parameters_t eval_pars;
@@ -79,6 +82,12 @@ int main(int argc, const char **argv) {
                 shortcut_cost = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
+                break;
+            case 'C':
+                calculate_feature = strtol(argv[1], 0, 0);
+                calculate_nsamples = strtol(argv[2], 0, 0);
+                argv += 3;
+                argc -= 3;
                 break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
@@ -137,7 +146,16 @@ int main(int argc, const char **argv) {
     Random::seeds(alg_pars.seed_);
     state_t::initialize(graph, false, (int)5e5);
     problem_t problem(graph, false, (int)5e5);
-    cout << "P(bad weather)=" << probability_bad_weather(graph, (int)1e5) << endl;
+
+    if( (calculate_feature & 0x1) == 1 ) {
+        float probability = probability_bad_weather(graph, calculate_nsamples);
+        cout << "P(bad weather)=" << probability << endl;
+    }
+    if( (calculate_feature & 0x2) == 2 ) {
+        pair<float, float> p = branching_factor(problem, calculate_nsamples);
+        cout << "avg-branching=" << p.first << endl;
+        cout << "max-branching=" << p.second << endl;
+    }
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -241,8 +259,6 @@ int main(int argc, const char **argv) {
             cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
-        cout << "max-branching=" << problem.max_branching_ << endl;
-        cout << "avg-branching=" << problem.avg_branching_ << endl;
         state_t::print_stats(cout);
         problem.print_stats(cout);
 
@@ -266,6 +282,8 @@ int main(int argc, const char **argv) {
              << " ( " << Utils::read_time_in_seconds() - start_time
              << " secs)" << std::endl;
         policy.first->print_stats(cout);
+    } else {
+        cout << "error: " << policy.second << endl;
     }
 
     // free resources

@@ -774,7 +774,8 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
 };
 
 
-inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
+inline
+void sample_weather(const CTP::graph_t &graph, state_t &state) {
     state.clear();
     int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
     for( int e = 0; e < num_edges; ++e ) {
@@ -788,8 +789,8 @@ inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
     if( graph.with_shortcut_ ) state.info_.set_edge_status(graph.num_edges_ - 1, true);
 }
 
-inline float probability_bad_weather(const CTP::graph_t &graph,
-                                     unsigned nsamples) {
+inline
+float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
     float prob = 0;
     state_t weather(0);
     for( unsigned i = 0; i < nsamples; ++i ) {
@@ -800,4 +801,20 @@ inline float probability_bad_weather(const CTP::graph_t &graph,
     return prob / nsamples;
 }
 
+inline
+std::pair<float, float> branching_factor(const problem_t &problem, unsigned nsamples) {
+    Policy::random_t<state_t> random_policy(problem);
+    for( unsigned i = 0; i < nsamples; ++i ) {
+        state_t s = problem.init();
+        while( !problem.terminal(s) ) {
+            Problem::action_t a = random_policy(s);
+            if( a == Problem::noop ) break;
+            std::pair<state_t, bool> p = problem.sample(s, a);
+            s = p.first;
+        }
+    }
+    float avg = problem.avg_branching_;
+    float max = problem.max_branching_;
+    return std::make_pair(avg, max);
+}
 
