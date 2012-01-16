@@ -10,7 +10,7 @@
 #include "rollout.h"
 #include "dispatcher.h"
 
-#define DISCOUNT .95
+#define DISCOUNT .99
 
 class state_t {
     short x_;
