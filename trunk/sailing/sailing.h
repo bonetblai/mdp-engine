@@ -173,3 +173,35 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
     return os;
 }
 
+class scaled_heuristic_t : public Heuristic::heuristic_t<state_t> {
+    const Heuristic::heuristic_t<state_t> *h_;
+    float multiplier_;
+  public:
+    scaled_heuristic_t(const Heuristic::heuristic_t<state_t> *h, float multiplier = 1.0)
+      : h_(h), multiplier_(multiplier) { }
+    virtual ~scaled_heuristic_t() { }
+    virtual float value(const state_t &s) const {
+        return h_->value(s) * multiplier_;
+    }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
+
+class zero_heuristic_t: public Heuristic::heuristic_t<state_t> {
+  public:
+    zero_heuristic_t() { }
+    virtual ~zero_heuristic_t() { }
+    virtual float value(const state_t &s) const { return 0; }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
+};
+
+

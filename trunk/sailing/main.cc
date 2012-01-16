@@ -2,11 +2,22 @@
 #include <strings.h>
 #include <vector>
 
+#define EXPERIMENT
+
 #include "sailing.h"
 
 #include "../evaluation.h"
 
 using namespace std;
+
+namespace Policy {
+  namespace AOT {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
+  namespace AOT2 {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
+};
 
 void usage(ostream &os) {
     os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <dim>"
@@ -121,10 +132,23 @@ int main(int argc, const char **argv) {
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( h == 1 ) {
+    if( (h == 1) || (h == 11) ) {
         heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
-    } else if( h == 2 ) {
-        //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
+        if( h == 11 ) {
+            Policy::AOT::global_heuristic = heuristic;
+            Policy::AOT2::global_heuristic = heuristic;
+        }
+    } else if( (h == 2) || (h == 12) ) {
+        Heuristic::heuristic_t<state_t> *base = new Heuristic::min_min_heuristic_t<state_t>(problem);
+        heuristic = new scaled_heuristic_t(base, 0.5);
+        if( h == 12 ) {
+            Policy::AOT::global_heuristic = heuristic;
+            Policy::AOT2::global_heuristic = heuristic;
+        }
+    } else if( h == 10 ) {
+        heuristic = new zero_heuristic_t;
+        Policy::AOT::global_heuristic = heuristic;
+        Policy::AOT2::global_heuristic = heuristic;
     }
 
     // solve problem with algorithms
