@@ -556,8 +556,8 @@ class problem_t : public Problem::problem_t<state_t> {
     mutable next_cache_t next_cache_;
 
   public:
-    problem_t(CTP::graph_t &graph, bool use_cache = false, unsigned cache_size = (int)1e4)
-      : Problem::problem_t<state_t>(DISCOUNT, (int)1e3), // change dead_end_value
+    problem_t(CTP::graph_t &graph, float dead_end_value = 1e3, bool use_cache = false, unsigned cache_size = (int)1e4)
+      : Problem::problem_t<state_t>(DISCOUNT, dead_end_value),
         graph_(graph), init_(-1), start_(0), goal_(graph_.num_nodes_ - 1),
         max_branching_(0), avg_branching_(0), use_cache_(use_cache) {
         next_cache_.initialize(graph.num_nodes_, cache_size);
@@ -670,7 +670,8 @@ class problem_with_hidden_state_t : public problem_t {
     mutable state_t hidden_;
 
   public:
-    problem_with_hidden_state_t(CTP::graph_t &graph) : problem_t(graph) { }
+    problem_with_hidden_state_t(CTP::graph_t &graph, float dead_end_value)
+      : problem_t(graph, dead_end_value) { }
     virtual ~problem_with_hidden_state_t() { }
 
     void set_hidden(state_t &hidden) const {

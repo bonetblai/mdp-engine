@@ -51,6 +51,7 @@ int main(int argc, const char **argv) {
     int h = 0;
     bool formatted = false;
     int shortcut_cost = (int)5e3;
+    float dead_end_value = 1e3;
 
     int calculate_feature = 0;
     int calculate_nsamples = 0;
@@ -88,6 +89,11 @@ int main(int argc, const char **argv) {
                 calculate_nsamples = strtol(argv[2], 0, 0);
                 argv += 3;
                 argc -= 3;
+                break;
+            case 'd':
+                dead_end_value = strtod(argv[1], 0);
+                argv += 2;
+                argc -= 2;
                 break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
@@ -145,7 +151,7 @@ int main(int argc, const char **argv) {
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::seeds(alg_pars.seed_);
     state_t::initialize(graph, false, (int)5e5);
-    problem_t problem(graph, false, (int)5e5);
+    problem_t problem(graph, dead_end_value, false, (int)5e5);
 
     if( (calculate_feature & 0x1) == 1 ) {
         float probability = probability_bad_weather(graph, calculate_nsamples);
@@ -212,7 +218,7 @@ int main(int argc, const char **argv) {
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
     if( policy.first != 0 ) {
-        problem_with_hidden_state_t pwhs(graph);
+        problem_with_hidden_state_t pwhs(graph, dead_end_value);
         vector<int> distances;
         vector<float> values;
         values.reserve(eval_pars.evaluation_trials_);
@@ -238,6 +244,7 @@ int main(int argc, const char **argv) {
             float cost = 0;
             state_t state = pwhs.init();
             while( (steps < eval_pars.evaluation_depth_) && !pwhs.terminal(state) ) {
+                assert(!state.is_dead_end());
                 //cout << "state=" << state << " " << (state.is_dead_end() ? 1 : 0) << endl;
                 //cout << "dist=" << state.distances_ << endl;
                 Problem::action_t action = (*policy.first)(state);
@@ -259,6 +266,8 @@ int main(int argc, const char **argv) {
             cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
+        cout << "max-branching=" << problem.max_branching_ << endl;
+        cout << "avg-branching=" << problem.avg_branching_ << endl;
         state_t::print_stats(cout);
         problem.print_stats(cout);
 
