@@ -20,7 +20,7 @@
 
 #define USE_COW_COMPONENTS // use copy-no-write belief components
 
-#define POS_MASK     32767
+#define POS_MASK     16383
 #define POS_SHIFT    14
 #define STATUS_SHIFT 28
 
@@ -77,8 +77,14 @@ struct belief_component_t {
     unsigned hash() const {
         return vector_->hash();
     }
-    float hvalue() const {
-        return 0;
+    float value() const {
+        int value = 0;
+        for( int i = 0; i < vector_->size(); ++i ) {
+            unsigned sample = (*vector_)[i];
+            int status = (sample >> STATUS_SHIFT) & 0x1;
+            value += 1 - status;
+        }
+        return value;
     }
 
     int nrefs() const {
@@ -133,7 +139,7 @@ struct belief_component_t {
         return *vector_ != *bc.vector_;
     }
 
-    void apply_move(int rows, int cols, int dx, int dy, belief_component_t &result, bool non_det = false) const {
+    void apply_move(int rows, int cols, int drow, int dcol, belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < vector_->size(); ++i ) {
             unsigned sample = (*vector_)[i];
@@ -143,7 +149,7 @@ struct belief_component_t {
             assert((type_ == GOLD) || (status == 0));
 
             int row = pos & 127, col = pos >> 7;
-            int nrow = row + dx, ncol = col + dy;
+            int nrow = row + drow, ncol = col + dcol;
             if( (nrow < 0) || (nrow >= rows) ) nrow = row;
             if( (ncol < 0) || (ncol >= cols) ) ncol = col;
             int new_pos = (ncol << 7) | nrow;
@@ -252,6 +258,13 @@ struct state_t {
         return value;
     }
 
+    unsigned ub_size() const {
+        unsigned size = 1;
+        for( unsigned i = 0; i < components_.size(); ++i )
+            size *= components_[i].size();
+        return size;
+    }
+
     void clear() {
         for( unsigned i = 0; i < components_.size(); ++i )
             components_[i].clear();
@@ -272,13 +285,13 @@ struct state_t {
         result.clear();
         for( unsigned i = 0; i < components_.size(); ++i ) {
             if( action == MOVE_UP ) {
-                components_[i].apply_move(rows_, cols_, 0, 1, result.components_[i], non_det);
-            } else if( action == MOVE_RIGHT ) {
                 components_[i].apply_move(rows_, cols_, 1, 0, result.components_[i], non_det);
+            } else if( action == MOVE_RIGHT ) {
+                components_[i].apply_move(rows_, cols_, 0, 1, result.components_[i], non_det);
             } else if( action == MOVE_DOWN ) {
-                components_[i].apply_move(rows_, cols_, 0, -1, result.components_[i], non_det);
-            } else if( action == MOVE_LEFT ) {
                 components_[i].apply_move(rows_, cols_, -1, 0, result.components_[i], non_det);
+            } else if( action == MOVE_LEFT ) {
+                components_[i].apply_move(rows_, cols_, 0, -1, result.components_[i], non_det);
             } else if( action == GRAB_GOLD ) {
                 components_[i].apply_grab_gold(result.components_[i], non_det);
             }
@@ -330,15 +343,24 @@ struct problem_t : public Problem::problem_t<state_t> {
     int cols_;
     int npits_;
     int nwumpus_;
-    bool non_det_;
     bool contingent_;
+    bool non_det_;
     state_t init_;
 
-    problem_t(int rows, int cols, int npits, int nwumpus, bool non_det = false, bool contingent = false)
+    problem_t(int rows, int cols, int npits, int nwumpus, bool contingent = true, bool non_det = false)
       : Problem::problem_t<state_t>(DISCOUNT),
         rows_(rows), cols_(cols), npits_(npits), nwumpus_(nwumpus),
-        non_det_(non_det), contingent_(contingent) {
+        contingent_(contingent), non_det_(non_det) {
+
         // set initial belief
+        int pos = 0;
+        for( int gold = 1; gold < rows_ * cols_; ++gold ) {
+            int grow = gold / cols_, gcol = gold % cols_;
+            int gold_pos = (gcol << 7) | grow;
+            int sample = (gold_pos << POS_SHIFT) | pos;
+            init_.components_[0].insert(sample);
+        }
+
 #if 0 // TODO: fix this!
         for( int window = 0; window < dim_; ++window) {
             init_.components_[window].reserve(2 * dim_);
@@ -354,6 +376,7 @@ struct problem_t : public Problem::problem_t<state_t> {
             }
         }
 #endif
+
         std::cout << "Initial Belief:" << std::endl << init_ << std::endl;
     }
     virtual ~problem_t() { }
@@ -385,7 +408,7 @@ struct problem_t : public Problem::problem_t<state_t> {
         state_t next;
         s.apply(a, next, non_det_);
 
-        if( !contingent_ ) {
+        if( !contingent_ || (a == GRAB_GOLD) ) {
             outcomes.reserve(1);
             outcomes.push_back(std::make_pair(next, 1));
             //std::cout << "    " << next << " w.p. " << 1 << std::endl;
@@ -406,6 +429,46 @@ struct problem_t : public Problem::problem_t<state_t> {
     }
     virtual void print(std::ostream &os) const { }
 
+    void sample_state(state_t &state) const {
+        state.clear();
+        int pos = 0;
+        int gold = Random::uniform(1, rows_ * cols_);
+        int grow = gold / cols_, gcol = gold % cols_;
+        int gold_pos = (gcol << 7) | grow;
+        int sample = (gold_pos << POS_SHIFT) | pos;
+        state.components_[0].insert(sample);
+        // TODO: fix this!
+    }
+
+    void apply(state_t &s, state_t &hidden, Problem::action_t a) const {
+        ++expansions_;
+        state_t nstate, nstate_hidden;
+        s.apply(a, nstate, non_det_);
+        hidden.apply(a, nstate_hidden, non_det_);
+        assert(nstate_hidden.ub_size() == 1);
+
+        if( !contingent_ ) {
+            s = nstate;
+            hidden = nstate_hidden;
+        } else {
+            bool found_compatible_obs = false;
+            for( int obs = 0; obs < 8; ++obs ) {
+                state_t filtered, filtered_hidden;
+                nstate.filter(obs, filtered);
+                nstate_hidden.filter(obs, filtered_hidden);
+                if( filtered_hidden.alive() ) {
+                    assert(filtered.alive());
+                    s = filtered;
+                    hidden = filtered_hidden;
+                    found_compatible_obs = true;
+                    break;
+                }
+            }
+            assert(found_compatible_obs);
+        }
+        assert(hidden.ub_size() == 1);
+    }
+
 };
 
 struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
@@ -413,11 +476,7 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     probability_heuristic_t() { }
     virtual ~probability_heuristic_t() { }
     virtual float value(const state_t &s) const {
-        float value = 0;
-        for( unsigned i = 0; i < s.components_.size(); ++i ) {
-            value += s.components_[i].hvalue();
-        }
-        return value;
+        return s.components_[0].value();
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
@@ -426,4 +485,5 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual void dump(std::ostream &os) const { }
     float operator()(const state_t &s) const { return value(s); }
 };
+
 
