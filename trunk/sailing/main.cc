@@ -176,6 +176,10 @@ int main(int argc, const char **argv) {
         Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
     }
+    if( heuristic != 0 ) {
+        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        bases.push_back(make_pair(greedy.clone(), "greedy-scaled"));
+    }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
