@@ -202,13 +202,14 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
+    assert(!policy.problem().dead_end(state));
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
         //std::cout << "s=" << state << std::flush;
         Problem::action_t action = policy(state);
         //std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
             //std::cout << "no applicable action" << std::endl;
-            return policy.problem().dead_end_value();
+            return cost + policy.problem().dead_end_value();
         }
         assert(policy.problem().applicable(state, action));
         std::pair<T, bool> p = policy.problem().sample(state, action);
@@ -216,6 +217,9 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
         discount *= policy.problem().discount();
         state = p.first;
         ++steps;
+        if( policy.problem().dead_end(state) ) {
+            return cost + policy.problem().dead_end_value();
+        }
     }
     return cost;
 }

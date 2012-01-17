@@ -136,6 +136,7 @@ template<typename T> class problem_t {
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
+        assert(osize > 0);
 
         float r = Random::real();
         for( unsigned i = 0; i < osize; ++i ) {
