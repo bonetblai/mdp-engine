@@ -5,28 +5,26 @@ import re
 
 problem = "sailing"
 microtask_number = 1
-microtask_file = problem + "_mutask20_"
+microtask_file = problem + "_mutask21_"
 
 tasks = [
-    8,
-    16,
-    32,
-    64,
-    128,
+    20,
+    50,
+    100,
 ]
 
 policies = [
     "random uct",
-    "greedy uct",
+    #"greedy uct",
     "random aot",
-    "greedy aot",
+    #"greedy aot",
 ]
 
 rollout_widths = [ 10, 100 ]
 uct_widths = [ 1, 5, 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0 ]
 aot_widths = [ 1, 5, 10, 50, 100, 500, 1000, 5000, 10000 ]
-aot_nexp = [ 1, 5, 10, 50, 100, 500, 1000 ]
+aot_nexp = [ 1, .5, .1 ]
 aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
 aot_parameters = [ 0.5 ]
 
@@ -49,7 +47,7 @@ def close_file(f):
 
 for t in tasks:
     task = str(t)
-    depth = t / 2
+    depth = 100
     for p in policies:
         if p == "optimal direct" or p == "greedy direct" or p == "random direct":
             f = open_file()
@@ -72,33 +70,41 @@ for t in tasks:
         elif p == "random aot" or p == "greedy aot":
             for width in aot_widths:
                 for par in aot_parameters:
-                    for nexp in aot_nexp:
-                        f = open_file()
-                        f.write(task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
         elif p == "random aot*" or p == "greedy aot*":
             for width in aot_widths:
                 for par in aot_parameters:
-                    for nexp in aot_nexp:
-                        f = open_file()
-                        f.write(task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
         elif p == "random aot-random" or p == "greedy aot-random":
             for width in aot_random_widths:
                 for par in aot_parameters:
-                    for nexp in aot_random_nexp:
-                        f = open_file()
-                        f.write(task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
         elif p == "heuristic aot-value":
             for width in aot_widths:
                 for par in aot_parameters:
-                    for nexp in aot_nexp:
-                        f = open_file()
-                        f.write('-h 2 ' + task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write('-h 12 ' + task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
 

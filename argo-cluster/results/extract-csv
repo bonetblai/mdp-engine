@@ -11,7 +11,7 @@ mkdir -p data
 if [ "$domain" == "race" -o "$domain" == "ctp2" -o "$domain" == "ctp3" ]; then
     FILES=`grep -l $problem raw/*/output.*`
 else
-    FILES=`grep $domain raw/*/output.* | nawk '{ if( $9 == problem ) print $1; }' problem=$problem | cut -f1 -d:`
+    FILES=`grep $domain raw/*/output.* | awk '{ if( $9 == problem ) print $1; }' problem=$problem | cut -f1 -d:`
 fi
 
 if [ "$FILES" == "" ]; then
@@ -22,7 +22,7 @@ fi
 
 # extract data from files
 grep -h "secs)" $FILES |
-  nawk 'BEGIN { FS="[=,() ]"; } \
+  awk 'BEGIN { FS="[=,() ]"; } \
              { if( $1 == "optimal" || $1 == "greedy" || $1 == "random" ) {
                    printf "%s,%s,%s,NA,NA,NA,NA,NA,%s,%s,%s\n",domain,problem,$1,$3,$4,$7;
                } else if( $1 == "ao3" || $1 == "ao4" || $1 == "aot" || $1 == "aot*" || $1 == "aot-random" || $1 == "aot-value" || $1 == "aot2" || $1 == "aot-value2" ) {
