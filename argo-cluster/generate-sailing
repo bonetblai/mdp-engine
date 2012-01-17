@@ -21,9 +21,9 @@ policies = [
 ]
 
 rollout_widths = [ 10, 100 ]
-uct_widths = [ 1, 5, 10, 50, 100, 500, 1000, 5000, 10000 ]
+uct_widths = [ 1, 5, 10, 50, 100, 500, 1000 ]
 uct_parameters = [ 0 ]
-aot_widths = [ 1, 5, 10, 50, 100, 500, 1000, 5000, 10000 ]
+aot_widths = [ 1, 5, 10, 50, 100, 500, 1000 ]
 aot_nexp = [ 1, .5, .1 ]
 aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
 aot_parameters = [ 0.5 ]
