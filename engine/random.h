@@ -39,7 +39,13 @@ inline float real() {
 }
 
 inline unsigned uniform(unsigned max) {
+    assert(max > 0);
     return lrand48() % max;
+}
+
+inline unsigned uniform(unsigned min, unsigned max) {
+    assert(max - min > 0);
+    return min + uniform(max - min);
 }
 
 };
