@@ -76,6 +76,11 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
+            case 'D':
+                eval_pars.evaluation_depth_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
