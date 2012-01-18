@@ -44,6 +44,7 @@ template<typename T> class policy_t {
     }
     virtual ~policy_t() { }
     const Problem::problem_t<T>& problem() const { return problem_; }
+    unsigned decisions() const { return decisions_; }
     virtual Problem::action_t operator()(const T &s) const = 0;
     virtual const policy_t<T>* clone() const = 0;
     virtual void print_stats(std::ostream &os) const = 0;
