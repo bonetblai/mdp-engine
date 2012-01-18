@@ -1,0 +1,13 @@
+#!/bin/bash
+
+domain=$1
+problems=`../print-problems $domain`
+
+rm -fr data.csv data
+for p in $problems; do
+    echo "Extracting: $p"
+    ../extract-csv-2 $domain $p
+done
+
+cat ../header-2.csv data/* > data.csv
+
