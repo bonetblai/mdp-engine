@@ -4,8 +4,10 @@
 #echo phase0
 
 domain=$1
-if [ "$domain" == "ctp" -o "$domain" == "ctp2" -o "$domain" == "ctp3" ]; then
+if [ "$domain" == "ctp" -o "$domain" == "ctp2" ]; then
     problems=`grep -h $domain raw/*/output.* | awk '{ print $7 }' | sort | uniq`
+elif [ "$domain" == "ctp3" ]; then
+    problems=`grep -h $domain raw/*/output.* | awk '{ print $9 }' | sort | uniq`
 elif [ "$domain" == "sailing" ]; then
     problems=`grep -h $domain raw/*/output.* | awk '{ print $11 }' | sort | uniq`
 else
