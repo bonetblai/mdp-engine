@@ -92,21 +92,19 @@ for t in tasks:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
-                        if nexp == 0:
-                            nexp = 1
-                        f = open_file()
-                        f.write(task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
         elif p == "heuristic aot-value":
             for width in aot_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
-                        if nexp == 0:
-                            nexp = 1
-                        f = open_file()
-                        f.write('-h 12 ' + task + ' ' + p + ' ')
-                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                        close_file(f)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write('-h 12 ' + task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
 
