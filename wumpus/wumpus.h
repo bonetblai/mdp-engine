@@ -53,6 +53,28 @@ inline bool adjacent(int pos1, int pos2) {
         return false;
 }
 
+inline int calculate_new_pos(int pos, int drow, int dcol, int rows, int cols) {
+    int row = pos & 127, col = pos >> 7;
+    int nrow = row + drow, ncol = col + dcol;
+    if( (nrow < 0) || (nrow >= rows) ) nrow = row;
+    if( (ncol < 0) || (ncol >= cols) ) ncol = col;
+    return (ncol << 7) | nrow;
+}
+
+inline int calculate_new_pos(int pos, int a, int rows, int cols) {
+    if( a == MOVE_UP ) {
+        return calculate_new_pos(pos, 1, 0, rows, cols);
+    } else if( a == MOVE_RIGHT ) {
+        return calculate_new_pos(pos, 0, 1, rows, cols);
+    } else if( a == MOVE_DOWN ) {
+        return calculate_new_pos(pos, -1, 0, rows, cols);
+    } else if( a == MOVE_LEFT ) {
+        return calculate_new_pos(pos, 0, -1, rows, cols);
+    } else {
+        return pos;
+    }
+}
+
 #ifdef USE_COW_COMPONENTS
 
 namespace COW {
@@ -113,6 +135,16 @@ struct belief_component_t {
             unsigned sample = (*vector_)[i];
             int status = (sample >> STATUS_SHIFT) & 0x1;
             if( status == 0 ) return false;
+        }
+        return true;
+    }
+
+    bool safe_pos(int pos) const {
+        if( type_ == GOLD ) return true;
+        for( int i = 0; i < vector_->size(); ++i ) {
+            unsigned sample = (*vector_)[i];
+            int other_pos = (sample >> POS_SHIFT) & POS_MASK;
+            if( pos == other_pos ) return false;
         }
         return true;
     }
@@ -284,6 +316,14 @@ struct state_t {
     bool alive() const {
         for( unsigned i = 0; i < components_.size(); ++i ) {
             if( components_[i].empty() )
+                return false;
+        }
+        return true;
+    }
+
+    bool safe_pos(int pos) const {
+        for( unsigned i = 0; i < components_.size(); ++i ) {
+            if( !components_[i].safe_pos(pos) )
                 return false;
         }
         return true;
