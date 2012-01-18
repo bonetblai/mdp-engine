@@ -29,7 +29,7 @@ void usage(ostream &os) {
 
 int main(int argc, const char **argv) {
     int rows = 0, cols = 0, npits = 0, nwumpus = 0;
-    bool contingent = false;
+    bool contingent = true;
     bool non_det = false;
     unsigned bitmap = 0;
     int h = 0;
@@ -59,7 +59,7 @@ int main(int argc, const char **argv) {
                 argc -= 2;
                 break;
             case 'c':
-                contingent = true;
+                contingent = false;
                 ++argv;
                 --argc;
                 break;
@@ -195,12 +195,9 @@ int main(int argc, const char **argv) {
                 problem.apply(state, hidden, action);
                 cost += problem.cost(state, action);
                 if( state.dead_end() ) {
-                    cout << "DE: " << state << endl;
+                    //cout << "DE: " << state << endl;
                     cost += problem.dead_end_value();
                     break;
-                }
-                if( state.goal() ) {
-                    cout << "GOAL: " << state << endl;
                 }
                 ++steps;
             }
