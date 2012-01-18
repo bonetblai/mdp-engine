@@ -5,10 +5,12 @@ all:
 	@#./generate-ctp3-paper-2
 	@#./generate-ctp3-paper-3
 	@#./generate-ctp3-paper-4
+	@./generate-ctp3-paper-5
 	@#./generate-race
 	@#./generate-race-paper
 	@#./generate-rect
-	@./generate-sailing
+	@#./generate-sailing
+	@#./generate-sailing-2
 	@#./generate-tree
 	@#./generate-wet
 	@echo "#tasks=" `ls *_mutask*_* | wc -l`
