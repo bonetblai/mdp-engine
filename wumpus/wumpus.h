@@ -45,9 +45,9 @@ inline int abs(int x) {
 inline bool adjacent(int pos1, int pos2) {
     int row1 = pos1 & 127, col1 = pos1 >> 7;
     int row2 = pos2 & 127, col2 = pos2 >> 7;
-    if( (row1 == row2) || (abs(col1 - col2) == 1) )
+    if( (row1 == row2) && (abs(col1 - col2) == 1) )
         return true;
-    else if( (col1 == col2) || (abs(row1 - row2) == 1) )
+    else if( (col1 == col2) && (abs(row1 - row2) == 1) )
         return true;
     else
         return false;
@@ -177,6 +177,7 @@ struct belief_component_t {
     }
 
     void filter(int obs, belief_component_t &result) const {
+        //std::cout << "filter w/ obs=" << obs << std::endl;
         result.reserve(size());
         for( int i = 0; i < vector_->size(); ++i ) {
             int sample = (*vector_)[i];
@@ -207,10 +208,20 @@ struct belief_component_t {
 
             if( sample_alive ) result.insert(sample);
         }
+        //std::cout << "state="; print(std::cout); std::cout << std::endl << "filtd="; result.print(std::cout); std::cout << std::endl;
     }
 
     void print(std::ostream &os) const {
-        vector_->print(os);
+        os << "{";
+        for( int i = 0; i < vector_->size(); ++i ) {
+            int sample = (*vector_)[i];
+            int pos = sample & POS_MASK;
+            int row = pos & 127, col = pos >> 7;
+            int other_pos = (sample >> POS_SHIFT) & POS_MASK;
+            int orow = other_pos & 127, ocol = other_pos >> 7;
+            os << "(" << col << "," << row << "):(" << ocol << "," << orow << "),";
+        }
+        os << "}";
     }
 };
 
@@ -354,30 +365,50 @@ struct problem_t : public Problem::problem_t<state_t> {
 
         // set initial belief
         int pos = 0;
-        for( int gold = 1; gold < rows_ * cols_; ++gold ) {
-            int grow = gold / cols_, gcol = gold % cols_;
-            int gold_pos = (gcol << 7) | grow;
-            int sample = (gold_pos << POS_SHIFT) | pos;
-            init_.components_[0].insert(sample);
-        }
 
-#if 0 // TODO: fix this!
-        for( int window = 0; window < dim_; ++window) {
-            init_.components_[window].reserve(2 * dim_);
-            for( int agent_pos = 0; agent_pos < dim_; ++agent_pos ) {
-                for( int status = 0; status < 2; ++status ) {
-                    for( int key_pos = 0; key_pos < dim_; ++key_pos ) {
-                        int sample = status | (key_pos << 2) | (agent_pos << 10);
-                        init_.components_[window].insert(sample);
-                    }
-                    //int sample = status | (AGENT << 2) | (agent_pos << 10);
-                    //init_.components_[window].insert(sample);
-                }
+        // place gold
+        for( int gold = 0; gold < rows_ * cols_; ++gold ) {
+            int grow = gold / cols_, gcol = gold % cols_;
+            if( (grow != 0) || (gcol != 0) ) {
+                int gold_pos = (gcol << 7) | grow;
+                int sample = (gold_pos << POS_SHIFT) | pos;
+                init_.components_[0].insert(sample);
             }
         }
-#endif
 
-        std::cout << "Initial Belief:" << std::endl << init_ << std::endl;
+        // place pits
+        for( int i = 0; i < npits_; ++i ) {
+            for( int pit = 0; pit < rows_ * cols_; ++pit ) {
+                int prow = pit / cols_, pcol = pit % cols_;
+                if( (prow > 1) || (pcol > 1) || ((prow == 1) && (pcol == 1)) ) {
+                    int pit_pos = (pcol << 7) | prow;
+                    int sample = (pit_pos << POS_SHIFT) | pos;
+                    init_.components_[1 + i].insert(sample);
+                }
+            }
+            if( init_.components_[1+i].empty() ) {
+                std::cout << "error: can't place pit" << std::endl;
+                exit(1);
+            }
+        }
+
+        // place wumpuses
+        for( int i = 0; i < nwumpus_; ++i ) {
+            for( int wumpus = 0; wumpus < rows_ * cols_; ++wumpus ) {
+                int wrow = wumpus / cols_, wcol = wumpus % cols_;
+                if( (wrow > 1) || (wcol > 1) || ((wrow == 1) && (wcol == 1)) ) {
+                    int wumpus_pos = (wcol << 7) | wrow;
+                    int sample = (wumpus_pos << POS_SHIFT) | pos;
+                    init_.components_[1 + npits_ + i].insert(sample);
+                }
+            }
+            if( init_.components_[1 + npits_ + i].empty() ) {
+                std::cout << "error: can't place wumpus" << std::endl;
+                exit(1);
+            }
+        }
+
+        //std::cout << "Initial Belief:" << std::endl << init_ << std::endl;
     }
     virtual ~problem_t() { }
 
@@ -408,7 +439,7 @@ struct problem_t : public Problem::problem_t<state_t> {
         state_t next;
         s.apply(a, next, non_det_);
 
-        if( !contingent_ || (a == GRAB_GOLD) ) {
+        if( !contingent_ || (a == GRAB_GOLD) || next.dead_end() ) {
             outcomes.reserve(1);
             outcomes.push_back(std::make_pair(next, 1));
             //std::cout << "    " << next << " w.p. " << 1 << std::endl;
@@ -432,12 +463,41 @@ struct problem_t : public Problem::problem_t<state_t> {
     void sample_state(state_t &state) const {
         state.clear();
         int pos = 0;
+
+        // place gold
         int gold = Random::uniform(1, rows_ * cols_);
         int grow = gold / cols_, gcol = gold % cols_;
         int gold_pos = (gcol << 7) | grow;
         int sample = (gold_pos << POS_SHIFT) | pos;
         state.components_[0].insert(sample);
-        // TODO: fix this!
+
+        // place pits
+        for( int i = 0; i < npits_; ++i ) {
+            int pit = Random::uniform(rows_ * cols_);
+            int prow = pit / cols_, pcol = pit % cols_;
+            while( (pit == gold) ||
+                   ((prow <= 1) && (pcol <= 1) && ((prow != 1) || (pcol != 1))) ) {
+                pit = Random::uniform(rows_ * cols_);
+                prow = pit / cols_, pcol = pit % cols_;
+            }
+            int pit_pos = (pcol << 7) | prow;
+            int sample = (pit_pos << POS_SHIFT) | pos;
+            state.components_[1 + i].insert(sample);
+        }
+
+        // place wumpuses
+        for( int i = 0; i < nwumpus_; ++i ) {
+            int wumpus = Random::uniform(rows_ * cols_);
+            int wrow = wumpus / cols_, wcol = wumpus % cols_;
+            while( (wumpus == gold) ||
+                   ((wrow <= 1) && (wcol <= 1) && ((wrow != 1) || (wcol != 1))) ) {
+                wumpus = Random::uniform(rows_ * cols_);
+                wrow = wumpus / cols_, wcol = wumpus % cols_;
+            }
+            int wumpus_pos = (wcol << 7) | wrow;
+            int sample = (wumpus_pos << POS_SHIFT) | pos;
+            state.components_[1 + npits_ + i].insert(sample);
+        }
     }
 
     void apply(state_t &s, state_t &hidden, Problem::action_t a) const {
@@ -445,23 +505,31 @@ struct problem_t : public Problem::problem_t<state_t> {
         state_t nstate, nstate_hidden;
         s.apply(a, nstate, non_det_);
         hidden.apply(a, nstate_hidden, non_det_);
+        if( nstate.dead_end() || nstate_hidden.dead_end() ) {
+            s.clear();
+            hidden.clear();
+            return;
+        }
         assert(nstate_hidden.ub_size() == 1);
 
         if( !contingent_ ) {
             s = nstate;
             hidden = nstate_hidden;
         } else {
+            //std::cout << "n-hidden=" << nstate_hidden << std::endl;
             bool found_compatible_obs = false;
             for( int obs = 0; obs < 8; ++obs ) {
-                state_t filtered, filtered_hidden;
-                nstate.filter(obs, filtered);
+                state_t filtered_hidden;
                 nstate_hidden.filter(obs, filtered_hidden);
                 if( filtered_hidden.alive() ) {
-                    assert(filtered.alive());
-                    s = filtered;
+                    nstate.filter(obs, s);
+                    assert(s.alive());
                     hidden = filtered_hidden;
                     found_compatible_obs = true;
                     break;
+                } else {
+                    //std::cout << "obs=" << obs << std::endl;
+                    //std::cout << "fltd=" << filtered_hidden << std::endl;
                 }
             }
             assert(found_compatible_obs);
