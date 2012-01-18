@@ -289,7 +289,7 @@ int main(int argc, const char **argv) {
              << "= " << setprecision(5) << avg
              << " " << stdev << setprecision(2)
              << " ( " << Utils::read_time_in_seconds() - start_time
-             << " secs)" << std::endl;
+             << " secs " << policy.first->decisions() << " decisions)" << std::endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;
