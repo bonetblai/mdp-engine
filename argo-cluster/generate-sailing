@@ -10,7 +10,7 @@ microtask_file = problem + "_mutask21_"
 tasks = [
     20,
     50,
-    100,
+    #100,
 ]
 
 policies = [
@@ -33,7 +33,7 @@ def open_file():
     f.write('#!/usr/bin/env python\n')
     f.write('import os\n')
     f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
-    f.write('cmd = "./' + problem + '  -f -a 0 -h 1 -s 0 ')
+    f.write('cmd = "./' + problem + '  -f -a 0 -h 1 -s 0 -D 200 ')
     return f
 
 def close_file(f):
@@ -92,19 +92,21 @@ for t in tasks:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
-                        if nexp > 0:
-                            f = open_file()
-                            f.write(task + ' ' + p + ' ')
-                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                            close_file(f)
+                        if nexp == 0:
+                            nexp = 1
+                        f = open_file()
+                        f.write(task + ' ' + p + ' ')
+                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                        close_file(f)
         elif p == "heuristic aot-value":
             for width in aot_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
-                        if nexp > 0:
-                            f = open_file()
-                            f.write('-h 12 ' + task + ' ' + p + ' ')
-                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
-                            close_file(f)
+                        if nexp == 0:
+                            nexp = 1
+                        f = open_file()
+                        f.write('-h 12 ' + task + ' ' + p + ' ')
+                        f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                        close_file(f)
 
