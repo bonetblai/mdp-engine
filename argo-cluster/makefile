@@ -5,7 +5,9 @@ all:
 	@#./generate-ctp3-paper-2
 	@#./generate-ctp3-paper-3
 	@#./generate-ctp3-paper-4
-	@./generate-ctp3-paper-5
+	@#./generate-ctp3-task17
+	@#./generate-ctp3-task18
+	@./generate-ctp3-task19
 	@#./generate-race
 	@#./generate-race-paper
 	@#./generate-rect
