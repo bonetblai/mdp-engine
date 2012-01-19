@@ -35,7 +35,7 @@ def open_file():
     f.write('#!/usr/bin/env python\n')
     f.write('import os\n')
     f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
-    f.write('cmd = "./' + problem + ' -h 1 -s 0' + extra_parameters + ' ')
+    f.write('cmd = "./' + problem + ' -h 1 -s 0 ' + extra_parameters + ' ')
     return f
 
 def close_file(f):
