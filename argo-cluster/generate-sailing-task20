@@ -4,13 +4,15 @@ import os
 import re
 
 problem = "sailing"
+extra_parameters = ""
+task_number = 20
+
 microtask_number = 1
-microtask_file = problem + "_mutask21_"
+microtask_file = problem + "_mutask" + str(task_number) + "_"
 
 tasks = [
-    20,
     50,
-    #100,
+    100,
 ]
 
 policies = [
@@ -21,19 +23,19 @@ policies = [
 ]
 
 rollout_widths = [ 10, 100 ]
-uct_widths = [ 1, 5, 10, 50, 100, 500, 1000 ]
+uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0 ]
-aot_widths = [ 1, 5, 10, 50, 100, 500, 1000 ]
-aot_nexp = [ 1, .5, .1 ]
+aot_widths = [ 10, 50, 100, 500, 1000 ]
 aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
 aot_parameters = [ 0.5 ]
+aot_nexp = [ 1, .5, .1 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
     f.write('#!/usr/bin/env python\n')
     f.write('import os\n')
     f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
-    f.write('cmd = "./' + problem + '  -f -a 0 -h 1 -s 0 -D 250 ')
+    f.write('cmd = "./' + problem + ' -h 1 -s 0' + extra_parameters + ' ')
     return f
 
 def close_file(f):
@@ -47,7 +49,7 @@ def close_file(f):
 
 for t in tasks:
     task = str(t)
-    depth = 100
+    depth = 2*t
     for p in policies:
         if p == "optimal direct" or p == "greedy direct" or p == "random direct":
             f = open_file()
