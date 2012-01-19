@@ -1,6 +1,6 @@
 all:
 	@rm -f tasks.zip
-	@#./generate-race-task10
+	@./generate-race-task10
 	@#./generate-ctp3-task17
 	@#./generate-ctp3-task18
 	@#./generate-ctp3-task19
