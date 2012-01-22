@@ -1,0 +1,35 @@
+#!/bin/bash
+
+rawdir=$1
+domain=$2
+
+grep -H $domain `find $rawdir -type f` | sed "s/:/ /" > tmp.cmd_lines
+#cat tmp.cmd_lines
+
+if [ ! -s tmp.cmd_lines ]; then
+    rm -f tmp.cmd_lines
+    echo "Error: no files available."
+    exit 0
+fi
+
+awk '{ found = 0;
+       for(i = 3; (i <= NF) && !found; ++i) {
+           field = $i;
+           if( substr(field, 1, 1) == "-" ) {
+               flag = substr(field, 2, 1);
+               if( flag == "a" ) ++i;
+               if( flag == "h" ) ++i;
+               if( flag == "s" ) ++i;
+               if( flag == "d" ) ++i;
+               if( flag == "t" ) ++i;
+               if( flag == "p" ) ++i;
+           } else {
+               print $1 " " field;
+               found = 1;
+           }
+       }
+    }' tmp.cmd_lines > tmp.problems
+
+#cat tmp.problems
+rm -f tmp.cmd_lines
+
