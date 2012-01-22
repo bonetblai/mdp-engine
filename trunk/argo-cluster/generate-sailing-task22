@@ -3,57 +3,32 @@
 import os
 import re
 
-problem = "ctp3"
-extra_parameters = "-d 0"
-task_number = 19
+problem = "sailing"
+extra_parameters = ""
+task_number = 22
 
 microtask_number = 1
 microtask_file = problem + "_mutask" + str(task_number) + "_"
 
 tasks = [
-    ## 10 vertices
-    'small-graphs/test00_10.graph',
-    'small-graphs/test01_10.graph',
-    'small-graphs/test02_10.graph',
-    'small-graphs/test03_10.graph',
-    'small-graphs/test04_10.graph',
-    'small-graphs/test05_10.graph',
-    'small-graphs/test06_10.graph',
-    'small-graphs/test07_10.graph',
-    'small-graphs/test08_10.graph',
-    'small-graphs/test09_10.graph',
-    ## 20 vertices
-    #'AAAI-graphs/test00_20_T.graph',
-    #'AAAI-graphs/test01_20_T.graph',
-    #'AAAI-graphs/test02_20_T.graph',
-    #'AAAI-graphs/test03_20_T.graph',
-    #'AAAI-graphs/test04_20_T.graph',
-    #'AAAI-graphs/test05_20_T.graph',
-    #'AAAI-graphs/test06_20_T.graph',
-    #'AAAI-graphs/test07_20_T.graph',
-    #'AAAI-graphs/test08_20_T.graph',
-    #'AAAI-graphs/test09_20_T.graph',
+    50,
+    100,
 ]
 
 policies = [
-    #"random uct",
-    #"optimistic uct",
+    "random uct",
+    "greedy uct",
     "random aot",
-    "optimistic aot",
-    #"optimistic aot-random",
-    #"random aot-random",
-    #"greedy aot-value", # h = zero
-    #"optimistic aot-value", # h = min-min
+    "greedy aot",
 ]
 
 rollout_widths = [ 10, 100 ]
-uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
+uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0 ]
-aot_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
-aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000]
-aot_value_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
+aot_widths = [ 10, 50, 100, 500, 1000 ]
+aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
 aot_parameters = [ 0.5 ]
-aot_nexp = [ .5, 1 ]
+aot_nexp = [ .5 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
@@ -72,29 +47,29 @@ def close_file(f):
     f.close()
     microtask_number += 1
 
-for task in tasks:
-    base = os.path.basename(task)
-    depth = re.split("[_\.]", base)[1]
+for t in tasks:
+    task = str(t)
+    depth = 50
     for p in policies:
         if p == "optimal direct" or p == "greedy direct" or p == "random direct":
             f = open_file()
             f.write(task + ' ' + p)
             close_file(f)
-        elif p == "greedy rollout" or p == "random rollout" or p == "optimistic rollout":
+        elif p == "greedy rollout" or p == "random rollout":
             for width in rollout_widths:
                 for nesting in range(1, 2):
                     f = open_file()
                     f.write(task + ' ' + p + ' ')
                     f.write(str(width) + ' ' + str(depth) + ' 0 ' + str(nesting))
                     close_file(f)
-        elif p == "random uct" or p == "greedy uct" or p == "optimistic uct":
+        elif p == "random uct" or p == "greedy uct":
             for width in uct_widths:
                 for par in uct_parameters:
                     f = open_file()
                     f.write(task + ' ' + p + ' ')
                     f.write(str(width) + ' ' + str(depth) + ' ' + str(par))
                     close_file(f)
-        elif p == "random aot" or p == "greedy aot" or p == "optimistic aot":
+        elif p == "random aot" or p == "greedy aot":
             for width in aot_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
@@ -104,7 +79,7 @@ for task in tasks:
                             f.write(task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
-        elif p == "random aot*" or p == "greedy aot*" or p == "optimistic aot*":
+        elif p == "random aot*" or p == "greedy aot*":
             for width in aot_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
@@ -114,7 +89,7 @@ for task in tasks:
                             f.write(task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
-        elif p == "random aot-random" or p == "optimistic aot-random":
+        elif p == "random aot-random" or p == "greedy aot-random":
             for width in aot_random_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
@@ -124,18 +99,14 @@ for task in tasks:
                             f.write(task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
-        elif p == "greedy aot-value" or p == "optimistic aot-value":
-            for width in aot_value_widths:
+        elif p == "heuristic aot-value":
+            for width in aot_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
                         if nexp > 0:
                             f = open_file()
-                            if p == "greedy aot-value":
-                                f.write('-h 10 ')
-                            else:
-                                f.write('-h 12 ')
-                            f.write(task + ' ' + p + ' ')
+                            f.write('-h 12 ' + task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
 

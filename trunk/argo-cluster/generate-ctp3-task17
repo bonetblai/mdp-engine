@@ -40,16 +40,18 @@ policies = [
     "optimistic uct",
     "random aot",
     "optimistic aot",
-    #"optimistic aot-value",
     #"optimistic aot-random",
     #"random aot-random",
+    #"greedy aot-value", # h = zero
+    #"optimistic aot-value", # h = min-min
 ]
 
 rollout_widths = [ 10, 100 ]
 uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0 ]
 aot_widths = [ 10, 50, 100, 500, 1000 ]
-aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
+aot_random_widths = [ 10, 50, 100, 500, 1000 ]
+aot_value_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 aot_parameters = [ 0.5 ]
 aot_nexp = [ .1 ]
 
@@ -71,7 +73,7 @@ def close_file(f):
     microtask_number += 1
 
 for task in tasks:
-    base = os.path.basename(t)
+    base = os.path.basename(task)
     depth = re.split("[_\.]", base)[1]
     for p in policies:
         if p == "optimal direct" or p == "greedy direct" or p == "random direct":
@@ -122,14 +124,18 @@ for task in tasks:
                             f.write(task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
-        elif p == "optimistic aot-value":
-            for width in aot_widths:
+        elif p == "greedy aot-value" or p == "optimistic aot-value":
+            for width in aot_value_widths:
                 for par in aot_parameters:
                     for factor in aot_nexp:
                         nexp = int(factor * width)
                         if nexp > 0:
                             f = open_file()
-                            f.write('-h 2 ' + task + ' ' + p + ' ')
+                            if p == "greedy aot-value":
+                                f.write('-h 10 ')
+                            else:
+                                f.write('-h 12 ')
+                            f.write(task + ' ' + p + ' ')
                             f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
                             close_file(f)
 

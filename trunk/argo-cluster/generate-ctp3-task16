@@ -5,7 +5,7 @@ import re
 
 problem = "ctp3"
 extra_parameters = "-d 0"
-task_number = 19
+task_number = 16
 
 microtask_number = 1
 microtask_file = problem + "_mutask" + str(task_number) + "_"
@@ -38,22 +38,22 @@ tasks = [
 policies = [
     #"random uct",
     #"optimistic uct",
-    "random aot",
-    "optimistic aot",
-    #"optimistic aot-random",
-    #"random aot-random",
+    #"random aot",
+    #"optimistic aot",
+    "optimistic aot-random",
+    "random aot-random",
     #"greedy aot-value", # h = zero
     #"optimistic aot-value", # h = min-min
 ]
 
 rollout_widths = [ 10, 100 ]
-uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
+uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 uct_parameters = [ 0 ]
-aot_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
-aot_random_widths = [ 10, 50, 100, 500, 1000, 5000, 10000]
+aot_widths = [ 10, 50, 100, 500, 1000 ]
+aot_random_widths = [ 10, 50, 100, 500, 1000 ]
 aot_value_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
 aot_parameters = [ 0.5 ]
-aot_nexp = [ .5, 1 ]
+aot_nexp = [ .1 ]
 
 def open_file():
     f = open(microtask_file + str(microtask_number), 'w')
