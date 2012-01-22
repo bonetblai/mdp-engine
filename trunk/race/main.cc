@@ -173,7 +173,7 @@ int main(int argc, const char **argv) {
         cout << policy.second
              << "= " << setprecision(5) << eval.first.first
              << " " << eval.first.second
-             << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+             << setprecision(2) << " ( " << eval.second << " secs " << policy.first->decisions() << " decisions)" << endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;
