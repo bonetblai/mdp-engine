@@ -1,0 +1,11 @@
+Sailing: 50 and 100
+  random uct
+  greedy uct
+  random aot
+  greedy aot
+  uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
+  aot_widths = [ 10, 50, 100, 500, 1000 ]
+  uct_parameters = [ 0 ]
+  aot_parameters = [ 0.5 ]
+  aot_nexp = [ .5 ]
+#files=48
