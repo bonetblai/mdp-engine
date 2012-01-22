@@ -1,0 +1,7 @@
+CTP: 20-5 (starting from 20-0)
+  greedy aot-value (zero heuristic)
+  optimistic aot-value (min-min heuristic)
+  aot_value_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
+  aot_parameters = [ 0.5 ]
+  aot_nexp = [ .5, 1 ]
+#files=14
