@@ -1,0 +1,10 @@
+CTP: 20 vertices
+  random uct
+  optimistic uct
+  random aot
+  optimistic aot
+  uct_widths = [ 10, 50, 100, 500, 1000, 5000, 10000, 50000 ]
+  aot_widths = [ 10, 50, 100, 500, 1000, 5000, 10000 ]
+  aot_parameters = [ 0.5 ]
+  aot_nexp = [ .1 ]
+#files=200
