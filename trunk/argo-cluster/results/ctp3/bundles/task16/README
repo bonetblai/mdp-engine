@@ -1,0 +1,5 @@
+CTP: 10 vertices
+  optimistic aot-random
+  random aot-random
+  aot_random_widths = [ 10, 50, 100, 500, 1000 ]
+#files=100

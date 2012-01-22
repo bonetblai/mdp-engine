@@ -1,0 +1,10 @@
+CTP: 10-6 (starting from 10-0)
+  random aot
+  optimistic aot
+  optimistic aot-random
+  random aot-random
+  aot_widths = [ 5000, 10000 ]
+  aot_random_widths = [ 5000, 10000 ]
+  aot_parameters = [ 0.5 ]
+  aot_nexp = [ .1 ]
+#files=8
