@@ -565,7 +565,7 @@ struct problem_t : public Problem::problem_t<state_t> {
         state.components_[0].insert(sample);
         available_pos[index] = available_pos.back();
         available_pos.pop_back();
-        std::cout << "Pos(gold) = (" << gcol << "," << grow << ")" << std::endl; 
+        //std::cout << "Pos(gold) = (" << gcol << "," << grow << ")" << std::endl; 
 
         // forbid placement of pits/wumpus around initial position 
         std::vector<int> forbidden(3, 0);
@@ -596,7 +596,7 @@ struct problem_t : public Problem::problem_t<state_t> {
             state.components_[1 + i].insert(sample);
             available_pos[index] = available_pos.back();
             available_pos.pop_back();
-            std::cout << "Pos(pit-" << i << ") = (" << pcol << "," << prow << ")" << std::endl;
+            //std::cout << "Pos(pit-" << i << ") = (" << pcol << "," << prow << ")" << std::endl;
         }
 
         // place wumpuses
@@ -613,7 +613,7 @@ struct problem_t : public Problem::problem_t<state_t> {
             state.components_[1 + npits_ + i].insert(sample);
             available_pos[index] = available_pos.back();
             available_pos.pop_back();
-            std::cout << "Pos(wumpus-" << i << ") = (" << wcol << "," << wrow << ")" << std::endl;
+            //std::cout << "Pos(wumpus-" << i << ") = (" << wcol << "," << wrow << ")" << std::endl;
         }
     }
 
