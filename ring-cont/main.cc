@@ -30,7 +30,7 @@ void usage(ostream &os) {
 int main(int argc, const char **argv) {
     int dim = 0;
     bool non_det = false;
-    bool contingent = false;
+    bool contingent = true;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
@@ -58,8 +58,13 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
+            case 'D':
+                eval_pars.evaluation_depth_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
             case 'c':
-                contingent = true;
+                contingent = false;
                 ++argv;
                 --argc;
                 break;
