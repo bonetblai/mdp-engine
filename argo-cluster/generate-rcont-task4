@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+
+import os
+import re
+
+problem = "ring_cont"
+extra_parameters = "-t 20 -D 500"
+task_number = 4
+
+microtask_number = 1
+microtask_file = problem + "_mutask" + str(task_number) + "_"
+
+tasks = [
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18,
+    20,
+]
+
+policies = [
+    "random-greedy uct",
+]
+
+rollout_widths = [ ]
+uct_widths = [ 100 ]
+uct_parameters = [ 0 ]
+aot_widths = [ ]
+aot_random_widths = [ ]
+aot_value_widths = [ ]
+aot_parameters = [ ]
+aot_nexp = [ ]
+
+def open_file():
+    f = open(microtask_file + str(microtask_number), 'w')
+    f.write('#!/usr/bin/env python\n')
+    f.write('import os\n')
+    f.write('output = open("output.' + microtask_file + str(microtask_number) + '", "w")\n')
+    f.write('cmd = "./' + problem + ' -h 3 -s 0 ' + extra_parameters + ' ')
+    return f
+
+def close_file(f):
+    global microtask_number
+    f.write('"\n')
+    f.write('output.write("cmd=" + cmd + "\\n")\n')
+    f.write('output.close()\n')
+    f.write('os.system(cmd + " >> output.' + microtask_file + str(microtask_number) + '")\n')
+    f.close()
+    microtask_number += 1
+
+for t in tasks:
+    task = str(t)
+    depth = 50
+    for p in policies:
+        if p == "optimal direct" or p == "greedy direct" or p == "random direct":
+            f = open_file()
+            f.write(task + ' ' + p)
+            close_file(f)
+        elif p == "greedy rollout" or p == "random rollout" or p == "optimistic rollout":
+            for width in rollout_widths:
+                for nesting in range(1, 2):
+                    f = open_file()
+                    f.write(task + ' ' + p + ' ')
+                    f.write(str(width) + ' ' + str(depth) + ' 0 ' + str(nesting))
+                    close_file(f)
+        elif p == "random uct" or p == "greedy uct" or p == "optimistic uct" or p == "random-greedy uct":
+            for width in uct_widths:
+                for par in uct_parameters:
+                    f = open_file()
+                    f.write(task + ' ' + p + ' ')
+                    f.write(str(width) + ' ' + str(depth) + ' ' + str(par))
+                    close_file(f)
+        elif p == "random aot" or p == "greedy aot" or p == "optimistic aot":
+            for width in aot_widths:
+                for par in aot_parameters:
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
+        elif p == "random aot*" or p == "greedy aot*" or p == "optimistic aot*":
+            for width in aot_widths:
+                for par in aot_parameters:
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
+        elif p == "random aot-random" or p == "optimistic aot-random":
+            for width in aot_random_widths:
+                for par in aot_parameters:
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
+        elif p == "greedy aot-value" or p == "optimistic aot-value":
+            for width in aot_value_widths:
+                for par in aot_parameters:
+                    for factor in aot_nexp:
+                        nexp = int(factor * width)
+                        if nexp > 0:
+                            f = open_file()
+                            if p == "greedy aot-value":
+                                f.write('-h 10 ')
+                            else:
+                                f.write('-h 12 ')
+                            f.write(task + ' ' + p + ' ')
+                            f.write(str(width) + ' ' + str(depth) + ' ' + str(par) + ' ' + str(nexp))
+                            close_file(f)
+        elif p == "xxx xxx":
+            f = open_file()
+            f.write(task + ' ' + p)
+            close_file(f)
+

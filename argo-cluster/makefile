@@ -3,8 +3,9 @@ all:
 	@#./generate-rconf-task1
 	@#./generate-rconf-task2
 	@#./generate-wumpus-task3
+	./generate-rcont-task4
 	@#./generate-race-task10
-	./generate-ctp3-task12
+	@#./generate-ctp3-task12
 	@#./generate-ctp3-task13
 	@#./generate-ctp3-task14
 	@#./generate-ctp3-task15
