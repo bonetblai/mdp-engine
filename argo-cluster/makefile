@@ -1,6 +1,9 @@
 all:
 	@rm -f tasks.zip
-	@./generate-race-task10
+	@#./generate-rconf-task1
+	@#./generate-rconf-task2
+	./generate-wumpus-task3
+	@#./generate-race-task10
 	@#./generate-race-task10
 	@#./generate-ctp3-task14
 	@#./generate-ctp3-task15
