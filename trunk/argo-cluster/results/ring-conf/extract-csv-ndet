@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+
+dir=$1
+
+echo "domain,type,problem,steps,expanded,time"
+for f in $dir/*/*; do
+    awk '/cmd/ {
+             printf "ring_conf,ndet,%d,", $10;
+         }
+         /simple/ {
+             found = 1;
+             printf "%d,%d,%f", $4, $6, $9;
+         }
+         END {
+             if( found == 0 ) printf "NA,NA,NA";
+             printf "\n";
+         }' $f
+done
