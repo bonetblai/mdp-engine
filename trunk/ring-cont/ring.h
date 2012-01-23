@@ -18,15 +18,16 @@
 
 #define USE_COW_COMPONENTS // use copy-no-write belief components
 
-// 2 bits indicate: open=0, closed=1, locked=2
-// 8 bits indicate position of agent
-// 8 bits indicate position of key
+// 2 bits indicate status of component: open=0, closed=1, locked=2
+// 8 bits indicate position of agent: <room>
+// 8 bits indicate position of key: <room> or AGENT
+
+#define UNKNOWN     -1
+#define UNSET       -2
 
 #define OPEN        0
 #define CLOSED      1
 #define LOCKED      2
-#define UNKNOWN     -1
-#define UNSET       -2
 #define AGENT       0xFF
 
 #define MOVE_BWD    0
@@ -198,14 +199,29 @@ struct cow_belief_component_t {
         return value;
     }
 
-    float value() const {
+    float probability_locked() const {
         float value = 0;
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int status = sample & 0x3;
-            value += 2 - status;
+            value += status == LOCKED ? 1 : 0;
         }
         return value / (float) cow_vector_->size();
+    }
+
+    float key_entropy(int dim) const {
+        std::vector<int> key_pos_cnt = std::vector<int>(dim, 0);
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            if( key_pos != AGENT ) ++key_pos_cnt[key_pos];
+        }
+        float entropy = 0;
+        for( int i = 0; i < dim; ++i ) {
+            float p = (float)key_pos_cnt[i] / (float)cow_vector_->size();
+            entropy += p > 0 ? p * logf(p) : 0;
+        }
+        return -entropy;
     }
 
     int nrefs() const {
@@ -277,20 +293,6 @@ struct cow_belief_component_t {
         return rv;
     }
 
-    int agent_position() const {
-        int rv = UNSET;
-        for( int i = 0; i < cow_vector_->size(); ++i ) {
-            int sample = (*cow_vector_)[i];
-            int agent_pos = (sample >> 10) & 0xFF;
-            if( rv == UNSET )
-                rv = agent_pos;
-            else if( rv != agent_pos )
-                return UNKNOWN;
-        }
-        assert((rv != UNSET) && (rv != UNKNOWN));
-        return rv;
-    }
-
     void apply_close(int window_pos, cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
@@ -342,6 +344,9 @@ struct cow_belief_component_t {
             }
         }
     }
+
+    // The precondition is that the agent is in the same room of the key.
+    // Thus the effect has to be to hold the key.
     void apply_grab_key(cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
@@ -349,30 +354,23 @@ struct cow_belief_component_t {
             int status = sample & 0x3;
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            if( key_pos == agent_pos ) {
-                if( non_det && (status != LOCKED) ) {
-                    result.insert(OPEN | (AGENT << 2) | (agent_pos << 10));
-                    result.insert(CLOSED | (AGENT << 2) | (agent_pos << 10));
-                } else {
-                    result.insert(status | (AGENT << 2) | (agent_pos << 10));
-                }
+            assert(key_pos == agent_pos);
+            if( non_det && (status != LOCKED) ) {
+                result.insert(OPEN | (AGENT << 2) | (agent_pos << 10));
+                result.insert(CLOSED | (AGENT << 2) | (agent_pos << 10));
             } else {
-                if( non_det && (status != LOCKED) ) {
-                    result.insert(OPEN | (key_pos << 2) | (agent_pos << 10));
-                    result.insert(CLOSED | (key_pos << 2) | (agent_pos << 10));
-                } else {
-                    result.insert(sample);
-                }
+                result.insert(status | (AGENT << 2) | (agent_pos << 10));
             }
         }
     }
-    void filter(bool key_in_current_pos, cow_belief_component_t &result) const {
+
+    void filter(bool key_in_agent_pos, cow_belief_component_t &result) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int key_pos = (sample >> 2) & 0xFF;
             int agent_pos = (sample >> 10) & 0xFF;
-            if( key_in_current_pos ) {
+            if( key_in_agent_pos ) {
                 if( key_pos == agent_pos )
                     result.insert(sample);
             } else {
@@ -380,6 +378,18 @@ struct cow_belief_component_t {
                     result.insert(sample);
             }
         }
+    }
+
+    bool key_in_agent_position() const {
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( key_pos != agent_pos ) {
+                return false;
+            }
+        }
+        return true;
     }
 
     void print(std::ostream &os) const {
@@ -489,16 +499,6 @@ struct belief_component_t : public ordered_vector_t {
             value = value ^ (i & 0x1 ? rotation(*it) : *it);
         }
         return value;
-    }
-
-    float value() const {
-        float value = 0;
-        for( const_iterator it = begin(); it != end(); ++it ) {
-            int sample = *it;
-            int status = sample & 0x3;
-            value += 2 - status;
-        }
-        return value / (float)size();
     }
 
     int window_status() const {
@@ -643,19 +643,19 @@ struct state_t {
         return true;
     }
 
-    bool key_in_current_pos() const {
+    bool key_in_agent_position() const {
         for( int i = 0; i < dim_; ++i ) {
-            int key_pos = components_[i].key_position();
-            int agent_pos = components_[i].agent_position();
-            if( key_pos != agent_pos ) return false;
+            if( !components_[i].key_in_agent_position() )
+                return false;
         }
         return true;
     }
 
     bool all_locked() const {
         for( int i = 0; i < dim_; ++i ) {
-            if( components_[i].window_status() != LOCKED )
+            if( components_[i].window_status() != LOCKED ) {
                 return false;
+            }
         }
         return true;
     }
@@ -677,10 +677,10 @@ struct state_t {
             }
         }
     }
-    void filter(bool key_in_current_pos, state_t &result) const {
+    void filter(bool key_in_agent_pos, state_t &result) const {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
-            components_[i].filter(key_in_current_pos, result.components_[i]);
+            components_[i].filter(key_in_agent_pos, result.components_[i]);
         }
     }
 
@@ -761,7 +761,7 @@ struct problem_t : public Problem::problem_t<state_t> {
             if( a == LOCK ) {
                 return s.have_key();
             } else if( a == GRAB_KEY ) {
-                return s.key_in_current_pos();
+                return s.key_in_agent_position();
             } else {
                 return true;
             }
@@ -873,7 +873,12 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual float value(const state_t &s) const {
         float value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
-            value += s.components_[i].value();
+            float prob = s.components_[i].probability_locked();
+            value += prob == 0 ? 100 : 1/prob;
+            if( !s.have_key() ) {
+                float entropy = s.components_[i].key_entropy(s.dim_);
+                value += 1 + 10 * entropy;
+            }
         }
         return value;
     }
