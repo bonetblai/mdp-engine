@@ -25,7 +25,8 @@
 #define OPEN        0
 #define CLOSED      1
 #define LOCKED      2
-#define UNKNOWN     3
+#define UNKNOWN     -1
+#define UNSET       -2
 #define AGENT       0xFF
 
 #define MOVE_BWD    0
@@ -249,16 +250,44 @@ struct cow_belief_component_t {
     }
 
     int window_status() const {
-        int rv = -1;
+        int rv = UNSET;
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
             int status = sample & 0x3;
-            if( rv == -1 )
+            if( rv == UNSET )
                 rv = status;
             else if( rv != status )
                 return UNKNOWN;
         }
-        assert(rv != -1);
+        assert(rv != UNSET);
+        return rv;
+    }
+
+    int key_position() const {
+        int rv = UNSET;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            if( rv == UNSET )
+                rv = key_pos;
+            else if( rv != key_pos )
+                return UNKNOWN;
+        }
+        assert(rv != UNSET);
+        return rv;
+    }
+
+    int agent_position() const {
+        int rv = UNSET;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( rv == UNSET )
+                rv = agent_pos;
+            else if( rv != agent_pos )
+                return UNKNOWN;
+        }
+        assert((rv != UNSET) && (rv != UNKNOWN));
         return rv;
     }
 
@@ -606,6 +635,23 @@ struct state_t {
         return false;
     }
 
+    bool have_key() const {
+        for( int i = 0; i < dim_; ++i ) {
+            int key_pos = components_[i].key_position();
+            if( key_pos != AGENT ) return false;
+        }
+        return true;
+    }
+
+    bool key_in_current_pos() const {
+        for( int i = 0; i < dim_; ++i ) {
+            int key_pos = components_[i].key_position();
+            int agent_pos = components_[i].agent_position();
+            if( key_pos != agent_pos ) return false;
+        }
+        return true;
+    }
+
     bool all_locked() const {
         for( int i = 0; i < dim_; ++i ) {
             if( components_[i].window_status() != LOCKED )
@@ -711,7 +757,17 @@ struct problem_t : public Problem::problem_t<state_t> {
         return 5;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
-        return true;
+        if( contingent_ ) {
+            if( a == LOCK ) {
+                return s.have_key();
+            } else if( a == GRAB_KEY ) {
+                return s.key_in_current_pos();
+            } else {
+                return true;
+            }
+        } else {
+            return true;
+        }
     }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
