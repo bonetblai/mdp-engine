@@ -260,9 +260,11 @@ struct belief_component_t {
             bool sample_alive = true;
             if( type_ == GOLD ) {
                 if( obs == 1 ) {
-                    sample_alive = (pos == other_pos) || adjacent(pos, other_pos);
+                    //sample_alive = (pos == other_pos) || adjacent(pos, other_pos);
+                    sample_alive = (pos == other_pos);
                 } else {
-                    sample_alive = (pos != other_pos) && !adjacent(pos, other_pos);
+                    //sample_alive = (pos != other_pos) && !adjacent(pos, other_pos);
+                    sample_alive = (pos != other_pos);
                 }
             } else {
                 if( obs == 1 ) {
@@ -305,20 +307,27 @@ struct state_t {
 #else
     std::vector<belief_component_t> components_;
 #endif
+    int *visited_;
     static int rows_;
     static int cols_;
     static int npits_;
     static int nwumpus_;
 
     state_t() : components_(1 + npits_ + nwumpus_) {
+       visited_ = new int[rows_ * cols_];
+       memset(visited_, 0, rows_ * cols_ * sizeof(int));
+
        components_[0].type_ = GOLD;
        for( int i = 0; i < npits_; ++i )
            components_[1+i].type_ = PIT;
        for( int i = 0; i < nwumpus_; ++i )
            components_[1+npits_+i].type_ = WUMPUS;
     }
-    state_t(const state_t &bel) : components_(bel.components_) { }
-    ~state_t() { }
+    state_t(const state_t &bel) : components_(bel.components_) {
+       visited_ = new int[rows_ * cols_];
+       memcpy(visited_, bel.visited_, rows_ * cols_ * sizeof(int));
+    }
+    ~state_t() { delete[] visited_; }
 
     static void initialize(int rows, int cols, int npits, int nwumpus) {
         rows_ = rows;
@@ -342,6 +351,7 @@ struct state_t {
     }
 
     void clear() {
+        memset(visited_, 0, rows_ * cols_ * sizeof(int));
         for( unsigned i = 0; i < components_.size(); ++i )
             components_[i].clear();
     }
@@ -366,7 +376,10 @@ struct state_t {
     bool dead_end() const { return !alive(); }
 
     void apply(int action, state_t &result, bool non_det = false) const {
+
         result.clear();
+        memcpy(result.visited_, visited_, rows_ * cols_ * sizeof(int));
+
         for( unsigned i = 0; i < components_.size(); ++i ) {
             if( action == MOVE_UP ) {
                 components_[i].apply_move(rows_, cols_, 1, 0, result.components_[i], non_det);
@@ -380,9 +393,17 @@ struct state_t {
                 components_[i].apply_grab_gold(result.components_[i], non_det);
             }
         }
+
+        if( action != GRAB_GOLD ) {
+            unsigned sample = (*components_[0].vector_)[0];
+            int pos = sample & POS_MASK;
+            int new_pos = calculate_new_bpos(pos, action, rows_, cols_);
+            result.visited_[bpos_to_gpos(rows_, cols_, new_pos)] = 1;
+        }
     }
     void filter(int obs, state_t &result) const {
         result.clear();
+        memcpy(result.visited_, visited_, rows_ * cols_ * sizeof(int));
         for( unsigned i = 0; i < components_.size(); ++i ) {
             int comp_obs = (obs >> i) & 0x1;
             components_[i].filter(comp_obs, result.components_[i]);
@@ -390,6 +411,7 @@ struct state_t {
     }
 
     const state_t& operator=(const state_t &bel) {
+        memcpy(visited_, bel.visited_, rows_ * cols_ * sizeof(int));
         for( unsigned i = 0; i < components_.size(); ++i ) {
             components_[i] = bel.components_[i];
         }
@@ -408,8 +430,14 @@ struct state_t {
 
     void print(std::ostream &os) const {
         for( unsigned i = 0; i < components_.size(); ++i ) {
-            os << "comp[" << i << "]=" << components_[i] << std::endl;
+            //os << "comp[" << i << "]=" << components_[i] << std::endl;
         }
+        std::cout << "visited:";
+        for( int pos = 0; pos < rows_ * cols_; ++pos ) {
+            int row = pos / cols_, col = pos % cols_;
+            if( visited_[pos] == 1 ) std::cout << " (" << row << "," << col << ")";
+        }
+        std::cout << std::endl;
     }
 };
 
@@ -443,6 +471,7 @@ struct problem_t : public Problem::problem_t<state_t> {
 
         // set initial belief
         int pos = 0;
+        init_.visited_[pos] = 1;
 
         // place gold
         for( int gold = 0; gold < rows_ * cols_; ++gold ) {
@@ -681,7 +710,7 @@ struct optimistic_state_t {
     std::vector<int> distances_;
     int nforbidden_;
 
-    optimistic_state_t(const problem_t &problem, const state_t &s)
+    optimistic_state_t(const problem_t &problem, const state_t &s, bool from_goal = true)
       : rows_(problem.rows_), cols_(problem.cols_) {
 
         //std::cout << "begin constructor for state" << std::endl << s;
@@ -717,7 +746,7 @@ struct optimistic_state_t {
         }
 
         // calculate optimistic distances
-        compute_optimistic_distances();
+        compute_optimistic_distances(from_goal);
 
         //std::cout << "end constructor" << std::endl;
         //std::cout << "pos=(" << pos_%cols_ << "," << pos_/cols_ << ")" << std::endl;
@@ -728,13 +757,19 @@ struct optimistic_state_t {
     void forbid(int pos) { forbidden_[pos] = 1; }
     void goal(int pos) { goals_.push_back(pos); }
 
-    void compute_optimistic_distances() { 
+    void compute_optimistic_distances(bool from_goal) { 
         std::deque<int> queue;
         distances_ = std::vector<int>(rows_ * cols_, INT_MAX);
 
-        for( size_t i = 0; i < goals_.size(); ++i ) {
-            queue.push_back(goals_[i]);
-            distances_[goals_[i]] = 0;
+        if( from_goal ) {
+            for( size_t i = 0; i < goals_.size(); ++i ) {
+                queue.push_back(goals_[i]);
+                distances_[goals_[i]] = 0;
+            }
+        } else {
+            queue.push_back(pos_);
+            distances_[pos_] = 0;
+            //std::cout << "dist[" << pos_ << "]=0" << std::endl;
         }
 
         while( !queue.empty() ) {
@@ -746,6 +781,7 @@ struct optimistic_state_t {
                 if( (forbidden_[q] == 0) && (distances_[q] == INT_MAX) ) {
                     queue.push_back(q);
                     distances_[q] = 1 + distances_[p];
+                    //std::cout << "dist[" << q << "]=" << distances_[q] << std::endl;
                 }
             }
             if( row > 0 ) {
@@ -753,6 +789,7 @@ struct optimistic_state_t {
                 if( (forbidden_[q] == 0) && (distances_[q] == INT_MAX) ) {
                     queue.push_back(q);
                     distances_[q] = 1 + distances_[p];
+                    //std::cout << "dist[" << q << "]=" << distances_[q] << std::endl;
                 }
             }
             if( col < cols_ - 1 ) {
@@ -760,6 +797,7 @@ struct optimistic_state_t {
                 if( (forbidden_[q] == 0) && (distances_[q] == INT_MAX) ) {
                     queue.push_back(q);
                     distances_[q] = 1 + distances_[p];
+                    //std::cout << "dist[" << q << "]=" << distances_[q] << std::endl;
                 }
             }
             if( col > 0 ) {
@@ -767,6 +805,7 @@ struct optimistic_state_t {
                 if( (forbidden_[q] == 0) && (distances_[q] == INT_MAX) ) {
                     queue.push_back(q);
                     distances_[q] = 1 + distances_[p];
+                    //std::cout << "dist[" << q << "]=" << distances_[q] << std::endl;
                 }
             }
         }
@@ -816,6 +855,39 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
         return new optimistic_policy_t(static_cast<const problem_t&>(problem()));
     }
     virtual void print_stats(std::ostream &os) const { }
+};
+
+struct shortest_distance_to_unvisited_cell_t : public Heuristic::heuristic_t<state_t> {
+    const problem_t &problem_;
+  public:
+    shortest_distance_to_unvisited_cell_t(const problem_t &problem) : problem_(problem) { }
+    virtual ~shortest_distance_to_unvisited_cell_t() { }
+    virtual float value(const state_t &s) const {
+        if( s.goal() )
+            return 0;
+        else {
+            optimistic_state_t gs(problem_, s, false);
+            int min_distance = INT_MAX;
+            int best_pos = -1;
+            for( int pos = 0; pos < s.rows_ * s.cols_; ++pos ) {
+                if( s.visited_[pos] == 0 ) {
+                    int distance = gs.distances_[pos];
+                    if( distance < min_distance ) {
+                        min_distance = distance;
+                        best_pos = pos;
+                    }
+                }
+            }
+            //std::cout << "min-dist=" << min_distance << ", best-pos=" << best_pos << std::endl;
+            return min_distance;
+        }
+    }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+    float operator()(const state_t &s) const { return value(s); }
 };
 
 
