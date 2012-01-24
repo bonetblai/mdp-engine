@@ -171,8 +171,9 @@ int main(int argc, const char **argv) {
         pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, eval_pars, true);
         cout << policy.second
              << "= " << setprecision(5) << eval.first.first
-             << " " << eval.first.second
-             << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+             << " " << eval.first.second << setprecision(2)
+             << " ( " << eval.second << " secs "
+             << policy.first->decisions() << " decisions)" << std::endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;

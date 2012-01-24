@@ -279,6 +279,20 @@ struct cow_belief_component_t {
         return rv;
     }
 
+    int key_position() const {
+        int rv = UNSET;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            if( rv == UNSET )
+                rv = key_pos;
+            else if( rv != key_pos )
+                return UNKNOWN;
+        }
+        assert(rv != UNSET);
+        return rv;
+    }
+
     void apply_close(int window_pos, cow_belief_component_t &result, bool non_det = false) const {
         result.reserve(size());
         for( int i = 0; i < cow_vector_->size(); ++i ) {
@@ -372,11 +386,26 @@ struct cow_belief_component_t {
         }
     }
 
+    bool key_in_agent_position() const {
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            if( key_pos != agent_pos ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void print(std::ostream &os) const {
         os << "{";
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
-            os << sample << ",";
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            os << "(" << status << "," << key_pos << "," << agent_pos << "),";
         }
         os << "}";
     }
@@ -415,16 +444,39 @@ struct ordered_vector_t {
         set_[size_++] = e;
     }
     void insert(int e) {
-        // TODO: implement binary search
-        int i = 0;
-        while( (i < size_) && (set_[i] < e) ) ++i;
-        if( set_[i] != e ) {
-            if( size_ == capacity_ ) reserve(1 + capacity_);
-            for( int j = size_ - 1; i <= j; --j ) {
-                set_[1+j] = set_[j];
-            }
-            set_[i] = e;
+        if( size_ == 0 ) {
+            reserve(1);
+            set_[0] = e;
             ++size_;
+        } else {
+            int lb = 0, ub = size_ - 1, mid = (lb + ub) / 2;
+            if( e < set_[lb] ) {
+                mid = lb - 1;
+            } else if( set_[ub] <= e ) {
+                mid = ub;
+            } else {
+                assert(set_[lb] <= e);
+                assert(e < set_[ub]);
+                while( lb != mid ) {
+                    if( set_[mid] <= e ) {
+                        lb = mid;
+                    } else {
+                        ub = mid;
+                    }
+                    mid = (lb + ub) / 2;
+                }
+                assert(set_[mid] <= e);
+                assert(e < set_[mid+1]);
+            }
+
+            if( (mid == -1) || (set_[mid] != e) ) {
+                if( size_ == capacity_ ) reserve(1 + capacity_);
+                for( int i = size_ - 1; i > mid; --i ) {
+                    set_[1+i] = set_[i];
+                }
+                set_[mid+1] = e;
+                ++size_;
+            }
         }
     }
 
@@ -479,6 +531,15 @@ struct belief_component_t : public ordered_vector_t {
             value = value ^ (i & 0x1 ? rotation(*it) : *it);
         }
         return value;
+    }
+
+    float probability_locked() const {
+        float value = 0;
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            int status = *it & 0x3;
+            value += status == LOCKED ? 1 : 0;
+        }
+        return value / (float) size();
     }
 
     int window_status() const {
@@ -568,8 +629,13 @@ struct belief_component_t : public ordered_vector_t {
 
     void print(std::ostream &os) const {
         os << "{";
-        for( const_iterator it = begin(); it != end(); ++it )
-            os << *it << ",";
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            int sample = *it;
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            os << "(" << status << "," << key_pos << "," << agent_pos << "),";
+        }
         os << "}";
     }
 };
@@ -613,6 +679,22 @@ struct state_t {
                 return true;
         }
         return false;
+    }
+
+    bool have_key() const {
+        for( int i = 0; i < dim_; ++i ) {
+            int key_pos = components_[i].key_position();
+            if( key_pos != AGENT ) return false;
+        }
+        return true;
+    }
+
+    bool key_in_agent_position() const {
+        for( int i = 0; i < dim_; ++i ) {
+            if( !components_[i].key_in_agent_position() )
+                return false;
+        }
+        return true;
     }
 
     bool all_locked() const {
@@ -829,7 +911,7 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
         for( int i = 0; i < s.dim_; ++i ) {
             value += (1.0 - s.components_[i].probability_locked());
         }
-        return value;
+        return value / s.dim_;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
