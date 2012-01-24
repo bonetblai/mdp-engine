@@ -132,6 +132,8 @@ int main(int argc, const char **argv) {
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 1 ) {
         heuristic = new probability_heuristic_t;
+    } else if( h ==2 ) {
+        heuristic = new shortest_distance_to_unvisited_cell_t(problem);
     }
 
     // solve problem with algorithms
@@ -187,6 +189,7 @@ int main(int argc, const char **argv) {
             while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
                 assert(!state.dead_end());
                 assert(!hidden.dead_end());
+                cout << state;
                 //cout << "state=" << state << endl;
                 //cout << "hidden=" << hidden << endl;
                 Problem::action_t action = (*policy.first)(state);
