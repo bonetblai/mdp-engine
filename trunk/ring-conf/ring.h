@@ -827,7 +827,7 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual float value(const state_t &s) const {
         float value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
-            value += s.components_[i].probability_locked();
+            value += (1.0 - s.components_[i].probability_locked());
         }
         return value;
     }
