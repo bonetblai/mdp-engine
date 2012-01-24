@@ -168,11 +168,58 @@ int main(int argc, const char **argv) {
     // evaluate
     pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
     if( policy.first != 0 ) {
-        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, eval_pars, true);
+        vector<float> values;
+        values.reserve(eval_pars.evaluation_trials_);
+        float start_time = Utils::read_time_in_seconds();
+        float sum = 0;
+        cout << "#trials=" << eval_pars.evaluation_trials_ << ":";
+        for( unsigned trial = 0; trial < eval_pars.evaluation_trials_; ++trial ) {
+            cout << " " << trial << flush;
+            state_t hidden;
+            problem.sample_state(hidden);
+            cout << "hidden=" << hidden << endl;
+
+            // do evaluation from start node
+            size_t steps = 0;
+            float cost = 0;
+            state_t state = problem.init();
+            while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
+                //cout << "state=" << state << endl;
+                //cout << "hidden=" << hidden << endl;
+                Problem::action_t action = (*policy.first)(state);
+                assert(action != Problem::noop);
+                assert(problem.applicable(state, action));
+                //cout << "act=" << action << endl;
+
+                problem.apply(state, hidden, action);
+                cost += problem.cost(state, action);
+                ++steps;
+            }
+            values.push_back(cost);
+            sum += cost;
+            cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
+        }
+        cout << endl;
+
+        // compute avg
+        float avg = 0;
+        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
+            avg += values[i];
+        }
+        avg /= eval_pars.evaluation_trials_;
+
+        // compute stdev
+        float stdev = 0;
+        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
+            stdev += (avg - values[i]) * (avg - values[i]);
+        }
+        stdev = sqrt(stdev) / (eval_pars.evaluation_trials_ - 1);
+
         cout << policy.second
-             << "= " << setprecision(5) << eval.first.first
-             << " " << eval.first.second
-             << setprecision(2) << " ( " << eval.second << " secs)" << endl;
+             << "= " << setprecision(5) << avg
+             << " " << stdev << setprecision(2)
+             << " ( " << Utils::read_time_in_seconds() - start_time
+             << " secs " << policy.first->decisions() << " decisions)" << std::endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;

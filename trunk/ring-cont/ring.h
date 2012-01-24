@@ -396,7 +396,10 @@ struct cow_belief_component_t {
         os << "{";
         for( int i = 0; i < cow_vector_->size(); ++i ) {
             int sample = (*cow_vector_)[i];
-            os << sample << ",";
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            os << "(" << status << "," << key_pos << "," << agent_pos << "),";
         }
         os << "}";
     }
@@ -435,16 +438,39 @@ struct ordered_vector_t {
         set_[size_++] = e;
     }
     void insert(int e) {
-        // TODO: implement binary search
-        int i = 0;
-        while( (i < size_) && (set_[i] < e) ) ++i;
-        if( set_[i] != e ) {
-            if( size_ == capacity_ ) reserve(1 + capacity_);
-            for( int j = size_ - 1; i <= j; --j ) {
-                set_[1+j] = set_[j];
-            }
-            set_[i] = e;
+        if( size_ == 0 ) {
+            reserve(1);
+            set_[0] = e;
             ++size_;
+        } else {
+            int lb = 0, ub = size_ - 1, mid = (lb + ub) / 2;
+            if( e < set_[lb] ) {
+                mid = lb - 1;
+            } else if( set_[ub] <= e ) {
+                mid = ub;
+            } else {
+                assert(set_[lb] <= e);
+                assert(e < set_[ub]);
+                while( lb != mid ) {
+                    if( set_[mid] <= e ) {
+                        lb = mid;
+                    } else {
+                        ub = mid;
+                    }
+                    mid = (lb + ub) / 2;
+                }
+                assert(set_[mid] <= e);
+                assert(e < set_[mid+1]);
+            }
+
+            if( (mid == -1) || (set_[mid] != e) ) {
+                if( size_ == capacity_ ) reserve(1 + capacity_);
+                for( int i = size_ - 1; i > mid; --i ) {
+                    set_[1+i] = set_[i];
+                }
+                set_[mid+1] = e;
+                ++size_;
+            }
         }
     }
 
@@ -499,6 +525,15 @@ struct belief_component_t : public ordered_vector_t {
             value = value ^ (i & 0x1 ? rotation(*it) : *it);
         }
         return value;
+    }
+
+    float probability_locked() const {
+        float value = 0;
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            int status = *it & 0x3;
+            value += status == LOCKED ? 1 : 0;
+        }
+        return value / (float) size();
     }
 
     int window_status() const {
@@ -588,8 +623,13 @@ struct belief_component_t : public ordered_vector_t {
 
     void print(std::ostream &os) const {
         os << "{";
-        for( const_iterator it = begin(); it != end(); ++it )
-            os << *it << ",";
+        for( const_iterator it = begin(); it != end(); ++it ) {
+            int sample = *it;
+            int status = sample & 0x3;
+            int key_pos = (sample >> 2) & 0xFF;
+            int agent_pos = (sample >> 10) & 0xFF;
+            os << "(" << status << "," << key_pos << "," << agent_pos << "),";
+        }
         os << "}";
     }
 };
@@ -822,6 +862,44 @@ struct problem_t : public Problem::problem_t<state_t> {
             }
         }
     }
+
+    void sample_state(state_t &s) const {
+        s.clear();
+        int agent_pos = Random::uniform(dim_);
+        int key_pos = Random::uniform(dim_);
+        for( int i = 0; i < dim_; ++i ) {
+            int status = Random::uniform(2);
+            int sample = status | (key_pos << 2) | (agent_pos << 10);
+            s.components_[i].insert(sample);
+        }
+    }
+
+    void apply(state_t &s, state_t &hidden, Problem::action_t a) const {
+        ++expansions_;
+        state_t nstate, nstate_hidden;
+        s.apply(a, nstate, non_det_);
+        hidden.apply(a, nstate_hidden, non_det_);
+
+        if( !contingent_ ) {
+            s = nstate;
+            hidden = nstate_hidden;
+        } else {
+            bool found_compatible_obs = false;
+            for( int obs = 0; obs < 2; ++obs ) {
+                state_t filtered_hidden;
+                nstate_hidden.filter(obs == 0 ? false : true, filtered_hidden);
+                if( !filtered_hidden.empty() ) {
+                    nstate.filter(obs, s);
+                    assert(!s.empty());
+                    hidden = filtered_hidden;
+                    found_compatible_obs = true;
+                    break;
+                }
+            }
+            assert(found_compatible_obs);
+        }
+    }
+
     virtual void print(std::ostream &os) const { }
 
 };
@@ -873,14 +951,14 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual float value(const state_t &s) const {
         float value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
-            float prob = (1.0 - s.components_[i].probability_locked());
+            value += (1.0 - s.components_[i].probability_locked());
             //value += prob == 0 ? 100 : 1/prob;
             //if( !s.have_key() ) {
             //    float entropy = s.components_[i].key_entropy(s.dim_);
             //    value += 1 + 10 * entropy;
             //}
         }
-        return value;
+        return value / s.dim_;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
