@@ -873,12 +873,12 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     virtual float value(const state_t &s) const {
         float value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
-            float prob = s.components_[i].probability_locked();
-            value += prob == 0 ? 100 : 1/prob;
-            if( !s.have_key() ) {
-                float entropy = s.components_[i].key_entropy(s.dim_);
-                value += 1 + 10 * entropy;
-            }
+            float prob = (1.0 - s.components_[i].probability_locked());
+            //value += prob == 0 ? 100 : 1/prob;
+            //if( !s.have_key() ) {
+            //    float entropy = s.components_[i].key_entropy(s.dim_);
+            //    value += 1 + 10 * entropy;
+            //}
         }
         return value;
     }
