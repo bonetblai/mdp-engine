@@ -62,11 +62,12 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
     open.push(std::make_pair(s, dptr));
 
 #ifdef DEBUG
-    std::cout << "push " << "state" //s
+    std::cout << "PUSH " << "state" ///s
               << " w/ g=" << dptr->g()
               << " and h=" << dptr->h()
               << " => f=" << dptr->f()
               << std::endl;
+    std::cout << "queue.sz=" << open.size() << std::endl;
 #endif
 
     while( !open.empty() ) {
@@ -74,11 +75,22 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
         open.pop();
 
 #ifdef DEBUG
-        std::cout << "pop  " << "state" //s
+        std::cout << "POP  " << "state: " << n.first
                   << " w/ g=" << n.second->g()
                   << " and h=" << n.second->h()
                   << " => f=" << n.second->f()
                   << std::endl;
+        std::cout << "queue.sz=" << open.size() << std::endl;
+
+        std::vector<const Hash::data_t*> path;
+        path.reserve(n.second->g());
+        for( const Hash::data_t *dptr = n.second; dptr != 0; dptr = dptr->parent() )
+            path.push_back(dptr);
+
+        std::cout << "path=<";
+        for( size_t i = path.size() - 1; i > 0; --i )
+            std::cout << path[i-1]->action() << ",";
+        std::cout << ">" << std::endl;
 #endif
 
         // check for termination
@@ -86,6 +98,17 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
 #ifdef DEBUG
             std::cout << "GOAL FOUND!" << std::endl;
 #endif
+
+            std::vector<const Hash::data_t*> plan;
+            plan.reserve(n.second->g());
+            for( const Hash::data_t *dptr = n.second; dptr != 0; dptr = dptr->parent() )
+                plan.push_back(dptr);
+
+            std::cout << "plan=<";
+            for( size_t i = plan.size() - 1; i > 0; --i )
+                std::cout << plan[i-1]->action() << ",";
+            std::cout << ">" << std::endl;
+
             return (int)n.second->g();
         }
 
@@ -103,11 +126,12 @@ size_t simple_astar(const Problem::problem_t<T> &problem,
                     ptr->mark();
                     open.push(std::make_pair(outcomes[0].first, ptr));
 #ifdef DEBUG
-                    std::cout << "push " << "state" //outcomes[0].first
+                    std::cout << "PUSH " << "state: " <<outcomes[0].first
                               << " w/ g=" << ptr->g()
                               << " and h=" << ptr->h()
                               << " => f=" << ptr->f()
                               << std::endl;
+                    std::cout << "queue.sz=" << open.size() << std::endl;
 #endif
                 }
             }
