@@ -398,6 +398,11 @@ struct cow_belief_component_t {
         return true;
     }
 
+    float probability_key_in_agent_position() const {
+        assert(0);
+        return 0;
+    }
+
     void print(std::ostream &os) const {
         os << "{";
         for( int i = 0; i < cow_vector_->size(); ++i ) {
@@ -674,27 +679,20 @@ struct state_t {
     }
 
     bool empty() const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( components_[i].empty() )
-                return true;
-        }
-        return false;
+        return components_[0].empty();
     }
 
     bool have_key() const {
-        for( int i = 0; i < dim_; ++i ) {
-            int key_pos = components_[i].key_position();
-            if( key_pos != AGENT ) return false;
-        }
-        return true;
+        int key_pos = components_[0].key_position();
+        return key_pos == AGENT;
     }
 
     bool key_in_agent_position() const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( !components_[i].key_in_agent_position() )
-                return false;
-        }
-        return true;
+        return components_[0].key_in_agent_position();
+    }
+
+    float probability_key_in_agent_position() const {
+        return components_[0].probability_key_in_agent_position();
     }
 
     bool all_locked() const {
@@ -705,7 +703,9 @@ struct state_t {
         }
         return true;
     }
-    bool goal() const { return all_locked(); }
+    bool goal() const {
+        return all_locked();
+    }
 
     void apply(int action, state_t &result, bool non_det = false) const {
         result.clear();
@@ -727,6 +727,10 @@ struct state_t {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
             components_[i].filter(key_in_agent_pos, result.components_[i]);
+            if( result.components_[i].empty() ) {
+                result.clear();
+                break;
+            }
         }
     }
 
@@ -746,17 +750,6 @@ struct state_t {
     bool operator!=(const state_t &bel) const {
         return *this == bel ? false : true;
     }
-#if 0
-    bool operator<(const state_t &bel) const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( components_[i] < bel.components_[i] )
-                return true;
-            else if( components_[i] != bel.components_[i] )
-                return false;
-        }
-        return false;
-    }
-#endif
 
     void print(std::ostream &os) const {
         for( int i = 0; i < dim_; ++i ) {
