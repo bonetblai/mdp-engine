@@ -942,11 +942,15 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
     probability_heuristic_t() { }
     virtual ~probability_heuristic_t() { }
     virtual float value(const state_t &s) const {
-        float value = 0;
-        for( int i = 0; i < s.dim_; ++i ) {
-            value += (1.0 - s.components_[i].probability_locked());
+        if( s.goal() ) {
+            return 0;
+        } else {
+            float value = 0;
+            for( int i = 0; i < s.dim_; ++i ) {
+                value += (1.0 - s.components_[i].probability_locked());
+            }
+            return value / s.dim_;
         }
-        return value / s.dim_;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }

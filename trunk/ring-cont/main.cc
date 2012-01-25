@@ -184,14 +184,14 @@ int main(int argc, const char **argv) {
             float cost = 0;
             state_t state = problem.init();
             while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
-                cout << "state=" << state << endl;
-                cout << "hidden=" << hidden << endl;
-                cout << "p=" << state.probability_key_in_agent_position() << std::endl;
+                //cout << "state=" << state;
+                //cout << "hidden=" << hidden;
+                //cout << "p1=" << state.probability_key_in_agent_position() << std::endl;
+                //cout << "p2=" << hidden.probability_key_in_agent_position() << std::endl;
                 Problem::action_t action = (*policy.first)(state);
+                cout << "have-key=" << state.have_key() << ", action=" << action << std::endl;
                 assert(action != Problem::noop);
                 assert(problem.applicable(state, action));
-                //cout << "act=" << action << endl;
-
                 problem.apply(state, hidden, action);
                 cost += problem.cost(state, action);
                 ++steps;
