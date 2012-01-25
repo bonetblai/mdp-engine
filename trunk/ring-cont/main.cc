@@ -184,8 +184,9 @@ int main(int argc, const char **argv) {
             float cost = 0;
             state_t state = problem.init();
             while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
-                //cout << "state=" << state << endl;
-                //cout << "hidden=" << hidden << endl;
+                cout << "state=" << state << endl;
+                cout << "hidden=" << hidden << endl;
+                cout << "p=" << state.probability_key_in_agent_position() << std::endl;
                 Problem::action_t action = (*policy.first)(state);
                 assert(action != Problem::noop);
                 assert(problem.applicable(state, action));

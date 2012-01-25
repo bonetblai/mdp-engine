@@ -392,6 +392,19 @@ struct cow_belief_component_t {
         return true;
     }
 
+    float probability_key_in_agent_position() const {
+        float p = 0;
+        for( int i = 0; i < cow_vector_->size(); ++i ) {
+            int sample = (*cow_vector_)[i];
+            int key_pos = (sample >> 2) & 0xFF;
+	    int agent_pos = (sample >> 10) & 0xFF;
+	    if( key_pos == agent_pos ) {
+                ++p;
+            }
+        }
+        return p / cow_vector_->size();
+    }
+
     void print(std::ostream &os) const {
         os << "{";
         for( int i = 0; i < cow_vector_->size(); ++i ) {
@@ -668,27 +681,20 @@ struct state_t {
     }
 
     bool empty() const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( components_[i].empty() )
-                return true;
-        }
-        return false;
+        return components_[0].empty();
     }
 
     bool have_key() const {
-        for( int i = 0; i < dim_; ++i ) {
-            int key_pos = components_[i].key_position();
-            if( key_pos != AGENT ) return false;
-        }
-        return true;
+        int key_pos = components_[0].key_position();
+        return key_pos == AGENT;
     }
 
     bool key_in_agent_position() const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( !components_[i].key_in_agent_position() )
-                return false;
-        }
-        return true;
+        return components_[0].key_in_agent_position();
+    }
+
+    float probability_key_in_agent_position() const {
+        return components_[0].probability_key_in_agent_position();
     }
 
     bool all_locked() const {
@@ -699,7 +705,9 @@ struct state_t {
         }
         return true;
     }
-    bool goal() const { return all_locked(); }
+    bool goal() const {
+        return all_locked();
+    }
 
     void apply(int action, state_t &result, bool non_det = false) const {
         result.clear();
@@ -721,6 +729,10 @@ struct state_t {
         result.clear();
         for( int i = 0; i < dim_; ++i ) {
             components_[i].filter(key_in_agent_pos, result.components_[i]);
+            if( result.components_[i].empty() ) {
+                result.clear();
+                break;
+            }
         }
     }
 
@@ -740,17 +752,6 @@ struct state_t {
     bool operator!=(const state_t &bel) const {
         return *this == bel ? false : true;
     }
-#if 0
-    bool operator<(const state_t &bel) const {
-        for( int i = 0; i < dim_; ++i ) {
-            if( components_[i] < bel.components_[i] )
-                return true;
-            else if( components_[i] != bel.components_[i] )
-                return false;
-        }
-        return false;
-    }
-#endif
 
     void print(std::ostream &os) const {
         for( int i = 0; i < dim_; ++i ) {
@@ -838,22 +839,18 @@ struct problem_t : public Problem::problem_t<state_t> {
             if( (a == MOVE_FWD) || (a == MOVE_BWD) ) {
                 outcomes.reserve(2);
                 s.apply(a, next, non_det_);
-
-                state_t next1, next2;
-                next.filter(true, next1);
-                next.filter(false, next2);
-                assert(!next1.empty() || !next2.empty());
-                if( next1.empty() ) {
-                    outcomes.push_back(std::make_pair(next2, 1));
-                    //std::cout << "    " << next2 << " w.p. " << 1 << std::endl;
-                } else if( next2.empty() ) {
-                    outcomes.push_back(std::make_pair(next1, 1));
-                    //std::cout << "    " << next1 << " w.p. " << 1 << std::endl;
-                } else {
-                    outcomes.push_back(std::make_pair(next1, 0.5));
-                    //std::cout << "    " << next1 << " w.p. " << 0.5 << std::endl;
-                    outcomes.push_back(std::make_pair(next2, 0.5));
-                    //std::cout << "    " << next2 << " w.p. " << 0.5 << std::endl;
+                float p = next.probability_key_in_agent_position();
+                if( p > 0 ) {
+                    state_t filtered;
+                    next.filter(true, filtered);
+                    assert(!filtered.empty());
+                    outcomes.push_back(std::make_pair(filtered, p));
+                }
+                if( p < 1 ) {
+                    state_t filtered;
+                    next.filter(false, filtered);
+                    assert(!filtered.empty());
+                    outcomes.push_back(std::make_pair(filtered, 1 - p));
                 }
             } else {
                 s.apply(a, next, non_det_);
@@ -880,23 +877,19 @@ struct problem_t : public Problem::problem_t<state_t> {
         s.apply(a, nstate, non_det_);
         hidden.apply(a, nstate_hidden, non_det_);
 
-        if( !contingent_ ) {
+        if( !contingent_ || ((a != MOVE_FWD) && (a != MOVE_BWD)) ) {
             s = nstate;
             hidden = nstate_hidden;
         } else {
-            bool found_compatible_obs = false;
-            for( int obs = 0; obs < 2; ++obs ) {
-                state_t filtered_hidden;
-                nstate_hidden.filter(obs == 0 ? false : true, filtered_hidden);
-                if( !filtered_hidden.empty() ) {
-                    nstate.filter(obs, s);
-                    assert(!s.empty());
-                    hidden = filtered_hidden;
-                    found_compatible_obs = true;
-                    break;
-                }
+            float p = nstate_hidden.probability_key_in_agent_position();
+            assert((p == 0) || (p == 1));
+            if( p == 0 ) {
+                nstate.filter(false, s);
+            } else {
+                nstate.filter(true, s);
             }
-            assert(found_compatible_obs);
+            assert(!s.empty());
+            hidden = nstate_hidden;
         }
     }
 
@@ -952,11 +945,6 @@ struct probability_heuristic_t : public Heuristic::heuristic_t<state_t> {
         float value = 0;
         for( int i = 0; i < s.dim_; ++i ) {
             value += (1.0 - s.components_[i].probability_locked());
-            //value += prob == 0 ? 100 : 1/prob;
-            //if( !s.have_key() ) {
-            //    float entropy = s.components_[i].key_entropy(s.dim_);
-            //    value += 1 + 10 * entropy;
-            //}
         }
         return value / s.dim_;
     }

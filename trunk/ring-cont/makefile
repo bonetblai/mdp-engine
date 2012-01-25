@@ -1,10 +1,10 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
 OBJS	=	main.o
-TARGET	=	ring
+TARGET	=	ring_cont
 
 $(TARGET):	$(OBJS)
-		$(G++) $(CCFLAGS) -o $(TARGET) $(OBJS)
+		$(G++) -static $(CCFLAGS) -o $(TARGET) $(OBJS)
 
 clean:
 		rm -f $(OBJS) $(TARGET) *~ core
