@@ -3,10 +3,12 @@ all:
 	@#./generate-rconf-task1
 	@#./generate-rconf-task2
 	@#./generate-wumpus-task3
-	./generate-wumpus-task7
+	@#./generate-wumpus-task7
+	@#./generate-wumpus-task8
 	@#./generate-rcont-task4
 	@#./generate-rcont-task5
 	@#./generate-rcont-task6
+	./generate-rcont-task9
 	@#./generate-race-task10
 	@#./generate-ctp3-task12
 	@#./generate-ctp3-task13
