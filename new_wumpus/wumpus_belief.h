@@ -24,6 +24,7 @@ class wumpus_belief_t : public belief_t {
         }
     }
     explicit wumpus_belief_t(const wumpus_belief_t &bel) : belief_t(bel) {
+//std::cout << "wbelief_t::copy const." << std::endl;
         pit_bins_.reserve(rows_ * cols_);
         wumpus_bins_.reserve(rows_ * cols_);
         for( int p = 0; p < rows_ * cols_; ++p ) {
@@ -74,18 +75,18 @@ class wumpus_belief_t : public belief_t {
         wumpus_ac3(cell);
     }
 
-    virtual const wumpus_belief_t& operator=(const belief_t &bel) {
-        static_cast<belief_t&>(*this) = bel;
-        const wumpus_belief_t &wbel = static_cast<const wumpus_belief_t&>(bel);
+    virtual const wumpus_belief_t& operator=(const wumpus_belief_t &bel) {
+//std::cout << "wbelief_t::operator=" << std::endl;
+        belief_t::operator=(bel);
         for( int p = 0; p < rows_ * cols_; ++p ) {
-            *pit_bins_[p] = *wbel.pit_bins_[p];
-            *wumpus_bins_[p] = *wbel.wumpus_bins_[p];
+            *pit_bins_[p] = *bel.pit_bins_[p];
+            *wumpus_bins_[p] = *bel.wumpus_bins_[p];
         }
         return *this;
     }
 
-    virtual bool operator==(const belief_t &bel) const {
-        if( static_cast<const belief_t&>(*this) != bel ) return false;
+    virtual bool operator==(const wumpus_belief_t &bel) const {
+        if( !(belief_t::operator==(bel)) ) return false;
         const wumpus_belief_t &wbel = static_cast<const wumpus_belief_t&>(bel);
         for( int p = 0; p < rows_ * cols_; ++p ) {
             if( *pit_bins_[p] != *wbel.pit_bins_[p] ) return false;
@@ -93,7 +94,7 @@ class wumpus_belief_t : public belief_t {
         }
         return true;
     }
-    virtual bool operator!=(const belief_t &bel) const {
+    virtual bool operator!=(const wumpus_belief_t &bel) const {
         return *this == bel ? false : true;
     }
 
@@ -102,8 +103,8 @@ class wumpus_belief_t : public belief_t {
             for( int c = 0; c < cols_; ++c ) {
                 int p = r * cols_ + c;
                 os << "pbin(" << c << "," << r << ")=" << *pit_bins_[p]
-                   //<< std::endl
-                   //<< "wbin(" << c << "," << r << ")=" << *wumpus_bins_[p]
+                   << std::endl
+                   << "wbin(" << c << "," << r << ")=" << *wumpus_bins_[p]
                    << std::endl;
             }
         }

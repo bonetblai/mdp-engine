@@ -1,5 +1,5 @@
 G++	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse #-DNDEBUG
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
 OBJS	=	main.o
 TARGET	=	wumpus
 
@@ -12,5 +12,7 @@ clean:
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<
 
-main.o	:	main.cc agent.h wumpus_belief.h belief.h bin.h ordered_vector.h
+main.o	:	main.cc wumpus.h agent.h wumpus_belief.h belief.h bin.h ordered_vector.h
+main.o	:	../evaluation.h
+main.o	:	../engine/problem.h ../engine/policy.h ../engine/rollout.h
 

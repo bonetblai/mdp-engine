@@ -15,6 +15,7 @@ class ordered_vector_t {
     ordered_vector_t() : vector_(0), capacity_(0), size_(0) { }
     explicit ordered_vector_t(const ordered_vector_t &vec)
       : vector_(0), capacity_(0), size_(0) {
+//std::cout << "ordered_t::copy const." << std::endl;
         *this = vec;
     }
     ~ordered_vector_t() { delete[] vector_; }
@@ -89,6 +90,7 @@ class ordered_vector_t {
 
     int operator[](int i) const { return vector_[i]; }
     const ordered_vector_t& operator=(const ordered_vector_t &vec) {
+//std::cout << "ordered_t::operator=" << std::endl;
         reserve(vec.size_);
         memcpy(vector_, vec.vector_, vec.size_ * sizeof(int));
         size_ = vec.size_;
