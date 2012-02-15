@@ -28,6 +28,7 @@
 #include <cassert>
 #include <limits>
 #include <vector>
+#include <math.h>
 
 //#define DEBUG
 
@@ -203,9 +204,9 @@ inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, uns
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
-    assert(!policy.problem().dead_end(state));
+    if( policy.problem().dead_end(state) ) return policy.problem().dead_end_value();
     while( (steps < max_depth) && !policy.problem().terminal(state) ) {
-        //std::cout << "s=" << state << std::flush;
+        //std::cout << "evaluation_trial: " << state << std::flush;
         Problem::action_t action = policy(state);
         //std::cout << ", a=" << action << std::endl;
         if( action == Problem::noop ) {
