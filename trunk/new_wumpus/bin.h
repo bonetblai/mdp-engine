@@ -19,7 +19,9 @@ class bin_t {
   public:
     bin_t(int row, int col, int type) : row_(row), col_(col), type_(type) { }
     explicit bin_t(const bin_t &bin)
-      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) { }
+      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) {
+//std::cout << "bin_t::copy const." << std::endl;
+    }
     ~bin_t() { }
 
     enum { TOP = 1, BOTTOM = 2, LEFT = 4, RIGHT = 8 };
@@ -118,16 +120,21 @@ class bin_t {
     void insert(int e) { bin_.insert(e); }
 
     void filter(int nobjs, bool at_least = false) {
-        assert((0 <= nobjs) && (nobjs < 9));
+        assert((0 <= nobjs) && (nobjs <= 9));
         static std::vector<int> indices_to_erase;
         indices_to_erase.clear();
         indices_to_erase.reserve(bin_.size());
         for( ordered_vector_t::const_iterator it = bin_.begin(); it != bin_.end(); ++it ) {
             int p = *it;
-            if( (p & 0x10) ||
-                (!at_least && (num_objs_[p] != nobjs)) ||
-                (at_least && (num_objs_[p] < nobjs)) )
-                indices_to_erase.push_back(it.index());
+            if( nobjs == 9 ) {
+                if( (p & 0x10) == 0 )
+                    indices_to_erase.push_back(it.index());
+            } else {
+                if( (p & 0x10) ||
+                    (!at_least && (num_objs_[p] != nobjs)) ||
+                    (at_least && (num_objs_[p] < nobjs)) )
+                    indices_to_erase.push_back(it.index());
+            }
         }
         bin_.erase_ordered_indices(indices_to_erase);
     }
@@ -140,6 +147,7 @@ class bin_t {
     }
 
     const bin_t& operator=(const bin_t &bin) {
+//std::cout << "bin_t::operator=" << std::endl;
         row_ = bin.row_;
         col_ = bin.col_;
         type_ = bin.type_;

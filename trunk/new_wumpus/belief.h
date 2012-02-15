@@ -5,7 +5,6 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
-#include <stdlib.h>
 
 class belief_t {
   protected:
@@ -99,9 +98,6 @@ class belief_t {
         return false;
     }
 
-    static int rows() { return rows_; }
-    static int cols() { return cols_; }
-
     virtual bool inconsistent() const = 0;
     virtual void clear() = 0;
     virtual void set_as_unknown() = 0;
@@ -112,11 +108,6 @@ class belief_t {
     }
 
     virtual const belief_t& operator=(const belief_t &bel) {
-        if( (rows_ != bel.rows_) || (cols_ != bel.cols_) ) {
-            std::cout << "error: beliefs must be of same dimension in assignment."
-                      << std::endl;
-            exit(-1);
-        }
         return *this;
     }
 

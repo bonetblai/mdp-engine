@@ -2,6 +2,8 @@
 #define AGENT_H
 
 #include "wumpus_belief.h"
+#include "random.h"
+
 #include <cassert>
 #include <iostream>
 #include <queue>
@@ -27,6 +29,8 @@
 #define GLITTER    1
 #define BREEZE     2
 #define STENCH     4
+#define FELL       8
+#define EATEN      9
 
 const char* heading_string[] = { "north", "east", "south", "west" };
 
@@ -47,19 +51,24 @@ class state_t {
     wumpus_belief_t belief_;
 
   public:
-    state_t(int rows, int cols, int npits, int nwumpus, int narrows)
+    state_t(int rows = 0, int cols = 0, int npits = 0, int nwumpus = 0, int narrows = 0)
       : rows_(rows), cols_(cols),
         alive_(true), pos_(0), heading_(NORTH), gold_(UNKNOWN),
         npits_(npits), nwumpus_(nwumpus), narrows_(narrows) {
     }
-    explicit state_t(const state_t &state)
+    state_t(const state_t &state)
       : rows_(state.rows_), cols_(state.cols_),
         alive_(state.alive_), pos_(state.pos_),
         heading_(state.heading_), gold_(state.gold_),
         npits_(state.npits_), nwumpus_(state.nwumpus_),
         narrows_(state.narrows_), belief_(state.belief_) {
+//std::cout << "state_t::copy const." << std::endl;
     }
     ~state_t() { }
+
+    size_t hash() const {
+        return 0;
+    }
 
     int rows() const { return rows_; }
     int cols() const { return cols_; }
@@ -127,6 +136,7 @@ class state_t {
         assert(applicable(action));
         if( action == MOVE ) {
             pos_ = target_cell(action);
+            if( hazard_at(pos_) ) alive_ = false;
             assert((0 <= pos_) && (pos_ < rows_ * cols_));
         } else if( (action == TURNR) || (action == TURNL) ) {
             heading_ += action == TURNR ? 1 : 5;
@@ -144,19 +154,30 @@ class state_t {
     }
 
     void update(int obs) {
-        if( pos_ != OUTSIDE ) {
-            if( obs & GLITTER ) {
-                gold_ = pos_;
-            }
-            if( obs & BREEZE ) {
-                belief_.pit_filter(pos_);
-            } else {
-                belief_.pit_filter(pos_, 0, false);
-            }
-            if( obs & STENCH ) {
-                belief_.wumpus_filter(pos_);
-            } else {
-                belief_.wumpus_filter(pos_, 0, false);
+        if( obs == FELL ) {
+            alive_ = false;
+            belief_.pit_filter(pos_, 9);
+        } else if( obs == EATEN ) {
+            alive_ = false;
+            belief_.wumpus_filter(pos_, 9);
+        } else {
+            assert((0 <= obs) && (obs < 8));
+            if( pos_ != OUTSIDE ) {
+                if( obs & GLITTER ) {
+                    gold_ = pos_;
+                }
+                //std::cout << "pit update w/ obs=" << obs << std::endl;
+                if( obs & BREEZE ) {
+                    belief_.pit_filter(pos_);
+                } else {
+                    belief_.pit_filter(pos_, 0, false);
+                }
+                //std::cout << "wumpus update w/ obs=" << obs << std::endl;
+                if( obs & STENCH ) {
+                    belief_.wumpus_filter(pos_);
+                } else {
+                    belief_.wumpus_filter(pos_, 0, false);
+                }
             }
         }
     }
@@ -174,7 +195,45 @@ class state_t {
            << std::endl;
         os << belief_;
     }
+
+    const state_t& operator=(const state_t &s) {
+//std::cout << "state_t::operator=" << std::endl;
+        rows_ = s.rows_;
+        cols_ = s.cols_;
+        alive_ = s.alive_;
+        pos_ = s.pos_;
+        heading_ = s.heading_;
+        gold_ = s.gold_;
+        npits_ = s.npits_;
+        nwumpus_ = s.nwumpus_;
+        narrows_ = s.narrows_;
+        belief_ = s.belief_;
+        return *this;
+    }
+    bool operator==(const state_t &s) const {
+        if( (rows_ != s.rows_) || (cols_ != s.cols_) )
+            return false;
+        if( (alive_ != s.alive_) || (pos_ != s.pos_) )
+            return false;
+        if( (heading_ != s.heading_) || (gold_ != s.gold_) )
+            return false;
+        if( (npits_ != s.npits_) || (nwumpus_ != s.nwumpus_) || (narrows_ != s.narrows_) )
+            return false;
+        return true;
+    }
+    bool operator<(const state_t &s) const {
+        assert(0); return false;
+    }
+    
 };
+
+inline std::ostream& operator<<(std::ostream &os, const state_t &state) {
+    state.print(os);
+    return os;
+}
+
+
+
 
 
 struct open_list_cmp {
@@ -183,14 +242,13 @@ struct open_list_cmp {
     }
 };
 
-struct base_policy_t {
+struct __wumpus_base_policy_t {
     int rows_;
     int cols_;
     mutable std::vector<int> distances_;
 
-    base_policy_t(int rows, int cols) : rows_(rows), cols_(cols) {
-    }
-    ~base_policy_t() { }
+    __wumpus_base_policy_t(int rows, int cols) : rows_(rows), cols_(cols) { }
+    ~__wumpus_base_policy_t() { }
 
     int operator()(const state_t &state) const {
         if( state.have_gold() ) {
@@ -226,7 +284,9 @@ struct base_policy_t {
                         actions.push_back(action);
                 }
             }
-            int action = actions[lrand48() % actions.size()];
+            if( actions.size() == 0 ) std::cout << "state: " << state;
+            assert(!actions.empty());
+            int action = actions[Random::uniform(actions.size())];
             assert(state.no_hazard_at(state.target_cell(action)));
             return action;
         }
