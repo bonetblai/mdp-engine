@@ -28,6 +28,7 @@
 #include "aot2.h"
 #include "uct.h"
 #include "uct2.h"
+#include "rollout.h"
 
 namespace Evaluation {
 
@@ -76,9 +77,9 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         ss << "nrollout(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
-           << ",nesting=" << par.par2_
+           << ",nesting=" << par.par1_
            << ")";
-        policy = Policy::make_nested_rollout(*base, par.width_, par.depth_, par.par2_);
+        policy = Policy::make_nested_rollout(*base, par.width_, par.depth_, par.par1_);
     } else if( policy_type == "uct" ) {
         ss << "uct(" << base_str
            << ",width=" << par.width_
