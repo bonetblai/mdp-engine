@@ -24,7 +24,7 @@
 
 #define UNKNOWN    -1
 #define HAVE_GOLD  -2
-#define OUTSIDE    -1
+#define OUTSIDE    -3
 
 #define GLITTER    1
 #define BREEZE     2
@@ -94,6 +94,13 @@ class state_t {
         return belief_.no_hazard_at(cell);
     }
 
+    bool no_pit_at(int cell) const {
+        return belief_.no_pit_at(cell);
+    }
+    bool no_wumpus_at(int cell) const {
+        return belief_.no_wumpus_at(cell);
+    }
+
     void set_as_unknown() {
         belief_.set_as_unknown();
     }
@@ -156,10 +163,10 @@ class state_t {
     void update(int obs) {
         if( obs == FELL ) {
             alive_ = false;
-            belief_.pit_filter(pos_, 9);
+            belief_.pit_filter(pos_, 9, false);
         } else if( obs == EATEN ) {
             alive_ = false;
-            belief_.wumpus_filter(pos_, 9);
+            belief_.wumpus_filter(pos_, 9, false);
         } else {
             assert((0 <= obs) && (obs < 8));
             if( pos_ != OUTSIDE ) {
@@ -168,13 +175,13 @@ class state_t {
                 }
                 //std::cout << "pit update w/ obs=" << obs << std::endl;
                 if( obs & BREEZE ) {
-                    belief_.pit_filter(pos_);
+                    belief_.pit_filter(pos_, 1, true);
                 } else {
                     belief_.pit_filter(pos_, 0, false);
                 }
                 //std::cout << "wumpus update w/ obs=" << obs << std::endl;
                 if( obs & STENCH ) {
-                    belief_.wumpus_filter(pos_);
+                    belief_.wumpus_filter(pos_, 1, true);
                 } else {
                     belief_.wumpus_filter(pos_, 0, false);
                 }
@@ -185,6 +192,40 @@ class state_t {
     void apply_action_and_update(int action, int obs) {
         apply(action);
         update(obs);
+    }
+
+    bool possible_obs(int obs) {
+        if( pos_ == OUTSIDE ) return obs == 0;
+
+        if( obs == FELL ) {
+            return !no_pit_at(pos_);
+        } else if( obs == EATEN ) {
+            return !no_wumpus_at(pos_);
+        } else {
+            if( obs & GLITTER ) {
+                if( gold_ == HAVE_GOLD ) return false;
+                if( (gold_ != UNKNOWN) && (gold_ != pos_) ) return false;
+            } else {
+                if( (gold_ != UNKNOWN) && (gold_ == pos_) ) return false;
+            }
+
+            std::pair<int, int> npits = belief_.num_surrounding_pits(pos_);    
+            if( obs & BREEZE ) {
+                if( npits.second == 0 ) return false;
+            } else {
+                if( npits.first > 0 ) return false;
+            }
+        
+            std::pair<int, int> nwumpus = belief_.num_surrounding_wumpus(pos_);    
+            if( obs & STENCH ) {
+                if( nwumpus.second == 0 ) return false;
+            } else {
+                if( nwumpus.first > 0 ) return false;
+            }
+
+            return true;
+        }
+        return false;
     }
 
     void print(std::ostream &os) const {
@@ -218,6 +259,8 @@ class state_t {
         if( (heading_ != s.heading_) || (gold_ != s.gold_) )
             return false;
         if( (npits_ != s.npits_) || (nwumpus_ != s.nwumpus_) || (narrows_ != s.narrows_) )
+            return false;
+        if( belief_ != s.belief_ )
             return false;
         return true;
     }

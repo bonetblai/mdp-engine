@@ -341,8 +341,8 @@ class belief_t {
     bool no_hazard_at(const std::vector<bin_t*> &bins, int cell) const {
         return bins[cell]->no_obj_at();
     }
-    int max_num_objs(const std::vector<bin_t*> &bins, int cell) const {
-        return bins[cell]->max_num_objs();
+    std::pair<int, int> num_surrounding_objs(const std::vector<bin_t*> &bins, int cell) const {
+        return bins[cell]->num_surrounding_objs();
     }
     float obj_probability(const std::vector<bin_t*> &bins, int cell, float prior) const {
         return bins[cell]->obj_probability(prior);

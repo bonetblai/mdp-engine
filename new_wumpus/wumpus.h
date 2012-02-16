@@ -49,22 +49,45 @@ class problem_t : public Problem::problem_t<state_t> {
                       Problem::action_t a,
                       std::vector<std::pair<state_t, float> > &outcomes) const {
 
-        outcomes.reserve(8);
+        assert(s.applicable(a));
+        state_t next_a = s;
+        next_a.apply(a);
+
+        std::vector<std::pair<int, float> > possible_obs;
+        possible_obs.reserve(10);
         for( int obs = 0; obs < 10; ++obs ) {
-            state_t next(s);
-            next.apply(a);
-            if( (next.pos() == -1) && (obs > 0) ) continue;
-            next.update(obs);
-            if( !next.inconsistent() ) {
-                std::pair<state_t, float> p(next, 1.0);
-                outcomes.push_back(p);
-                //outcomes.push_back(std::make_pair(next, 1.0));
+            if( next_a.possible_obs(obs) ) {
+                possible_obs.push_back(std::make_pair(obs, 1));
             }
         }
-        assert(!outcomes.empty());
+        assert(!possible_obs.empty());
 
-        for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
-            outcomes[i].second /= (float)isz;
+        outcomes.reserve(possible_obs.size());
+        for( int i = 0, isz = possible_obs.size(); i < isz; ++i ) {
+            int obs = possible_obs[i].first;
+            float p = 1.0 / (float)possible_obs.size();
+            state_t next_ao = next_a;
+            next_ao.update(obs);
+            if(next_ao.inconsistent()){
+                std::cout << "obs=" << obs << std::endl << "next_a: " << next_a << "next_ao: " << next_ao;
+            }
+            assert(!next_ao.inconsistent());
+            //std::cout << "obs=" << obs << " is consistent" << std::endl;
+            //std::cout << "next_ao: " << next_ao;
+
+            bool found = false;
+            for( int j = 0, jsz = outcomes.size(); j < jsz; ++j ) {
+                if( outcomes[j].first == next_ao ) {
+                    found = true;
+                    outcomes[j].second += p;
+                    break;
+                }
+            }
+
+            if( !found ) {
+                outcomes.push_back(std::make_pair(state_t(), p));
+                outcomes.back().first = next_ao;
+            }
         }
     }
     virtual void print(std::ostream &os) const { }
@@ -115,10 +138,11 @@ class hidden_state_t : public state_t {
     }
 
     int get_obs() {
-        if( pos_ == -1 ) return 0;
+        if( pos_ == OUTSIDE ) return 0;
         int breeze = num_surrounding_objs(pits_);
         int stench = num_surrounding_objs(wumpus_);
         int glitter = gold_ == pos_ ? 1 : 0;
+        assert(breeze == 0 && stench == 0);
         if( breeze == 9 ) {
             return FELL;
         } else if( stench == 9 ) {

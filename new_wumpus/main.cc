@@ -172,11 +172,19 @@ int main(int argc, const char **argv) {
             // filter with initial obs
             state.update(hidden.get_obs());
 
+//cout << "initial: " << state;
+//vector<pair<state_t, float> > outcomes;
+//problem.next(state, 0, outcomes);
+//cout << outcomes.size() << endl;
+//for( int i = 0, isz = outcomes.size(); i < isz; ++i )
+//    cout << outcomes[i].second << endl;
+//exit(0);
+
             // do evaluation from start node
             size_t steps = 0;
             float cost = 0;
             while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
-                //cout << "state:" << state;
+                cout << "state:" << state;
                 assert(hidden.pos() == state.pos());
                 assert(state.alive());
         
