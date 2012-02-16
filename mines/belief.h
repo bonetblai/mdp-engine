@@ -5,7 +5,6 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
-#include <stdlib.h>
 
 class belief_t {
   protected:
@@ -25,6 +24,7 @@ class belief_t {
   public:
     belief_t() { }
     belief_t(const belief_t &bel) { }
+    belief_t(belief_t &&bel) { }
     virtual ~belief_t() { }
 
     enum { manhattan_neighbourhood = 186, octile_neighbourhood = 511 };
@@ -99,9 +99,6 @@ class belief_t {
         return false;
     }
 
-    static int rows() { return rows_; }
-    static int cols() { return cols_; }
-
     virtual bool inconsistent() const = 0;
     virtual void clear() = 0;
     virtual void set_as_unknown() = 0;
@@ -112,11 +109,6 @@ class belief_t {
     }
 
     virtual const belief_t& operator=(const belief_t &bel) {
-        if( (rows_ != bel.rows_) || (cols_ != bel.cols_) ) {
-            std::cout << "error: beliefs must be of same dimension in assignment."
-                      << std::endl;
-            exit(-1);
-        }
         return *this;
     }
 
@@ -350,8 +342,8 @@ class belief_t {
     bool no_hazard_at(const std::vector<bin_t*> &bins, int cell) const {
         return bins[cell]->no_obj_at();
     }
-    int max_num_objs(const std::vector<bin_t*> &bins, int cell) const {
-        return bins[cell]->max_num_objs();
+    std::pair<int, int> num_surrounding_objs(const std::vector<bin_t*> &bins, int cell) const {
+        return bins[cell]->num_surrounding_objs();
     }
     float obj_probability(const std::vector<bin_t*> &bins, int cell, float prior) const {
         return bins[cell]->obj_probability(prior);

@@ -102,8 +102,8 @@ class mines_belief_t : public belief_t {
     bool no_mine_at(int cell) const {
         return belief_t::no_hazard_at(bins_, cell);
     }
-    int max_num_mines(int cell) const {
-        return max_num_objs(bins_, cell);
+    std::pair<int, int> num_surrounding_mines(int cell) const {
+        return num_surrounding_objs(bins_, cell);
     }
     float mine_probability(int cell, float prior) const {
         return obj_probability(bins_, cell, prior);
