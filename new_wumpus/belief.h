@@ -24,6 +24,7 @@ class belief_t {
   public:
     belief_t() { }
     belief_t(const belief_t &bel) { }
+    belief_t(belief_t &&bel) { }
     virtual ~belief_t() { }
 
     enum { manhattan_neighbourhood = 186, octile_neighbourhood = 511 };

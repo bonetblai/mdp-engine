@@ -1,5 +1,5 @@
 G++	=	g++
-CCFLAGS	=	-Wall -g -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -std=c++0x #-DNDEBUG
 OBJS	=	main.o
 TARGET	=	wumpus
 

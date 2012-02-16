@@ -2,6 +2,7 @@
 #define WUMPUS_H
 
 #include "agent.h"
+#include "base_policy.h"
 #include "problem.h"
 #include "policy.h"
 
@@ -18,7 +19,7 @@ class problem_t : public Problem::problem_t<state_t> {
     const state_t init_;
 
   public:
-    problem_t(int rows, int cols, int npits, int nwumpus, int narrows, float dead_end_value = 1e3)
+    problem_t(int rows, int cols, int npits, int nwumpus, int narrows, float dead_end_value = 1e5)
       : Problem::problem_t<state_t>(1.0, dead_end_value),
         rows_(rows), cols_(cols),
         npits_(npits), nwumpus_(nwumpus), narrows_(narrows),
@@ -28,7 +29,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual ~problem_t() { }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
-        return 1 + EXIT;
+        return 1 + Exit;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return s.applicable(a);
@@ -43,7 +44,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return s.dead();
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
-        return (a == EXIT) && !s.have_gold() ? 1000 : 1;
+        return (a == Exit) && !s.have_gold() ? 1e4 : 1;
     }
     virtual void next(const state_t &s,
                       Problem::action_t a,
@@ -127,7 +128,7 @@ class hidden_state_t : public state_t {
     void sample() {
         alive_ = true;
         pos_ = 0;
-        heading_ = NORTH;
+        heading_ = North;
         gold_ = Random::uniform(rows_ * cols_);
 
         std::set<int> forbidden;
@@ -138,20 +139,19 @@ class hidden_state_t : public state_t {
     }
 
     int get_obs() {
-        if( pos_ == OUTSIDE ) return 0;
+        if( pos_ == OutsideCave ) return 0;
         int breeze = num_surrounding_objs(pits_);
         int stench = num_surrounding_objs(wumpus_);
         int glitter = gold_ == pos_ ? 1 : 0;
-        assert(breeze == 0 && stench == 0);
         if( breeze == 9 ) {
-            return FELL;
+            return Fell;
         } else if( stench == 9 ) {
-            return EATEN;
+            return Eaten;
         } else {
             int obs = 0;
-            obs += glitter > 0 ? GLITTER : 0;
-            obs += breeze > 0 ? BREEZE : 0;
-            obs += stench > 0 ? STENCH : 0;
+            obs += glitter > 0 ? Glitter : 0;
+            obs += breeze > 0 ? Breeze : 0;
+            obs += stench > 0 ? Stench : 0;
             return obs;
         }
     }

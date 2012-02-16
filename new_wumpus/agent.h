@@ -10,27 +10,23 @@
 #include <stdlib.h>
 #include <limits.h>
 
-#define MOVE       0
-#define TURNR      1
-#define TURNL      2
-#define SHOOT      3
-#define GRAB       4
-#define EXIT       5
+#define COMPASS_ACTIONS
 
-#define NORTH      0
-#define EAST       1
-#define SOUTH      2
-#define WEST       3
+#ifdef COMPASS_ACTIONS
+enum { MoveNorth = 0, MoveEast = 1, MoveSouth = 2, MoveWest = 3,
+       Shoot = 4, Grab = 5, Exit = 6 };
+#else
+enum { Move = 0, TurnR = 1, TurnL = 2, Shoot = 3, Grab = 4, Exit = 5 };
+#endif
 
-#define UNKNOWN    -1
-#define HAVE_GOLD  -2
-#define OUTSIDE    -3
+enum { North = 0, East = 1, South = 2, West = 3 };
 
-#define GLITTER    1
-#define BREEZE     2
-#define STENCH     4
-#define FELL       8
-#define EATEN      9
+// position of agent and gold
+enum { Unknown = -1, HaveGold = -2, OutsideCave = -3 };
+
+// feedback
+enum { Glitter = 0x1, Breeze = 0x2, Stench = 0x4, Fell = 8, Eaten = 9 };
+
 
 const char* heading_string[] = { "north", "east", "south", "west" };
 
@@ -42,7 +38,9 @@ class state_t {
     bool alive_;
     int pos_;
     int heading_;
+
     int gold_;
+    std::vector<bool> possible_gold_;
 
     int npits_;
     int nwumpus_;
@@ -53,16 +51,27 @@ class state_t {
   public:
     state_t(int rows = 0, int cols = 0, int npits = 0, int nwumpus = 0, int narrows = 0)
       : rows_(rows), cols_(cols),
-        alive_(true), pos_(0), heading_(NORTH), gold_(UNKNOWN),
+        alive_(true), pos_(0), heading_(North), gold_(Unknown),
         npits_(npits), nwumpus_(nwumpus), narrows_(narrows) {
+        possible_gold_ = std::vector<bool>(rows_ * cols_, true);
     }
     state_t(const state_t &state)
       : rows_(state.rows_), cols_(state.cols_),
         alive_(state.alive_), pos_(state.pos_),
-        heading_(state.heading_), gold_(state.gold_),
+        heading_(state.heading_),
+        gold_(state.gold_), possible_gold_(state.possible_gold_),
         npits_(state.npits_), nwumpus_(state.nwumpus_),
         narrows_(state.narrows_), belief_(state.belief_) {
 //std::cout << "state_t::copy const." << std::endl;
+    }
+    state_t(state_t &&state) 
+      : rows_(state.rows_), cols_(state.cols_),
+        alive_(state.alive_), pos_(state.pos_),
+        heading_(state.heading_),
+        gold_(state.gold_), possible_gold_(state.possible_gold_),
+        npits_(state.npits_), nwumpus_(state.nwumpus_),
+        narrows_(state.narrows_), belief_(std::move(state.belief_)) {
+        //std::cout << "state_t::move const. for " << &state << std::endl;
     }
     ~state_t() { }
 
@@ -80,8 +89,8 @@ class state_t {
     int pos() const { return pos_; }
     int heading() const { return heading_; }
     int gold() const { return gold_; }
-    bool have_gold() const { return gold_ == HAVE_GOLD; }
-    bool in_cave() const { return pos_ != OUTSIDE; }
+    bool have_gold() const { return gold_ == HaveGold; }
+    bool in_cave() const { return pos_ != OutsideCave; }
 
     int npits() const { return npits_; }
     int nwumpus() const { return nwumpus_; }
@@ -106,81 +115,124 @@ class state_t {
     }
 
     int target_cell(int action) const {
-        if( action != MOVE ) {
-            return pos_;
-        } else {
-            int npos = pos_;
-            int row = pos_ / cols_;
-            int col = pos_ % cols_;
-            if( heading_ == NORTH ) {
+        int npos = pos_;
+        int row = pos_ / cols_;
+        int col = pos_ % cols_;
+
+#ifdef COMPASS_ACTIONS
+        if( action == MoveNorth ) {
+            if( row < rows_ - 1 ) npos = (row + 1) * cols_ + col;
+        } else if( action == MoveEast ) {
+            if( col < cols_ - 1 ) npos = row * cols_ + col + 1;
+        } else if( action == MoveSouth ) {
+            if( row > 0 ) npos = (row - 1) * cols_ + col;
+        } else if( action == MoveWest ) {
+            if( col > 0 ) npos = row * cols_ + col - 1;
+        }
+#else
+        if( action == Move ) {
+            if( heading_ == North ) {
                 if( row < rows_ - 1 ) npos = (row + 1) * cols_ + col;
-            } else if( heading_ == EAST ) {
+            } else if( heading_ == East ) {
                 if( col < cols_ - 1 ) npos = row * cols_ + col + 1;
-            } else if( heading_ == SOUTH ) {
+            } else if( heading_ == South ) {
                 if( row > 0 ) npos = (row - 1) * cols_ + col;
             } else {
                 if( col > 0 ) npos = row * cols_ + col - 1;
             }
-            return npos;
         }
+#endif
+
+        return npos;
     }
 
     bool applicable(int action) const {
-        if( pos_ == OUTSIDE ) return false;
-        if( (action == MOVE) || (action == TURNR) || (action == TURNL) ) {
-            return true;
-        } else if( action == SHOOT ) {
+        if( pos_ == OutsideCave ) return false;
+
+        if( action == Shoot ) {
             return narrows_ > 0;
-        } else if( action == GRAB ) {
+        } else if( action == Grab ) {
             return pos_ == gold_;
-        } else {
-            assert(action == EXIT);
+        } else if( action == Exit ) {
             return pos_ == 0;
         }
+
+#ifdef COMPASS_ACTIONS
+        else {
+            assert(action <= MoveWest);
+            return target_cell(action) != pos_;
+        }
+#else
+        else {
+            assert(action <= TurnL);
+            if( action == Move ) {
+                return target_cell(action) != pos_;
+            } else if( (action == TurnR) || (action == TurnL) ) {
+                return true;
+            }
+        }
+#endif
     }
 
     void apply(int action) {
         assert(applicable(action));
-        if( action == MOVE ) {
+
+        if( action == Shoot ) {
+            assert(0);
+        } else if( action == Grab ) {
+            gold_ = HaveGold;
+            possible_gold_[pos_] = false;
+        } else if( action == Exit ) {
+            pos_ = OutsideCave;
+        }
+
+#ifdef COMPASS_ACTIONS
+        else {
+            assert(action <= MoveWest);
             pos_ = target_cell(action);
             if( hazard_at(pos_) ) alive_ = false;
-            assert((0 <= pos_) && (pos_ < rows_ * cols_));
-        } else if( (action == TURNR) || (action == TURNL) ) {
-            heading_ += action == TURNR ? 1 : 5;
-            heading_ = heading_ % 4;
-        } else if( action == SHOOT ) {
-            assert(0);
-        } else if( action == GRAB ) {
-            assert(pos_ == gold_);
-            gold_ = HAVE_GOLD;
-        } else {
-            assert(action == EXIT);
-            assert(pos_ == 0);
-            pos_ = OUTSIDE;
         }
+#else
+        else {
+            assert(action <= TurnL);
+            if( action == Move ) {
+                pos_ = target_cell(action);
+                if( hazard_at(pos_) ) alive_ = false;
+            } else if( (action == TurnR) || (action == TurnL) ) {
+                heading_ += action == TurnR ? 1 : 5;
+                heading_ = heading_ % 4;
+            }
+        }
+#endif
     }
 
     void update(int obs) {
-        if( obs == FELL ) {
+        if( obs == Fell ) {
             alive_ = false;
             belief_.pit_filter(pos_, 9, false);
-        } else if( obs == EATEN ) {
+        } else if( obs == Eaten ) {
             alive_ = false;
             belief_.wumpus_filter(pos_, 9, false);
         } else {
             assert((0 <= obs) && (obs < 8));
-            if( pos_ != OUTSIDE ) {
-                if( obs & GLITTER ) {
+            if( pos_ != OutsideCave ) {
+                if( obs & Glitter ) {
                     gold_ = pos_;
+                    possible_gold_ = std::vector<bool>(rows_ * cols_, false);
+                    possible_gold_[pos_] = true;
+                } else {
+                    possible_gold_[pos_] = false;
                 }
+
                 //std::cout << "pit update w/ obs=" << obs << std::endl;
-                if( obs & BREEZE ) {
+                if( obs & Breeze ) {
                     belief_.pit_filter(pos_, 1, true);
                 } else {
                     belief_.pit_filter(pos_, 0, false);
                 }
+
                 //std::cout << "wumpus update w/ obs=" << obs << std::endl;
-                if( obs & STENCH ) {
+                if( obs & Stench ) {
                     belief_.wumpus_filter(pos_, 1, true);
                 } else {
                     belief_.wumpus_filter(pos_, 0, false);
@@ -195,29 +247,28 @@ class state_t {
     }
 
     bool possible_obs(int obs) {
-        if( pos_ == OUTSIDE ) return obs == 0;
+        if( pos_ == OutsideCave ) return obs == 0;
 
-        if( obs == FELL ) {
+        if( obs == Fell ) {
             return !no_pit_at(pos_);
-        } else if( obs == EATEN ) {
+        } else if( obs == Eaten ) {
             return !no_wumpus_at(pos_);
         } else {
-            if( obs & GLITTER ) {
-                if( gold_ == HAVE_GOLD ) return false;
-                if( (gold_ != UNKNOWN) && (gold_ != pos_) ) return false;
+            if( obs & Glitter ) {
+                if( !possible_gold_[pos_] ) return false;
             } else {
-                if( (gold_ != UNKNOWN) && (gold_ == pos_) ) return false;
+                if( (gold_ != Unknown) && (gold_ == pos_) ) return false;
             }
 
             std::pair<int, int> npits = belief_.num_surrounding_pits(pos_);    
-            if( obs & BREEZE ) {
+            if( obs & Breeze ) {
                 if( npits.second == 0 ) return false;
             } else {
                 if( npits.first > 0 ) return false;
             }
         
             std::pair<int, int> nwumpus = belief_.num_surrounding_wumpus(pos_);    
-            if( obs & STENCH ) {
+            if( obs & Stench ) {
                 if( nwumpus.second == 0 ) return false;
             } else {
                 if( nwumpus.first > 0 ) return false;
@@ -245,6 +296,7 @@ class state_t {
         pos_ = s.pos_;
         heading_ = s.heading_;
         gold_ = s.gold_;
+        possible_gold_ = s.possible_gold_;
         npits_ = s.npits_;
         nwumpus_ = s.nwumpus_;
         narrows_ = s.narrows_;
@@ -260,6 +312,8 @@ class state_t {
             return false;
         if( (npits_ != s.npits_) || (nwumpus_ != s.nwumpus_) || (narrows_ != s.narrows_) )
             return false;
+        if( possible_gold_ != s.possible_gold_ )
+            return false;
         if( belief_ != s.belief_ )
             return false;
         return true;
@@ -274,125 +328,6 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &state) {
     state.print(os);
     return os;
 }
-
-
-
-
-
-struct open_list_cmp {
-    bool operator()(const std::pair<int, int> &p1, const std::pair<int, int> &p2) {
-        return p1.second > p2.second;
-    }
-};
-
-struct __wumpus_base_policy_t {
-    int rows_;
-    int cols_;
-    mutable std::vector<int> distances_;
-
-    __wumpus_base_policy_t(int rows, int cols) : rows_(rows), cols_(cols) { }
-    ~__wumpus_base_policy_t() { }
-
-    int operator()(const state_t &state) const {
-        if( state.have_gold() ) {
-            // if have goal and at entry, just EXIT
-            if( state.pos() == 0 ) return EXIT;
-
-            // must go home (outside cave)
-            compute_distances(state, 0, true);
-            int min_dist = INT_MAX, best = -1;
-            for( int p = 0; p < rows_ * cols_; ++p ) {
-                if( adjacent(p, state.pos()) && (distances_[p] < min_dist) ) {
-                    min_dist = distances_[p];
-                    best = p;
-                }
-            }
-            assert(min_dist < INT_MAX);
-            assert(distances_[state.pos()] == 1 + distances_[best]);
-
-            // move if right heading, else turn around
-            if( state.heading() == heading(state.pos(), best) ) {
-                return MOVE;
-            } else {
-                return TURNR;
-            }
-        } else {
-            // move around safely
-            std::vector<int> actions;
-            actions.reserve(6);
-            for( int action = 0; action <= EXIT; ++action ) {
-                if( state.applicable(action) ) {
-                    int target_cell = state.target_cell(action);
-                    if( state.no_hazard_at(target_cell) )
-                        actions.push_back(action);
-                }
-            }
-            if( actions.size() == 0 ) std::cout << "state: " << state;
-            assert(!actions.empty());
-            int action = actions[Random::uniform(actions.size())];
-            assert(state.no_hazard_at(state.target_cell(action)));
-            return action;
-        }
-    }
-
-    void compute_distances(const state_t &state, int goal, bool safe) const {
-        distances_ = std::vector<int>(rows_ * cols_, INT_MAX);
-
-        std::priority_queue<std::pair<int, int>,
-                            std::vector<std::pair<int, int> >,
-                            open_list_cmp> queue;
-
-        distances_[goal] = 0;
-        queue.push(std::make_pair(goal, 0));
-        while( !queue.empty() ) {
-            std::pair<int, int> p = queue.top();
-            queue.pop();
-            if( p.second <= distances_[p.first] ) {
-                int cell = p.first;
-                int row = cell / cols_, col = cell % cols_;
-                for( int dr = -1; dr < 2; ++dr ) {
-                    if( (row + dr < 0) || (row + dr >= rows_) ) continue;
-                    for( int dc = -1; dc < 2; ++dc ) {
-                        if( (dr != 0) && (dc != 0) ) continue;
-                        if( (col + dc < 0) || (col + dc >= cols_) ) continue;
-                        int ncell = (row + dr) * cols_ + (col + dc);
-                        if( state.hazard_at(ncell) ) continue;
-                        if( safe && !state.no_hazard_at(ncell) ) continue;
-
-                        int cost = 1 + p.second;
-                        if( cost < distances_[ncell] ) {
-                            distances_[ncell] = cost;
-                            queue.push(std::make_pair(ncell, cost));
-                        }
-                    }
-                }
-            }
-        }
-        //std::cout << "distances:";
-        //for( int p = 0; p < rows_ * cols_; ++p )
-        //    std::cout << " " << distances_[p];
-        //std::cout << std::endl;
-    }
-
-    int heading(int from, int to) const {
-        int from_row = from / cols_, from_col = from % cols_;
-        int to_row = to / cols_, to_col = to % cols_;
-        assert((from_row == to_row) || (from_col == to_col));
-        if( from_row != to_row ) {
-            return from_row < to_row ? NORTH : SOUTH;
-        } else {
-            return from_col < to_col ? EAST : WEST;
-        }
-    }
-
-    bool adjacent(int pos1, int pos2) const {
-        int row1 = pos1 / cols_, col1 = pos1 % cols_;
-        int row2 = pos2 / cols_, col2 = pos2 % cols_;
-        if( (row1 != row2) && (col1 != col2) ) return false;
-        return (abs(row1 - row2) == 1) || (abs(col1 - col2) == 1);
-    }
-
-};
 
 #endif
 
