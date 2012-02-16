@@ -66,11 +66,11 @@ class wumpus_belief_t : public belief_t {
         }
     }
 
-    void pit_filter(int cell, int nobjs = 1, bool at_least = true) {
+    void pit_filter(int cell, int nobjs, bool at_least) {
         filter(pit_bins_, cell, nobjs, at_least);
         pit_ac3(cell);
     }
-    void wumpus_filter(int cell, int nobjs = 1, bool at_least = true) {
+    void wumpus_filter(int cell, int nobjs, bool at_least) {
         filter(wumpus_bins_, cell, nobjs, at_least);
         wumpus_ac3(cell);
     }
@@ -118,22 +118,35 @@ class wumpus_belief_t : public belief_t {
     }
 
     // Knowledge-query methods
+    bool pit_at(int cell) const {
+        return belief_t::hazard_at(pit_bins_, cell);
+    }
+    bool wumpus_at(int cell) const {
+        return belief_t::hazard_at(wumpus_bins_, cell);
+    }
     bool hazard_at(int cell) const {
-        return belief_t::hazard_at(pit_bins_, cell) ||
-               belief_t::hazard_at(wumpus_bins_, cell);
+        return pit_at(cell) || wumpus_at(cell);
+    }
+
+    bool no_pit_at(int cell) const {
+        return belief_t::no_hazard_at(pit_bins_, cell);
+    }
+    bool no_wumpus_at(int cell) const {
+        return belief_t::no_hazard_at(wumpus_bins_, cell);
     }
     bool no_hazard_at(int cell) const {
-        return belief_t::no_hazard_at(pit_bins_, cell) &&
-               belief_t::no_hazard_at(wumpus_bins_, cell);
+        return no_pit_at(cell) && no_wumpus_at(cell);
     }
-    int max_num_pits(int cell) const {
-        return max_num_objs(pit_bins_, cell);
+
+    std::pair<int, int> num_surrounding_pits(int cell) const {
+        return num_surrounding_objs(pit_bins_, cell);
     }
     float pit_probability(int cell, float pit_prior) const {
         return obj_probability(pit_bins_, cell, pit_prior);
     }
-    int max_num_wumpus(int cell) const {
-        return max_num_objs(wumpus_bins_, cell);
+
+    std::pair<int, int> num_surrounding_wumpus(int cell) const {
+        return num_surrounding_objs(wumpus_bins_, cell);
     }
     float wumpus_probability(int cell, float wumpus_prior) const {
         return obj_probability(wumpus_bins_, cell, wumpus_prior);

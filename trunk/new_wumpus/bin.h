@@ -72,17 +72,20 @@ class bin_t {
         }
         return true;
     }
-    bool obj_at() const { return status_obj_at(1); }
-    bool no_obj_at() const { return status_obj_at(0); }
+    bool obj_at() const { return !empty() && status_obj_at(1); }
+    bool no_obj_at() const { return !empty() && status_obj_at(0); }
 
     // determine max number of objects sorrounding this cell
-    int max_num_objs() const {
-        int max_nobjs = 0;
+    std::pair<int, int> num_surrounding_objs() const {
+        int min_nobjs = 9, max_nobjs = 0;
         for( ordered_vector_t::const_iterator it = bin_.begin(); it != bin_.end(); ++it ) {
-            int nobjs = num_objs_[*it];
+            int p = *it;
+            if( p & 0x10 ) continue;
+            int nobjs = num_objs_[p];
+            min_nobjs = nobjs < min_nobjs ? nobjs : min_nobjs;
             max_nobjs = nobjs > max_nobjs ? nobjs : max_nobjs;
         }
-        return max_nobjs;
+        return std::make_pair(min_nobjs, max_nobjs);
     }
 
     float obj_probability(float prior) const {
