@@ -54,6 +54,11 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
+            case 'D':
+                eval_pars.evaluation_depth_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
@@ -155,7 +160,7 @@ int main(int argc, const char **argv) {
         values.reserve(eval_pars.evaluation_trials_);
         float start_time = Utils::read_time_in_seconds();
         float sum = 0;
-        int ndead = 0;
+        int ndead = 0, ngold = 0;
         cout << "#trials=" << eval_pars.evaluation_trials_ << ":";
 
         hidden_state_t hidden(rows, cols, npits, nwumpus, narrows);
@@ -184,7 +189,7 @@ int main(int argc, const char **argv) {
             size_t steps = 0;
             float cost = 0;
             while( (steps < eval_pars.evaluation_depth_) && !problem.terminal(state) ) {
-                cout << "state:" << state;
+                //cout << "state: " << state;
                 assert(hidden.pos() == state.pos());
                 assert(state.alive());
         
@@ -208,12 +213,14 @@ int main(int argc, const char **argv) {
                 ++steps;
             }
             ndead += hidden.dead() ? 1 : 0;
+            ngold += hidden.have_gold() ? 1 : 0;
             values.push_back(cost);
             sum += cost;
             cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;
         cout << "dead avg. = " << (float)ndead / (float)eval_pars.evaluation_trials_ << std::endl;
+        cout << "gold avg. = " << (float)ngold / (float)eval_pars.evaluation_trials_ << std::endl;
 
         // compute avg
         float avg = 0;

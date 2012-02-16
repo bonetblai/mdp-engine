@@ -19,9 +19,9 @@ class bin_t {
   public:
     bin_t(int row, int col, int type) : row_(row), col_(col), type_(type) { }
     explicit bin_t(const bin_t &bin)
-      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) {
-//std::cout << "bin_t::copy const." << std::endl;
-    }
+      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) { }
+    bin_t(bin_t &&bin)
+      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(std::move(bin.bin_)) { }
     ~bin_t() { }
 
     enum { TOP = 1, BOTTOM = 2, LEFT = 4, RIGHT = 8 };

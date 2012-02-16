@@ -24,7 +24,6 @@ class wumpus_belief_t : public belief_t {
         }
     }
     explicit wumpus_belief_t(const wumpus_belief_t &bel) : belief_t(bel) {
-//std::cout << "wbelief_t::copy const." << std::endl;
         pit_bins_.reserve(rows_ * cols_);
         wumpus_bins_.reserve(rows_ * cols_);
         for( int p = 0; p < rows_ * cols_; ++p ) {
@@ -32,11 +31,22 @@ class wumpus_belief_t : public belief_t {
             wumpus_bins_.push_back(new bin_t(*bel.wumpus_bins_[p]));
         }
     }
-    virtual ~wumpus_belief_t() {
+    wumpus_belief_t(wumpus_belief_t &&bel) : belief_t(std::move(bel)) {
+        pit_bins_.reserve(rows_ * cols_);
+        wumpus_bins_.reserve(rows_ * cols_);
         for( int p = 0; p < rows_ * cols_; ++p ) {
-            delete pit_bins_[p];
-            delete wumpus_bins_[p];
+            pit_bins_.push_back(bel.pit_bins_[p]);
+            wumpus_bins_.push_back(bel.wumpus_bins_[p]);
         }
+        bel.pit_bins_.clear();
+        bel.wumpus_bins_.clear();
+        //std::cout << "wumpus_belief_t::move const. for " << &bel << std::endl;
+    }
+    virtual ~wumpus_belief_t() {
+        for( int i = 0, isz = pit_bins_.size(); i < isz; ++i )
+            delete pit_bins_[i];
+        for( int i = 0, isz = wumpus_bins_.size(); i < isz; ++i )
+            delete wumpus_bins_[i];
     }
 
     static void initialize(int rows, int cols) {
