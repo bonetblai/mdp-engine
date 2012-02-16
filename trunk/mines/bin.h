@@ -20,6 +20,8 @@ class bin_t {
     bin_t(int row, int col, int type) : row_(row), col_(col), type_(type) { }
     explicit bin_t(const bin_t &bin)
       : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) { }
+    bin_t(bin_t &&bin)
+      : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(std::move(bin.bin_)) { }
     ~bin_t() { }
 
     enum { TOP = 1, BOTTOM = 2, LEFT = 4, RIGHT = 8 };
@@ -70,17 +72,20 @@ class bin_t {
         }
         return true;
     }
-    bool obj_at() const { return status_obj_at(1); }
-    bool no_obj_at() const { return status_obj_at(0); }
+    bool obj_at() const { return !empty() && status_obj_at(1); }
+    bool no_obj_at() const { return !empty() && status_obj_at(0); }
 
     // determine max number of objects sorrounding this cell
-    int max_num_objs() const {
-        int max_nobjs = 0;
+    std::pair<int, int> num_surrounding_objs() const {
+        int min_nobjs = 9, max_nobjs = 0;
         for( ordered_vector_t::const_iterator it = bin_.begin(); it != bin_.end(); ++it ) {
-            int nobjs = num_objs_[*it];
+            int p = *it;
+            if( p & 0x10 ) continue;
+            int nobjs = num_objs_[p];
+            min_nobjs = nobjs < min_nobjs ? nobjs : min_nobjs;
             max_nobjs = nobjs > max_nobjs ? nobjs : max_nobjs;
         }
-        return max_nobjs;
+        return std::make_pair(min_nobjs, max_nobjs);
     }
 
     float obj_probability(float prior) const {
@@ -118,16 +123,21 @@ class bin_t {
     void insert(int e) { bin_.insert(e); }
 
     void filter(int nobjs, bool at_least = false) {
-        assert((0 <= nobjs) && (nobjs < 9));
+        assert((0 <= nobjs) && (nobjs <= 9));
         static std::vector<int> indices_to_erase;
         indices_to_erase.clear();
         indices_to_erase.reserve(bin_.size());
         for( ordered_vector_t::const_iterator it = bin_.begin(); it != bin_.end(); ++it ) {
             int p = *it;
-            if( (p & 0x10) ||
-                (!at_least && (num_objs_[p] != nobjs)) ||
-                (at_least && (num_objs_[p] < nobjs)) )
-                indices_to_erase.push_back(it.index());
+            if( nobjs == 9 ) {
+                if( (p & 0x10) == 0 )
+                    indices_to_erase.push_back(it.index());
+            } else {
+                if( (p & 0x10) ||
+                    (!at_least && (num_objs_[p] != nobjs)) ||
+                    (at_least && (num_objs_[p] < nobjs)) )
+                    indices_to_erase.push_back(it.index());
+            }
         }
         bin_.erase_ordered_indices(indices_to_erase);
     }

@@ -95,7 +95,6 @@ class ordered_vector_t {
 
     int operator[](int i) const { return vector_[i]; }
     const ordered_vector_t& operator=(const ordered_vector_t &vec) {
-//std::cout << "ordered_t::operator=" << std::endl;
         reserve(vec.size_);
         memcpy(vector_, vec.vector_, vec.size_ * sizeof(int));
         size_ = vec.size_;

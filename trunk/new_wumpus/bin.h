@@ -150,7 +150,6 @@ class bin_t {
     }
 
     const bin_t& operator=(const bin_t &bin) {
-//std::cout << "bin_t::operator=" << std::endl;
         row_ = bin.row_;
         col_ = bin.col_;
         type_ = bin.type_;

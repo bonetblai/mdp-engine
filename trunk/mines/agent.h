@@ -32,8 +32,6 @@ class state_t {
     }
     ~state_t() { }
 
-    int rows() const { return belief_t::rows(); }
-    int cols() const { return belief_t::cols(); }
     int ncells() const { return ncells_; }
     int nflags() const { return nflags_; }
 
@@ -84,8 +82,8 @@ class state_t {
     bool no_mine_at(int cell) const {
         return belief_.no_mine_at(cell);
     }
-    int max_num_mines(int cell) const {
-        return belief_.max_num_mines(cell);
+    std::pair<int, int> num_surrounding_mines(int cell) const {
+        return belief_.num_surrounding_mines(cell);
     }
     float mine_probability(int cell) const {
         return belief_.mine_probability(cell, prior_);

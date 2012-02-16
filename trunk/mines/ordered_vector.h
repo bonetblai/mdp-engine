@@ -17,6 +17,12 @@ class ordered_vector_t {
       : vector_(0), capacity_(0), size_(0) {
         *this = vec;
     }
+    ordered_vector_t(ordered_vector_t &&vec)
+      : vector_(vec.vector_), capacity_(vec.capacity_), size_(vec.size_) {
+        vec.vector_ = 0;
+        vec.capacity_ = 0;
+        vec.size_ = 0;
+    }
     ~ordered_vector_t() { delete[] vector_; }
 
     void reserve(int new_capacity) {
