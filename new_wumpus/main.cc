@@ -3,11 +3,23 @@
 #include <vector>
 
 #include "wumpus.h"
+#include "base_policy.h"
+
+#define EXPERIMENT
 
 #include "../evaluation.h"
 #include "dispatcher.h"
 
 using namespace std;
+
+namespace Policy {
+  namespace AOT {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
+  namespace AOT2 {
+    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+  };
+};
 
 void usage(ostream &os) {
     os << "usage: wumpus [-s <seed>] <rows> <cols> <npits> <nwumpus>"
@@ -19,6 +31,13 @@ int main(int argc, const char **argv) {
     int h = 0;
     bool formatted = false;
     float dead_end_value = 1e5;
+
+#ifdef COMPASS_MOVEMENTS
+    bool compass = true;
+#else
+    bool compass = false;
+#endif
+    state_t::set_compass(compass);
 
     int rows = 0;
     int cols = 0;
@@ -122,6 +141,13 @@ int main(int argc, const char **argv) {
 
     // create heuristic
     Heuristic::heuristic_t<state_t> *heuristic = 0;
+    if( (h == 1) || (h = 11) ) {
+        heuristic = new shortest_distance_to_unvisited_cell_t(problem, compass);
+        if( h == 11 ) {
+            Policy::AOT::global_heuristic = heuristic;
+            Policy::AOT2::global_heuristic = heuristic;
+        }
+    }
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
@@ -150,7 +176,7 @@ int main(int argc, const char **argv) {
     }
     Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
-    wumpus_base_policy_t wumpus(problem, rows, cols);
+    wumpus_base_policy_t wumpus(problem, rows, cols, compass);
     bases.push_back(make_pair(&wumpus, "wumpus_base"));
 
     // evaluate
@@ -195,20 +221,23 @@ int main(int argc, const char **argv) {
         
                 //cout << "selecting action: " << flush; 
                 Problem::action_t action = (*policy.first)(state);
-                //cout << "a=" << action << endl;
                 assert(action != Problem::noop);
                 assert(state.applicable(action));
                 assert(hidden.applicable(action));
 
                 int obs = hidden.apply_action_and_get_obs(action);
+                cout << "pos=(" << (state.pos() % cols)
+                     << "," << (state.pos() / cols)
+                     << "), action=" << action_names[action]
+                     << ", obs=" << obs_name[obs] << endl;
+
                 if( hidden.dead() ) {
-                    cout << "dead";
                     cost += 1e5;
                     break;
                 } else {
-                    //cout << "obs=" << obs << endl;
                     state.apply_action_and_update(action, obs);
                     cost += problem.cost(state, action);
+                    if( state.dead() ) assert(hidden.dead());
                 }
                 ++steps;
             }
@@ -216,6 +245,8 @@ int main(int argc, const char **argv) {
             ngold += hidden.have_gold() ? 1 : 0;
             values.push_back(cost);
             sum += cost;
+            if( hidden.dead() ) cout << "D";
+            if( hidden.have_gold() ) cout << "G";
             cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
         cout << endl;

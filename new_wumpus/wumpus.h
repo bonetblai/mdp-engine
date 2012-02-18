@@ -2,12 +2,13 @@
 #define WUMPUS_H
 
 #include "agent.h"
-#include "base_policy.h"
 #include "problem.h"
 #include "policy.h"
 
 #include <vector>
 #include <set>
+
+#define GOAL_IS_HAVE_GOLD
 
 class problem_t : public Problem::problem_t<state_t> {
   protected:
@@ -25,20 +26,39 @@ class problem_t : public Problem::problem_t<state_t> {
         npits_(npits), nwumpus_(nwumpus), narrows_(narrows),
         init_(rows_, cols_, npits_, nwumpus_, narrows_) {
         const_cast<state_t&>(init_).set_as_unknown();
+#ifdef GOAL_IS_HAVE_GOLD
+        std::cout << "problem_t::goal: HAVE_GOLD" << std::endl;
+#else
+        std::cout << "problem_t::goal: EXIT" << std::endl;
+#endif
     }
     virtual ~problem_t() { }
+
+    int rows() const { return rows_; }
+    int cols() const { return cols_; }
+    int npits() const { return npits_; }
+    int nwumpus() const { return nwumpus_; }
+    int narrows() const { return narrows_; }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
         return 1 + Exit;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
+#ifdef GOAL_IS_HAVE_GOLD
+        return (a != Exit) && s.applicable(a);
+#else
         return s.applicable(a);
+#endif
     }
     virtual const state_t& init() const {
         return init_;
     }
     virtual bool terminal(const state_t &s) const {
+#ifdef GOAL_IS_HAVE_GOLD
+        return s.have_gold();
+#else
         return !s.in_cave();
+#endif
     }
     virtual bool dead_end(const state_t &s) const {
         return s.dead();
@@ -69,9 +89,6 @@ class problem_t : public Problem::problem_t<state_t> {
             float p = 1.0 / (float)possible_obs.size();
             state_t next_ao = next_a;
             next_ao.update(obs);
-            if(next_ao.inconsistent()){
-                std::cout << "obs=" << obs << std::endl << "next_a: " << next_a << "next_ao: " << next_ao;
-            }
             assert(!next_ao.inconsistent());
             //std::cout << "obs=" << obs << " is consistent" << std::endl;
             //std::cout << "next_ao: " << next_ao;
@@ -86,8 +103,7 @@ class problem_t : public Problem::problem_t<state_t> {
             }
 
             if( !found ) {
-                outcomes.push_back(std::make_pair(state_t(), p));
-                outcomes.back().first = next_ao;
+                outcomes.push_back(std::make_pair(next_ao, p));
             }
         }
     }
@@ -100,11 +116,6 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
 }
 
 
-
-
-
-
-
 void place_random_objects(std::vector<int> &state, int rows, int cols, int nobjs, std::set<int> &forbidden) {
     state = std::vector<int>(rows * cols, 0);
     for( int i = 0; i < nobjs; ++i ) {
@@ -115,6 +126,7 @@ void place_random_objects(std::vector<int> &state, int rows, int cols, int nobjs
         state[cell] = 1;
     }
 }
+
 
 class hidden_state_t : public state_t {
     std::vector<int> pits_;
@@ -157,7 +169,10 @@ class hidden_state_t : public state_t {
     }
 
     int apply_action_and_get_obs(int action) {
+        assert(alive_);
         apply(action);
+        alive_ = (pos_ == OutsideCave) || (!pits_[pos_] && !wumpus_[pos_]);
+        assert(alive_ || pits_[pos_] || wumpus_[pos_]);
         return get_obs();
     }
 
@@ -182,52 +197,6 @@ class hidden_state_t : public state_t {
         return num;
     }
 };
-
-
-
-
-
-
-
-struct wumpus_base_policy_t : public Policy::policy_t<state_t> {
-    int rows_;
-    int cols_;
-    __wumpus_base_policy_t base_;
-    wumpus_base_policy_t(const Problem::problem_t<state_t> &problem, int rows, int cols)
-      : Policy::policy_t<state_t>(problem),
-        rows_(rows), cols_(cols), base_(rows, cols) {
-    }
-    virtual ~wumpus_base_policy_t() { }
-
-    virtual Problem::action_t operator()(const state_t &s) const {
-        return base_(s);
-    }
-    virtual const Policy::policy_t<state_t>* clone() const {
-        return new wumpus_base_policy_t(problem(), rows_, cols_);
-    }
-    virtual void print_stats(std::ostream &os) const { }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif
 

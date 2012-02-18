@@ -4,10 +4,13 @@
 #include "belief.h"
 #include <cassert>
 #include <iostream>
+#include <list>
 #include <vector>
 #include <stdlib.h>
 
 class wumpus_belief_t : public belief_t {
+    static std::list<wumpus_belief_t*> beliefs_;
+
   protected:
     std::vector<bin_t*> pit_bins_;
     std::vector<bin_t*> wumpus_bins_;
@@ -49,6 +52,23 @@ class wumpus_belief_t : public belief_t {
             delete wumpus_bins_[i];
     }
 
+    static wumpus_belief_t* allocate() {
+        if( beliefs_.empty() ) {
+            return new wumpus_belief_t;
+        } else {
+            wumpus_belief_t *belief = beliefs_.front();
+            beliefs_.pop_front();
+            assert(belief != 0);
+            belief->clear();
+            return belief;
+        }
+    }
+    static void deallocate(wumpus_belief_t *belief) {
+        if( belief != 0 ) {
+            beliefs_.push_front(belief);
+        }
+    }
+
     static void initialize(int rows, int cols) {
         bin_t::initialize();
         belief_t::initialize(rows, cols, belief_t::manhattan_neighbourhood);
@@ -86,7 +106,6 @@ class wumpus_belief_t : public belief_t {
     }
 
     virtual const wumpus_belief_t& operator=(const wumpus_belief_t &bel) {
-//std::cout << "wbelief_t::operator=" << std::endl;
         belief_t::operator=(bel);
         for( int p = 0; p < rows_ * cols_; ++p ) {
             *pit_bins_[p] = *bel.pit_bins_[p];
@@ -163,6 +182,8 @@ class wumpus_belief_t : public belief_t {
     }
 
 };
+
+std::list<wumpus_belief_t*> wumpus_belief_t::beliefs_;
 
 inline std::ostream& operator<<(std::ostream &os, const wumpus_belief_t &bel) {
     bel.print(os);
