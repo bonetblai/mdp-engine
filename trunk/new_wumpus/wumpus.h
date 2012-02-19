@@ -23,8 +23,7 @@ class problem_t : public Problem::problem_t<state_t> {
     problem_t(int rows, int cols, int npits, int nwumpus, int narrows, float dead_end_value = 1e5)
       : Problem::problem_t<state_t>(1.0, dead_end_value),
         rows_(rows), cols_(cols),
-        npits_(npits), nwumpus_(nwumpus), narrows_(narrows),
-        init_(rows_, cols_, npits_, nwumpus_, narrows_) {
+        npits_(npits), nwumpus_(nwumpus), narrows_(narrows) {
         const_cast<state_t&>(init_).set_as_unknown();
 #ifdef GOAL_IS_HAVE_GOLD
         std::cout << "problem_t::goal: HAVE_GOLD" << std::endl;
@@ -41,11 +40,11 @@ class problem_t : public Problem::problem_t<state_t> {
     int narrows() const { return narrows_; }
 
     virtual Problem::action_t number_actions(const state_t &s) const {
-        return 1 + Exit;
+        return 1 + ActionExit;
     }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
 #ifdef GOAL_IS_HAVE_GOLD
-        return (a != Exit) && s.applicable(a);
+        return (a != ActionExit) && s.applicable(a);
 #else
         return s.applicable(a);
 #endif
@@ -64,7 +63,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return s.dead();
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
-        return (a == Exit) && !s.have_gold() ? 1e4 : 1;
+        return (a == ActionExit) && !s.have_gold() ? 1e4 : 1;
     }
     virtual void next(const state_t &s,
                       Problem::action_t a,
@@ -133,11 +132,10 @@ class hidden_state_t : public state_t {
     std::vector<int> wumpus_;
 
   public:
-    hidden_state_t(int rows, int cols, int npits, int nwumpus, int narrows)
-      : state_t(rows, cols, npits, nwumpus, narrows) { }
+    hidden_state_t(int narrows) : state_t(narrows) { }
     ~hidden_state_t() { }
 
-    void sample() {
+    void sample(int npits, int nwumpus) {
         alive_ = true;
         pos_ = 0;
         heading_ = North;
@@ -146,8 +144,8 @@ class hidden_state_t : public state_t {
         std::set<int> forbidden;
         forbidden.insert(pos_);
         forbidden.insert(gold_);
-        place_random_objects(pits_, rows_, cols_, npits_, forbidden);
-        place_random_objects(wumpus_, rows_, cols_, nwumpus_, forbidden);
+        place_random_objects(pits_, rows_, cols_, npits, forbidden);
+        place_random_objects(wumpus_, rows_, cols_, nwumpus, forbidden);
     }
 
     int get_obs() {
