@@ -29,6 +29,7 @@ const char* no_compass_action_str[] = {
     "MoveForward",
     "TurnRight",
     "TurnLeft",
+    "Noop",
     "Shoot",
     "Grab",
     "Exit"
@@ -91,11 +92,12 @@ inline int target_cell(int pos, int heading, int action, int rows, int cols, boo
             if( heading == North ) {
                 if( row < rows - 1 ) npos = (row + 1) * cols + col;
             } else if( heading == East ) {
-                if( col < cols - 1 ) npos = row * cols + col + 1;
+                if( col < cols - 1 ) npos = row * cols + (col + 1);
             } else if( heading == South ) {
                 if( row > 0 ) npos = (row - 1) * cols + col;
             } else {
-                if( col > 0 ) npos = row * cols + col - 1;
+                assert(heading == West);
+                if( col > 0 ) npos = row * cols + (col - 1);
             }
         }
     }
@@ -104,7 +106,7 @@ inline int target_cell(int pos, int heading, int action, int rows, int cols, boo
 
 inline int target_heading(int heading, int action) {
     if( (action == ActionTurnLeft) || (action == ActionTurnRight) ) {
-        return (action == ActionTurnLeft ? heading + 5 : heading + 1) & 0x3;
+        return (action == ActionTurnLeft ? heading + 3 : heading + 1) & 0x3;
     } else {
         return heading;
     }
@@ -117,40 +119,38 @@ class state_t {
     int pos_;
     int heading_;
     int narrows_;
-    int gold_;
+    int gold_pos_;
 
+    int n_possible_gold_places_;
     std::vector<bool> possible_gold_;
-    std::vector<bool> visited_;
 
     wumpus_belief_t *belief_;
 
     static int rows_;
     static int cols_;
-    //static int npits_;
-    //static int nwumpus_;
     static bool compass_;
 
   public:
     state_t(int pos = 0, int heading = North, int narrows = 0)
       : alive_(true), pos_(pos), heading_(heading),
-        narrows_(narrows), gold_(Unknown) {
+        narrows_(narrows), gold_pos_(Unknown) {
         belief_ = wumpus_belief_t::allocate();
+        n_possible_gold_places_ = rows_ * cols_;
         possible_gold_ = std::vector<bool>(rows_ * cols_, true);
-        visited_ = std::vector<bool>(rows_ * cols_, false);
-        visited_[pos_] = true;
     }
     state_t(const state_t &state)
       : alive_(state.alive_), pos_(state.pos_), heading_(state.heading_),
-        narrows_(state.narrows_), gold_(state.gold_),
-        possible_gold_(state.possible_gold_), visited_(state.visited_) {
+        narrows_(state.narrows_), gold_pos_(state.gold_pos_),
+        n_possible_gold_places_(state.n_possible_gold_places_),
+        possible_gold_(state.possible_gold_) {
         belief_ = wumpus_belief_t::allocate();
         *belief_ = *state.belief_;
     }
     state_t(state_t &&state) 
       : alive_(state.alive_), pos_(state.pos_), heading_(state.heading_),
-        narrows_(state.narrows_), gold_(state.gold_),
+        narrows_(state.narrows_), gold_pos_(state.gold_pos_),
+        n_possible_gold_places_(state.n_possible_gold_places_),
         possible_gold_(std::move(state.possible_gold_)),
-        visited_(std::move(state.visited_)),
         belief_(state.belief_) {
         state.belief_ = 0;
     }
@@ -158,17 +158,13 @@ class state_t {
         wumpus_belief_t::deallocate(belief_);
     }
 
-    static void initialize(int rows, int cols, int npits, int nwumpus, bool compass) {
+    static void initialize(int rows, int cols, bool compass) {
         rows_ = rows;
         cols_ = cols;
-        //npits_ = npits;
-        //nwumpus_ = nwumpus;
         compass_ = compass;
         std::cout << "state_t::initialize:"
                   << " rows=" << rows_
                   << ", cols=" << cols_
-                  //<< ", npits=" << npits_
-                  //<< ", nwumpus=" << nwumpus_
                   << ", compass-movements=" << (compass_ ? "yes" : "no")
                   << std::endl;
     }
@@ -183,18 +179,17 @@ class state_t {
     bool dead() const { return !alive_; }
     int pos() const { return pos_; }
     int heading() const { return heading_; }
-    int gold() const { return gold_; }
-    bool have_gold() const { return gold_ == HaveGold; }
-    bool in_gold_cell() const { return gold_ == pos_; }
+    int gold_pos() const { return gold_pos_; }
+    bool have_gold() const { return gold_pos_ == HaveGold; }
+    bool in_gold_cell() const { return gold_pos_ == pos_; }
     bool in_cave() const { return pos_ != OutsideCave; }
-    bool visited(int cell) const { return visited_[cell]; }
+    int n_possible_gold_places() const { return n_possible_gold_places_; }
+    bool possible_gold(int cell) const { return possible_gold_[cell]; }
 
-    //int npits() const { return npits_; }
-    //int nwumpus() const { return nwumpus_; }
     int narrows() const { return narrows_; }
 
     int target_cell(int action) const {
-        return ::target_cell(pos_, heading_, action, rows_, cols_, true); // CHECK
+        return ::target_cell(pos_, heading_, action, rows_, cols_, compass_);
     }
     int target_heading(int action) const {
         return ::target_heading(heading_, action);
@@ -225,7 +220,7 @@ class state_t {
         if( action == ActionShoot ) {
             return narrows_ > 0;
         } else if( action == ActionGrab ) {
-            return pos_ == gold_;
+            return pos_ == gold_pos_;
         } else if( action == ActionExit ) {
             return pos_ == 0;
         }
@@ -249,8 +244,9 @@ class state_t {
         if( action == ActionShoot ) {
             assert(0);
         } else if( action == ActionGrab ) {
-            gold_ = HaveGold;
+            gold_pos_ = HaveGold;
             possible_gold_[pos_] = false;
+            n_possible_gold_places_ = 0;
         } else if( action == ActionExit ) {
             pos_ = OutsideCave;
         } else {
@@ -267,8 +263,7 @@ class state_t {
                     heading_ = target_heading(action);
                 }
             }
-            visited_[pos_] = true;
-        }
+		}
     }
 
     void update(int obs) {
@@ -282,11 +277,15 @@ class state_t {
             assert((0 <= obs) && (obs < 8));
             if( pos_ != OutsideCave ) {
                 if( obs & Glitter ) {
-                    gold_ = pos_;
+                    gold_pos_ = pos_;
                     possible_gold_ = std::vector<bool>(rows_ * cols_, false);
                     possible_gold_[pos_] = true;
+                    n_possible_gold_places_ = 1;
                 } else {
-                    possible_gold_[pos_] = false;
+                    if( possible_gold_[pos_] ) {
+                        possible_gold_[pos_] = false;
+                        --n_possible_gold_places_;
+                    }
                 }
 
                 //std::cout << "pit update w/ obs=" << obs << std::endl;
@@ -322,7 +321,7 @@ class state_t {
             if( obs & Glitter ) {
                 if( !possible_gold_[pos_] ) return false;
             } else {
-                if( (gold_ != Unknown) && (gold_ == pos_) ) return false;
+                if( (gold_pos_ != Unknown) && (gold_pos_ == pos_) ) return false;
             }
 
             std::pair<int, int> npits = belief_->num_surrounding_pits(pos_);    
@@ -347,7 +346,7 @@ class state_t {
     void print(std::ostream &os) const {
         os << "pos=(" << (pos_ % cols_) << "," << (pos_ / cols_) << ")"
            << ", heading=" << heading_name(heading_)
-           << ", gold=" << gold_
+           << ", gold=" << gold_pos_
            << ", alive=" << alive_
            << std::endl;
         os << *belief_;
@@ -359,10 +358,9 @@ class state_t {
         alive_ = s.alive_;
         pos_ = s.pos_;
         heading_ = s.heading_;
-        gold_ = s.gold_;
+        gold_pos_ = s.gold_pos_;
+        n_possible_gold_places_ = s.n_possible_gold_places_;
         possible_gold_ = s.possible_gold_;
-        //npits_ = s.npits_;
-        //nwumpus_ = s.nwumpus_;
         narrows_ = s.narrows_;
         *belief_ = *s.belief_;
         return *this;
@@ -372,9 +370,10 @@ class state_t {
             return false;
         if( (alive_ != s.alive_) || (pos_ != s.pos_) || (narrows_ != s.narrows_) )
             return false;
-        if( (heading_ != s.heading_) || (gold_ != s.gold_) )
+        if( (heading_ != s.heading_) || (gold_pos_ != s.gold_pos_) )
             return false;
-        //if( (npits_ != s.npits_) || (nwumpus_ != s.nwumpus_) ) return false;
+        if( n_possible_gold_places_ != s.n_possible_gold_places_ )
+            return false;
         if( possible_gold_ != s.possible_gold_ )
             return false;
         if( *belief_ != *s.belief_ )
@@ -389,8 +388,6 @@ class state_t {
 
 int state_t::rows_ = 0;
 int state_t::cols_ = 0;
-//int state_t::npits_ = 0;
-//int state_t::nwumpus_ = 0;
 bool state_t::compass_ = false;
 
 inline std::ostream& operator<<(std::ostream &os, const state_t &state) {

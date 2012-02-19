@@ -135,7 +135,7 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::seeds(alg_pars.seed_);
-    state_t::initialize(rows, cols, npits, nwumpus, compass);
+    state_t::initialize(rows, cols, compass);
     wumpus_belief_t::initialize(rows, cols);
     problem_t problem(rows, cols, npits, nwumpus, narrows, dead_end_value);
 
@@ -201,7 +201,9 @@ int main(int argc, const char **argv) {
             state.set_as_unknown();
 
             // filter with initial obs
-            state.update(hidden.get_obs());
+            int obs = hidden.get_obs();
+            cout << "initial obs=" << obs_name(obs) << endl;
+            state.update(obs);
 
 //cout << "initial: " << state;
 //vector<pair<state_t, float> > outcomes;
@@ -228,7 +230,8 @@ int main(int argc, const char **argv) {
                 int obs = hidden.apply_action_and_get_obs(action);
                 cout << "pos=(" << (state.pos() % cols)
                      << "," << (state.pos() / cols)
-                     << "), action=" << action_name(action, compass)
+                     << "), h=" << state.heading()
+                     << ", action=" << action_name(action, compass)
                      << ", obs=" << obs_name(obs) << endl;
 
                 if( hidden.dead() ) {

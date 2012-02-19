@@ -82,6 +82,7 @@ class problem_t : public Problem::problem_t<state_t> {
         }
         assert(!possible_obs.empty());
 
+        outcomes.clear();
         outcomes.reserve(possible_obs.size());
         for( int i = 0, isz = possible_obs.size(); i < isz; ++i ) {
             int obs = possible_obs[i].first;
@@ -139,11 +140,12 @@ class hidden_state_t : public state_t {
         alive_ = true;
         pos_ = 0;
         heading_ = North;
-        gold_ = Random::uniform(rows_ * cols_);
+        gold_pos_ = Random::uniform(rows_ * cols_);
+        std::cout << "gold-pos=(" << (gold_pos_ % cols_) << "," << (gold_pos_ / cols_) << ")" << std::endl;
 
         std::set<int> forbidden;
         forbidden.insert(pos_);
-        forbidden.insert(gold_);
+        forbidden.insert(gold_pos_);
         place_random_objects(pits_, rows_, cols_, npits, forbidden);
         place_random_objects(wumpus_, rows_, cols_, nwumpus, forbidden);
     }
@@ -152,7 +154,7 @@ class hidden_state_t : public state_t {
         if( pos_ == OutsideCave ) return 0;
         int breeze = num_surrounding_objs(pits_);
         int stench = num_surrounding_objs(wumpus_);
-        int glitter = gold_ == pos_ ? 1 : 0;
+        int glitter = gold_pos_ == pos_ ? 1 : 0;
         if( breeze == 9 ) {
             return Fell;
         } else if( stench == 9 ) {
