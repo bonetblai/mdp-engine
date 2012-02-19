@@ -62,18 +62,28 @@ class wumpus_distances_t {
                 for( int action = 0; action < n_move_actions_; ++action ) {
                     int ncell = target_cell(cell, heading, action, rows_, cols_, compass_);
                     int nheading = target_heading(heading, action);
+                    nheading = (2 + nheading) & 0x3; // compute regression
+                    //if( action == 0 ) {
+                    //    std::cout << "c=(" << (cell % cols_) << "," << (cell / cols_) << ")"
+                    //              << ",h=" << heading << ",a=" << action << "  -->  "
+                    //              << "c=(" << (ncell % cols_) << "," << (ncell / cols_) << ")"
+                    //              << ",h=" << nheading << std::endl;
+                    //}
                     if( state.hazard_at(ncell) ) continue;
                     if( safe && !state.no_hazard_at(ncell) ) continue;
-                    int cost = 1 + p.second;
+                    int cost = p.second == INT_MAX ? p.second : 1 + p.second;
                     int new_node = compass ? ncell : ((ncell << 2) + nheading);
                     if( cost < distances_[new_node] ) {
+                        //std::cout << "new: a=" << action
+                        //          << ", node=(" << (ncell % cols_) << "," << (ncell / cols_) << ")"
+                        //          << ", cost=" << cost << std::endl;
                         distances_[new_node] = cost;
                         queue_.push(std::make_pair(new_node, cost));
                     }
                 }
             }
         }
-        //print_distances(std::cout);
+        //print(std::cout);
     }
 
     void _compute_distances(const state_t &state, bool safe) const {
@@ -137,9 +147,11 @@ class wumpus_distances_t {
         }
     }
 
-    void print_distances(std::ostream &os) const {
+    void print(std::ostream &os) const {
         std::cout << "distances:";
-        for( int p = 0; p < 4 * rows_ * cols_; ++p )
+        int dim = rows_ * cols_;
+        if( !compass_ ) dim *= 4;
+        for( int p = 0; p < dim; ++p )
             std::cout << " " << distances_[p];
         std::cout << std::endl;
     }
@@ -241,19 +253,28 @@ struct shortest_distance_to_unvisited_cell_t : public Heuristic::heuristic_t<sta
     virtual ~shortest_distance_to_unvisited_cell_t() { }
 
     virtual float value(const state_t &s) const {
-        if( s.in_gold_cell() ) return 0;
+        if( s.have_gold() ) return 0;
+        if( s.in_gold_cell() || (s.n_possible_gold_places() == 0) ) return 1;
 
         std::vector<int> goals;
         goals.reserve(problem_.rows() * problem_.cols());
         for( int p = 0; p < problem_.rows() * problem_.cols(); ++p ) {
-            if( !s.visited(p) && s.no_hazard_at(p) )
+            if( s.possible_gold(p) && s.no_hazard_at(p) )
                 goals.push_back(p);
         }
         distances_.compute_distances(s, true, goals);
         int node = compass_ ? s.pos() : ((s.pos() << 2) + s.heading());
         assert(distances_[node] != 0);
 
-        return distances_[node];
+        std::cout << "pos=(" << (s.pos() % problem_.cols()) << "," << (s.pos() / problem_.cols()) << ")"
+                  << ", heading=" << s.heading() << std::endl;
+        std::cout << "gold: ";
+        for( int p = 0; p < problem_.rows() * problem_.cols(); ++p )
+            std::cout << " " << (s.possible_gold(p) ? 1 : 0);
+        std::cout << std::endl;
+        distances_.print(std::cout);
+
+        return 1 + distances_[node];
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
