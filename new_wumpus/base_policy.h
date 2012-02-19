@@ -87,7 +87,7 @@ class wumpus_distances_t {
   public:
     wumpus_distances_t(int rows, int cols, bool compass)
       : n_move_actions_(0), compass_(compass), rows_(rows), cols_(cols) {
-        n_move_actions_ = compass_ ? 1 + MoveWest : 1 + TurnLeft;
+        n_move_actions_ = compass_ ? 1 + ActionMoveWest : 1 + ActionTurnLeft;
     }
     ~wumpus_distances_t() { }
 
@@ -131,9 +131,9 @@ class wumpus_distances_t {
         assert((row1 == row2) || (col1 == col2));
         assert(pos1 != pos2);
         if( row1 == row2 ) {
-            return col2 > col1 ? MoveEast : MoveWest;
+            return col2 > col1 ? ActionMoveEast : ActionMoveWest;
         } else {
-            return row2 > row1 ? MoveNorth : MoveSouth;
+            return row2 > row1 ? ActionMoveNorth : ActionMoveSouth;
         }
     }
 
@@ -159,7 +159,7 @@ class __wumpus_base_policy_t {
     int operator()(const state_t &state) const {
         if( state.have_gold() ) {
             // if have goal and at entry, just EXIT
-            if( state.pos() == 0 ) return Exit;
+            if( state.pos() == 0 ) return ActionExit;
 
             // must go home (outside cave)
             distances_.compute_distances(state, 0, true);
@@ -178,16 +178,16 @@ class __wumpus_base_policy_t {
                 return distances_.movement(state.pos(), best_cell);
             } else {
                 if( state.heading() == distances_.heading(state.pos(), best_cell) ) {
-                    return MoveForward;
+                    return ActionMoveForward;
                 } else {
-                    return TurnRight;
+                    return ActionTurnRight;
                 }
             }
         } else {
             // move around safely
             std::vector<int> actions;
             actions.reserve(6);
-            for( int action = 0; action <= Exit; ++action ) {
+            for( int action = 0; action <= ActionExit; ++action ) {
                 if( state.applicable(action) ) {
                     int ncell = state.target_cell(action);
                     if( state.no_hazard_at(ncell) )
@@ -246,7 +246,7 @@ struct shortest_distance_to_unvisited_cell_t : public Heuristic::heuristic_t<sta
         std::vector<int> goals;
         goals.reserve(problem_.rows() * problem_.cols());
         for( int p = 0; p < problem_.rows() * problem_.cols(); ++p ) {
-            if( (s.pos() != p) && s.no_hazard_at(p) )
+            if( !s.visited(p) && s.no_hazard_at(p) )
                 goals.push_back(p);
         }
         distances_.compute_distances(s, true, goals);

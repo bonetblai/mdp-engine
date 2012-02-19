@@ -31,13 +31,7 @@ int main(int argc, const char **argv) {
     int h = 0;
     bool formatted = false;
     float dead_end_value = 1e5;
-
-#ifdef COMPASS_MOVEMENTS
-    bool compass = true;
-#else
     bool compass = false;
-#endif
-    state_t::set_compass(compass);
 
     int rows = 0;
     int cols = 0;
@@ -67,6 +61,11 @@ int main(int argc, const char **argv) {
                 alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
+                break;
+            case 'c':
+                compass = true;
+                ++argv;
+                --argc;
                 break;
             case 'd':
                 dead_end_value = strtod(argv[1], 0);
@@ -136,6 +135,7 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::seeds(alg_pars.seed_);
+    state_t::initialize(rows, cols, npits, nwumpus, compass);
     wumpus_belief_t::initialize(rows, cols);
     problem_t problem(rows, cols, npits, nwumpus, narrows, dead_end_value);
 
@@ -189,15 +189,15 @@ int main(int argc, const char **argv) {
         int ndead = 0, ngold = 0;
         cout << "#trials=" << eval_pars.evaluation_trials_ << ":";
 
-        hidden_state_t hidden(rows, cols, npits, nwumpus, narrows);
+        hidden_state_t hidden(narrows);
         for( unsigned trial = 0; trial < eval_pars.evaluation_trials_; ++trial ) {
             cout << " " << trial << flush;
 
             // sample hidden state
-            hidden.sample();
+            hidden.sample(npits, nwumpus);
 
             // set initial belief state
-            state_t state(rows, cols, npits, nwumpus, narrows);
+            state_t state(narrows);
             state.set_as_unknown();
 
             // filter with initial obs
@@ -228,8 +228,8 @@ int main(int argc, const char **argv) {
                 int obs = hidden.apply_action_and_get_obs(action);
                 cout << "pos=(" << (state.pos() % cols)
                      << "," << (state.pos() / cols)
-                     << "), action=" << action_names[action]
-                     << ", obs=" << obs_name[obs] << endl;
+                     << "), action=" << action_name(action, compass)
+                     << ", obs=" << obs_name(obs) << endl;
 
                 if( hidden.dead() ) {
                     cost += 1e5;
