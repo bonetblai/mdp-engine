@@ -259,22 +259,28 @@ struct shortest_distance_to_unvisited_cell_t : public Heuristic::heuristic_t<sta
         std::vector<int> goals;
         goals.reserve(problem_.rows() * problem_.cols());
         for( int p = 0; p < problem_.rows() * problem_.cols(); ++p ) {
-            if( s.possible_gold(p) && s.no_hazard_at(p) )
+            if( s.possible_gold(p) && !s.hazard_at(p) )
                 goals.push_back(p);
         }
         distances_.compute_distances(s, true, goals);
         int node = compass_ ? s.pos() : ((s.pos() << 2) + s.heading());
         assert(distances_[node] != 0);
+        int value = distances_[node] == INT_MAX ? distances_[node] : 1 + distances_[node];
 
-        std::cout << "pos=(" << (s.pos() % problem_.cols()) << "," << (s.pos() / problem_.cols()) << ")"
-                  << ", heading=" << s.heading() << std::endl;
-        std::cout << "gold: ";
-        for( int p = 0; p < problem_.rows() * problem_.cols(); ++p )
-            std::cout << " " << (s.possible_gold(p) ? 1 : 0);
-        std::cout << std::endl;
-        distances_.print(std::cout);
+        //std::cout << "heuristic: "
+        //          << "pos=(" << (s.pos() % problem_.cols())
+        //          << "," << (s.pos() / problem_.cols())
+        //          << "," << heading_name(s.heading())
+        //          << "), value=" << value
+        //          << std::endl;
 
-        return 1 + distances_[node];
+        //std::cout << "gold: ";
+        //for( int p = 0; p < problem_.rows() * problem_.cols(); ++p )
+        //    std::cout << " " << (s.possible_gold(p) ? 1 : 0);
+        //std::cout << std::endl;
+        //distances_.print(std::cout);
+
+        return value;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
