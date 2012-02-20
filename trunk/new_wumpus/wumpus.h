@@ -140,14 +140,17 @@ class hidden_state_t : public state_t {
         alive_ = true;
         pos_ = 0;
         heading_ = North;
-        gold_pos_ = Random::uniform(rows_ * cols_);
+        gold_pos_ = rows_*cols_ - 1;//Random::uniform(rows_ * cols_);
         std::cout << "gold-pos=(" << (gold_pos_ % cols_) << "," << (gold_pos_ / cols_) << ")" << std::endl;
 
         std::set<int> forbidden;
         forbidden.insert(pos_);
         forbidden.insert(gold_pos_);
-        place_random_objects(pits_, rows_, cols_, npits, forbidden);
-        place_random_objects(wumpus_, rows_, cols_, nwumpus, forbidden);
+        pits_ = std::vector<int>(rows_ * cols_, 0);
+        wumpus_ = std::vector<int>(rows_ * cols_, 0);
+        pits_[cols_ + 1] = 1;
+        //place_random_objects(pits_, rows_, cols_, npits, forbidden);
+        //place_random_objects(wumpus_, rows_, cols_, nwumpus, forbidden);
     }
 
     int get_obs() {

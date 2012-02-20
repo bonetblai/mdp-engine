@@ -230,8 +230,8 @@ int main(int argc, const char **argv) {
                 int obs = hidden.apply_action_and_get_obs(action);
                 cout << "pos=(" << (state.pos() % cols)
                      << "," << (state.pos() / cols)
-                     << "), h=" << state.heading()
-                     << ", action=" << action_name(action, compass)
+                     << "," << heading_name(state.heading())
+                     << "), action=" << action_name(action, compass)
                      << ", obs=" << obs_name(obs) << endl;
 
                 if( hidden.dead() ) {

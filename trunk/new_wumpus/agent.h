@@ -186,6 +186,7 @@ class state_t {
     int n_possible_gold_places() const { return n_possible_gold_places_; }
     bool possible_gold(int cell) const { return possible_gold_[cell]; }
 
+    void set_narrows(int narrows) { narrows_ = narrows; }
     int narrows() const { return narrows_; }
 
     int target_cell(int action) const {
