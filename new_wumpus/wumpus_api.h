@@ -82,9 +82,9 @@ struct wumpus_api_t {
         std::cout << "wumpus_api_t::policy=" << policy_name_ << std::endl;
     }
 
-    void prepare_new_trial() {
+    void prepare_new_trial(int heading = North) {
         if( state_ ) delete state_;
-        state_ = new state_t(0, East);
+        state_ = new state_t(0, heading);
         state_->set_narrows(narrows_);
         state_->set_as_unknown();
     }
