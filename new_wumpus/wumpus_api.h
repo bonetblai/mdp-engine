@@ -54,6 +54,10 @@ struct wumpus_api_t {
         // set base policies
         Policy::greedy_t<state_t> greedy(*problem_, *heuristic_);
         bases_.push_back(std::make_pair(greedy.clone(), "greedy"));
+        Policy::random_greedy_t<state_t> random_greedy(*problem_, *heuristic_);
+        bases_.push_back(std::make_pair(random_greedy.clone(), "random-greedy"));
+        Policy::optimistic_greedy_t<state_t> optimistic_greedy(*problem_, *heuristic_);
+        bases_.push_back(std::make_pair(optimistic_greedy.clone(), "optimistic-greedy"));
         Policy::random_t<state_t> random(*problem_);
         bases_.push_back(std::make_pair(random.clone(), "random"));
         wumpus_base_policy_t wumpus(*problem_, rows_, cols_, compass_);
