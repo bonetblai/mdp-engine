@@ -254,7 +254,8 @@ struct shortest_distance_to_unvisited_cell_t : public Heuristic::heuristic_t<sta
 
     virtual float value(const state_t &s) const {
         if( s.have_gold() ) return 0;
-        if( s.in_gold_cell() || (s.n_possible_gold_places() == 0) ) return 1;
+        if( s.in_gold_cell() ) return 1;
+        assert(s.n_possible_gold_places() > 0);
 
         std::vector<int> goals;
         goals.reserve(problem_.rows() * problem_.cols());

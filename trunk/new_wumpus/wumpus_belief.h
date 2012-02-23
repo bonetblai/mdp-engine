@@ -139,6 +139,8 @@ class wumpus_belief_t : public belief_t {
         }
     }
 
+    virtual void mark_cell(std::vector<bin_t*> &bins, int cell, bool hazard) {
+    }
     void pit_ac3(int seed_bin, bool propagate = true) {
         ac3(pit_bins_, seed_bin, propagate);
     }

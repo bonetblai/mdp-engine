@@ -76,7 +76,7 @@ class problem_t : public Problem::problem_t<state_t> {
         std::vector<std::pair<int, float> > possible_obs;
         possible_obs.reserve(10);
         for( int obs = 0; obs < 10; ++obs ) {
-            if( next_a.possible_obs(obs) ) {
+            if( next_a.possible_obs(a, obs) ) {
                 possible_obs.push_back(std::make_pair(obs, 1));
             }
         }

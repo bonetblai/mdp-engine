@@ -264,7 +264,7 @@ class state_t {
                     heading_ = target_heading(action);
                 }
             }
-		}
+        }
     }
 
     void update(int obs) {
@@ -311,37 +311,38 @@ class state_t {
         update(obs);
     }
 
-    bool possible_obs(int obs) {
-        if( pos_ == OutsideCave ) return obs == 0;
-
-        if( obs == Fell ) {
-            return !no_pit_at(pos_);
-        } else if( obs == Eaten ) {
-            return !no_wumpus_at(pos_);
+    bool possible_obs(int action, int obs) {
+        if( pos_ == OutsideCave ) {
+            return obs == 0;
         } else {
-            if( obs & Glitter ) {
-                if( !possible_gold_[pos_] ) return false;
+            if( obs == Fell ) {
+                return !no_pit_at(pos_);
+            } else if( obs == Eaten ) {
+                return !no_wumpus_at(pos_);
             } else {
-                if( (gold_pos_ != Unknown) && (gold_pos_ == pos_) ) return false;
-            }
+                if( obs & Glitter ) {
+                    if( !possible_gold_[pos_] ) return false;
+                } else {
+                    if( (gold_pos_ != Unknown) && (gold_pos_ == pos_) ) return false;
+                }
 
-            std::pair<int, int> npits = belief_->num_surrounding_pits(pos_);    
-            if( obs & Breeze ) {
-                if( npits.second == 0 ) return false;
-            } else {
-                if( npits.first > 0 ) return false;
-            }
+                std::pair<int, int> npits = belief_->num_surrounding_pits(pos_);    
+                if( obs & Breeze ) {
+                    if( npits.second == 0 ) return false;
+                } else {
+                    if( npits.first > 0 ) return false;
+                }
         
-            std::pair<int, int> nwumpus = belief_->num_surrounding_wumpus(pos_);    
-            if( obs & Stench ) {
-                if( nwumpus.second == 0 ) return false;
-            } else {
-                if( nwumpus.first > 0 ) return false;
-            }
+                std::pair<int, int> nwumpus = belief_->num_surrounding_wumpus(pos_);    
+                if( obs & Stench ) {
+                    if( nwumpus.second == 0 ) return false;
+                } else {
+                    if( nwumpus.first > 0 ) return false;
+                }
 
-            return true;
+                return true;
+            }
         }
-        return false;
     }
 
     void print(std::ostream &os) const {
