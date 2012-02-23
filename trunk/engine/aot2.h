@@ -566,10 +566,10 @@ template<typename T> class aot2_t : public improvement_t<T> {
     float evaluate(const T &s, unsigned depth) const {
         extern const Heuristic::heuristic_t<T> *global_heuristic;
         total_evaluations_ += leaf_nsamples_;
-        if( depth >= depth_bound_ ) {
-            return 0;
-        } else if( global_heuristic != 0 ) {
+        if( (global_heuristic != 0) && (depth <= depth_bound_) ) {
             return global_heuristic->value(s);
+        } else if( depth >= depth_bound_ ) {
+            return 0;
         } else {
             return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
                                           leaf_nsamples_, depth_bound_ - depth);
