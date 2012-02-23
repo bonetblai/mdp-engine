@@ -10,6 +10,9 @@
 class mines_belief_t : public belief_t {
   protected:
     std::vector<bin_t*> bins_;
+    mutable std::vector<int> cells_with_mine_;
+    mutable std::vector<int> cells_without_mine_;
+    std::vector<bool> marked_cells_;
 
   public:
     mines_belief_t() : belief_t() {
@@ -19,12 +22,18 @@ class mines_belief_t : public belief_t {
                 bins_.push_back(new bin_t(r, c, types_[r * cols_ + c]));
             }
         }
+        cells_with_mine_.reserve(rows_ * cols_);
+        cells_without_mine_.reserve(rows_ * cols_);
+        marked_cells_ = std::vector<bool>(rows_ * cols_, false);
     }
     explicit mines_belief_t(const mines_belief_t &bel) : belief_t(bel) {
         bins_.reserve(rows_ * cols_);
         for( int p = 0; p < rows_ * cols_; ++p ) {
             bins_.push_back(new bin_t(*bel.bins_[p]));
         }
+        cells_with_mine_ = bel.cells_with_mine_;
+        cells_without_mine_ = bel.cells_without_mine_;
+        marked_cells_ = bel.marked_cells_;
     }
     virtual ~mines_belief_t() {
         for( int p = 0; p < rows_ * cols_; ++p ) {
@@ -35,6 +44,21 @@ class mines_belief_t : public belief_t {
     static void initialize(int rows, int cols) {
         bin_t::initialize();
         belief_t::initialize(rows, cols, belief_t::octile_neighbourhood);
+    }
+
+    void mark_cell(int cell) {
+        marked_cells_[cell] = true;
+    }
+    bool marked_cell(int cell) const {
+        return marked_cells_[cell];
+    }
+
+    std::vector<int>& cells_with_mine() const {
+        return cells_with_mine_;
+    }
+
+    std::vector<int>& cells_without_mine() const {
+        return cells_without_mine_;
     }
 
     virtual bool inconsistent() const {
@@ -54,6 +78,9 @@ class mines_belief_t : public belief_t {
         for( int p = 0; p < rows_ * cols_; ++p ) {
             bins_[p]->set_as_unknown(belief_t::octile_neighbourhood);
         }
+        cells_with_mine_.clear();
+        cells_without_mine_.clear();
+        marked_cells_ = std::vector<bool>(rows_ * cols_, false);
     }
 
     void mine_filter(int cell, int nobjs) {
@@ -67,6 +94,9 @@ class mines_belief_t : public belief_t {
         for( int p = 0; p < rows_ * cols_; ++p ) {
             *bins_[p] = *mbel.bins_[p];
         }
+        cells_with_mine_ = mbel.cells_with_mine_;
+        cells_without_mine_ = mbel.cells_without_mine_;
+        marked_cells_ = mbel.marked_cells_;
         return *this;
     }
 
@@ -87,6 +117,17 @@ class mines_belief_t : public belief_t {
             for( int c = 0; c < cols_; ++c ) {
                 int p = r * cols_ + c;
                 os << "bin(" << c << "," << r << ")=" << *bins_[p] << std::endl;
+            }
+        }
+    }
+
+    virtual void mark_cell(std::vector<bin_t*> &bins, int cell, bool hazard) {
+        if( !marked_cells_[cell] ) {
+            marked_cells_[cell] = true;
+            if( hazard ) {
+                cells_with_mine_.push_back(cell);
+            } else {
+                cells_without_mine_.push_back(cell);
             }
         }
     }
