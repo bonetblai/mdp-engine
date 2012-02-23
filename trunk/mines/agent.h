@@ -35,6 +35,26 @@ class state_t {
     int ncells() const { return ncells_; }
     int nflags() const { return nflags_; }
 
+    int remove_cell_with_mine() const {
+        if( belief_.cells_with_mine().empty() ) {
+            return -1;
+        } else {
+            int cell = belief_.cells_with_mine().back();
+            belief_.cells_with_mine().pop_back();
+            return cell;
+        }
+    }
+
+    int remove_cell_without_mine() const {
+        if( belief_.cells_without_mine().empty() ) {
+            return -1;
+        } else {
+            int cell = belief_.cells_without_mine().back();
+            belief_.cells_without_mine().pop_back();
+            return cell;
+        }
+    }
+
     bool inconsistent() const { return belief_.inconsistent(); }
 
     void set_as_unknown() {
@@ -76,6 +96,13 @@ class state_t {
         os << belief_;
     }
 
+    void mark_cell(int cell) {
+        belief_.mark_cell(cell);
+    }
+    bool marked_cell(int cell) const {
+        return belief_.marked_cell(cell);
+    }
+
     bool mine_at(int cell) const {
         return belief_.mine_at(cell);
     }
@@ -102,39 +129,41 @@ struct base_policy_t {
     int operator()(const state_t &state) const {
 
         // 1st: flag a cell in which we know there is mine
-        for( int cell = 0; cell < state.ncells(); ++cell ) {
-            if( state.applicable(cell) ) {
-                bool mine_at = state.mine_at(cell);
-                if( mine_at ) return cell;
-            }
+        int cell_with_mine = state.remove_cell_with_mine();
+        while( (cell_with_mine != -1) && !state.applicable(cell_with_mine) ) {
+            cell_with_mine = state.remove_cell_with_mine();
         }
+        if( cell_with_mine != -1 ) {
+            assert(state.applicable(cell_with_mine));
+            assert(state.mine_at(cell_with_mine));
+            return cell_with_mine;
+        }
+        //for( int cell = 0; cell < state.ncells(); ++cell ) {
+        //    if( state.applicable(cell) )
+        //        assert(state.marked_cell(cell) || !state.mine_at(cell));
+        //}
 
         // 2nd: uncover cell in which we known there is no mine
-        for( int cell = 0; cell < state.ncells(); ++cell ) {
-            if( state.applicable(cell) ) {
-                bool no_mine_at = state.no_mine_at(cell);
-                if( no_mine_at ) return state.ncells() + cell;
-            }
+        int cell_without_mine = state.remove_cell_without_mine();
+        while( (cell_without_mine != -1) && !state.applicable(cell_without_mine) ) {
+            cell_without_mine = state.remove_cell_without_mine();
         }
+        if( cell_without_mine != -1 ) {
+            assert(state.applicable(cell_without_mine));
+            assert(state.no_mine_at(cell_without_mine));
+            return state.ncells() + cell_without_mine;
+        }
+        //for( int cell = 0; cell < state.ncells(); ++cell ) {
+        //    if( state.applicable(cell) )
+        //        assert(state.marked_cell(cell) || !state.no_mine_at(cell));
+        //}
+
+        // 3rd: we must guess a cell to open
+        std::cout << "guessing..." << std::endl;
 
         std::vector<int> best;
         best.reserve(state.ncells());
 
-#if 0
-        // look for virgin cell
-        for( int cell = 0; cell < state.ncells(); ++cell ) {
-            if( state.applicable(cell) && state.virgin(cell) ) {
-                best.push_back(cell);
-            }
-        }
-        if( !best.empty() ) {
-            std::cout << "selecting (non-sure) virgin cell" << std::endl;
-            return state.ncells() + best[lrand48() % best.size()];
-        }
-#endif
-
-#if 1
-        // 3rd: uncover cell with less probability of mine (random)
         float best_probability = 1.0;
         for( int cell = 0; cell < state.ncells(); ++cell ) {
             if( state.applicable(cell) ) {
@@ -149,12 +178,10 @@ struct base_policy_t {
             }
         }
         if( !best.empty() ) {
-            //std::cout << "guessing..." << std::endl;
             return state.ncells() + best[lrand48() % best.size()];
         }
-#endif
 
-        // no available action, return -1
+        // 4th: no available action, return -1
         return -1;
     }
 

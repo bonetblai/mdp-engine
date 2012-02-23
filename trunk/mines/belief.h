@@ -18,7 +18,7 @@ class belief_t {
     typedef std::vector<edge_t> edge_list_t;
 
     static int n_cg_edges_;
-    static std::vector<edge_list_t> cg_edges_in_;
+    static std::vector<edge_list_t> cg_edges_incident_at_;
     static std::vector<int> cells_to_revise_[25];
 
   public:
@@ -230,12 +230,12 @@ class belief_t {
     // Consistency methods
     static void construct_constraint_graph(int rows, int cols, int neighbourhood) {
         int n_cg_edges_ = 0;
-        cg_edges_in_.clear();
-        cg_edges_in_ = std::vector<edge_list_t>(rows * cols);
+        cg_edges_incident_at_.clear();
+        cg_edges_incident_at_ = std::vector<edge_list_t>(rows * cols);
         for( int r = 0; r < rows; ++r ) {
             for( int c = 0; c < cols; ++c ) {
                 int cell = r * cols + c;
-                cg_edges_in_[cell].reserve(25);
+                cg_edges_incident_at_[cell].reserve(25);
                 for( int dr = -2; dr < 3; ++dr ) {
                     if( (r + dr < 0) || (r + dr >= rows) ) continue;
                     for( int dc = -2; dc < 3; ++dc ) {
@@ -248,7 +248,7 @@ class belief_t {
                             continue;
                         int ncell = (r + dr) * cols + (c + dc);
                         if( ncell != cell ) {
-                            cg_edges_in_[cell].push_back(std::make_pair(ncell, cell));
+                            cg_edges_incident_at_[cell].push_back(std::make_pair(ncell, cell));
                             ++n_cg_edges_;
                         }
                     }
@@ -299,36 +299,57 @@ class belief_t {
     }
 
     void arc_revise(int bin_x, int bin_y, edge_list_t &worklist) {
-        for( int i = 0, isz = cg_edges_in_[bin_x].size(); i < isz; ++i ) {
-            int nbin = cg_edges_in_[bin_x][i].first;
+        for( int i = 0, isz = cg_edges_incident_at_[bin_x].size(); i < isz; ++i ) {
+            int nbin = cg_edges_incident_at_[bin_x][i].first;
             assert(nbin != bin_x);
             if( nbin != bin_y )
                 worklist.push_back(std::make_pair(nbin, bin_x));
         }
     }
 
+    // used to update mark cells discovered by constraint propagation
+    virtual void mark_cell(std::vector<bin_t*> &bins, int cell, bool hazard) = 0;
+
+    // AC3: Arc Consistency. Time is O(ed^3) where e is #edges in constraint graph and
+    // d is size of larges domain: there are at most 2ed arc revisions since each revision
+    // or arc (y,x) is caused by a removed element from the domain of x (D_x), and each
+    // such revision takes time d^2 because for each element of D_x, a consistent element
+    // of D_y must be found. Space is O(e) since this is the maximum size of the worklist.
     void ac3(std::vector<bin_t*> &bins, int seed_bin, bool propagate) {
         assert(seed_bin >= 0);
         assert(seed_bin < rows_ * cols_);
+        assert(hazard_at(bins, seed_bin) || no_hazard_at(bins, seed_bin));
 
+        // initial worklist are all edges ?bin -> seed_bin
         edge_list_t worklist;
         worklist.reserve(n_cg_edges_);
-        worklist = cg_edges_in_[seed_bin];
+        worklist = cg_edges_incident_at_[seed_bin];
 
+        // revise arcs until worklist becomes empty
         while( !worklist.empty() ) {
             edge_t edge = worklist.back();
             worklist.pop_back();
             int bin_x = edge.first;
             int bin_y = edge.second;
+
+            // update hazard and no_hazard lists
+            if( hazard_at(bins, bin_y) ) mark_cell(bins, bin_y, true);
+            if( no_hazard_at(bins, bin_y) ) mark_cell(bins, bin_y, false);
+
+            // try to reduce arc bin_x -> bin_y
             if( arc_reduce(bins, bin_x, bin_y) ) {
                 if( bins[bin_x]->empty() ) {
                     clear(); // bin_x became empty, clear all bins
                     return;
                 } else {
+                    // some element was removed from domain of bin_x,
+                    // schedule revision of arc incident at bin_x
+                    // different from arc bin_y -> bin_x
                     if( propagate ) {
                         arc_revise(bin_x, bin_y, worklist);
                     } else {
                         // save for future propagation
+                        assert(0);
                     }
                 }
             }
@@ -360,7 +381,7 @@ int *belief_t::types_ = 0;
 int belief_t::offsets_[512][9];
 
 int belief_t::n_cg_edges_ = 0;
-std::vector<belief_t::edge_list_t> belief_t::cg_edges_in_;
+std::vector<belief_t::edge_list_t> belief_t::cg_edges_incident_at_;
 std::vector<int> belief_t::cells_to_revise_[25];
 
 #endif
