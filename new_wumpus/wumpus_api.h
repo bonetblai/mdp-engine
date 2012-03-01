@@ -111,6 +111,9 @@ struct wumpus_api_t {
         state_->apply_action_and_update(action, obs);
     }
 
+    void print(std::ostream &os) const {
+        os << "agent:" << std::endl << *state_;
+    }
 };
 
 #endif

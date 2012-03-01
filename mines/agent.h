@@ -12,21 +12,20 @@ class state_t {
     int ncells_;
     int nmines_;
     int nflags_;
-    float prior_;
+    int ncovered_;
     std::vector<bool> flag_;
     std::vector<bool> uncovered_;
     mines_belief_t belief_;
 
   public:
     state_t(int rows, int cols, int nmines)
-      : ncells_(rows * cols), nmines_(nmines), nflags_(0) {
+      : ncells_(rows * cols), nmines_(nmines), nflags_(0), ncovered_(ncells_) {
         flag_ = std::vector<bool>(ncells_, false);
         uncovered_ = std::vector<bool>(ncells_, false);
-        prior_ = (float)nmines_ / (float)ncells_;
     }
     explicit state_t(const state_t &state)
       : ncells_(state.ncells_), nmines_(state.nmines_),
-        nflags_(state.nflags_), prior_(state.prior_),
+        nflags_(state.nflags_), ncovered_(state.ncovered_),
         flag_(state.flag_), uncovered_(state.uncovered_),
         belief_(state.belief_) {
     }
@@ -34,6 +33,7 @@ class state_t {
 
     int ncells() const { return ncells_; }
     int nflags() const { return nflags_; }
+    int ncovered() const { return ncovered_; }
 
     int remove_cell_with_mine() const {
         if( belief_.cells_with_mine().empty() ) {
@@ -70,7 +70,8 @@ class state_t {
             flag_[cell] = true;
             ++nflags_;
         } else {
-            uncovered_[cell] = true;
+            //uncovered_[cell] = true;
+            //--ncovered_;
         }
     }
     void apply(int action) {
@@ -84,6 +85,8 @@ class state_t {
             belief_.mine_filter(cell, obs);
             belief_.mine_ac3(cell);
         }
+        uncovered_[cell] = true;
+        --ncovered_;
     }
 
     void apply_action_and_update(int action, int obs) {
@@ -113,7 +116,11 @@ class state_t {
         return belief_.num_surrounding_mines(cell);
     }
     float mine_probability(int cell) const {
-        return belief_.mine_probability(cell, prior_);
+        float prior = (float)(nmines_ - nflags_) / (float)ncovered_;
+        //std::cout << "nmines=" << nmines_ - nflags_ << std::endl;
+        //std::cout << "ncovered=" << ncells_ - ncovered_ << std::endl;
+        //std::cout << "prior=" << prior << std::endl;
+        return belief_.mine_probability(cell, prior);
     }
     bool virgin(int cell) const {
         return belief_.virgin(cell);

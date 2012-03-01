@@ -1,7 +1,7 @@
 #ifndef BELIEF_H
 #define BELIEF_H
 
-#include "bin.h"
+#include "cell_bin.h"
 #include <cassert>
 #include <iostream>
 #include <vector>
@@ -58,10 +58,10 @@ class belief_t {
         for( int r = 0; r < rows_; ++r ) {
             for( int c = 0; c < cols_; ++c ) {
                 int type = 0;
-                if( r == 0 ) type += bin_t::BOTTOM;
-                if( r == rows_ - 1 ) type += bin_t::TOP;
-                if( c == 0 ) type += bin_t::LEFT;
-                if( c == cols_ - 1 ) type += bin_t::RIGHT;
+                if( r == 0 ) type += cell_bin_t::BOTTOM;
+                if( r == rows_ - 1 ) type += cell_bin_t::TOP;
+                if( c == 0 ) type += cell_bin_t::LEFT;
+                if( c == cols_ - 1 ) type += cell_bin_t::RIGHT;
                 types_[r * cols_ + c] = type;
             }
         }
@@ -92,10 +92,10 @@ class belief_t {
 
     static bool skip_cell(int cell, int i) {
         int type = types_[cell];
-        if( (type & bin_t::TOP) && ((i == 6) || (i == 7) || (i == 8)) ) return true;
-        if( (type & bin_t::BOTTOM) && ((i == 0) || (i == 1) || (i == 2)) ) return true;
-        if( (type & bin_t::LEFT) && ((i == 0) || (i == 3) || (i == 6)) ) return true;
-        if( (type & bin_t::RIGHT) && ((i == 2) || (i == 5) || (i == 8)) ) return true;
+        if( (type & cell_bin_t::TOP) && ((i == 6) || (i == 7) || (i == 8)) ) return true;
+        if( (type & cell_bin_t::BOTTOM) && ((i == 0) || (i == 1) || (i == 2)) ) return true;
+        if( (type & cell_bin_t::LEFT) && ((i == 0) || (i == 3) || (i == 6)) ) return true;
+        if( (type & cell_bin_t::RIGHT) && ((i == 2) || (i == 5) || (i == 8)) ) return true;
         return false;
     }
 
@@ -103,7 +103,7 @@ class belief_t {
     virtual void clear() = 0;
     virtual void set_as_unknown() = 0;
 
-    void filter(std::vector<bin_t*> &bins, int cell, int nobjs, bool at_least = false) {
+    void filter(std::vector<cell_bin_t*> &bins, int cell, int nobjs, bool at_least = false) {
         assert((0 <= cell) && (cell < rows_ * cols_));
         bins[cell]->filter(nobjs, at_least);
     }
@@ -156,7 +156,7 @@ class belief_t {
         ++num_states_;
     }
 
-    void recursive_join(const std::vector<bin_t*> &bins,
+    void recursive_join(const std::vector<cell_bin_t*> &bins,
                         int index,
                         int *state,
                         belief_t *bel,
@@ -169,9 +169,9 @@ class belief_t {
             std::vector<int> marks;
             marks.reserve(9);
 
-            bin_t &bin = *bins[index];
+            cell_bin_t &bin = *bins[index];
             int cell = bin.row() * cols_ + bin.col();
-            for( bin_t::const_iterator it = bin.begin(); it != bin.end(); ++it ) {
+            for( cell_bin_t::const_iterator it = bin.begin(); it != bin.end(); ++it ) {
                 // mark and do consistency check
                 marks.clear();
                 bool consistent = true;
@@ -207,20 +207,20 @@ class belief_t {
     }
 
     void join_and_decompose(belief_t &bel) const {
-        std::vector<bin_t*> ordered_bins(bins_);
+        std::vector<cell_bin_t*> ordered_bins(bins_);
         std::vector<int> state(rows_ * cols_, -1);
         recursive_join(ordered_bins, 0, &state[0], &bel, &belief_t::decompose_state);
     }
 
     void print_join() const {
-        std::vector<bin_t*> ordered_bins(bins_);
+        std::vector<cell_bin_t*> ordered_bins(bins_);
         std::vector<int> state(rows_ * cols_, -1);
         recursive_join(ordered_bins, 0, &state[0], 0, &belief_t::print_state);
     }
 
     unsigned count_states() const {
         num_states_ = 0;
-        std::vector<bin_t*> ordered_bins(bins_);
+        std::vector<cell_bin_t*> ordered_bins(bins_);
         std::vector<int> state(rows_ * cols_, -1);
         recursive_join(ordered_bins, 0, &state[0], 0, &belief_t::count_states);
         return num_states_;
@@ -271,7 +271,7 @@ class belief_t {
         return true;
     }
 
-    bool arc_reduce(std::vector<bin_t*> &bins, int bin_x, int bin_y) {
+    bool arc_reduce(std::vector<cell_bin_t*> &bins, int bin_x, int bin_y) {
         assert(bin_x != bin_y);
         static std::vector<int> indices_to_erase;
         indices_to_erase.reserve(bins[bin_x]->size());
@@ -308,14 +308,14 @@ class belief_t {
     }
 
     // used to update mark cells discovered by constraint propagation
-    virtual void mark_cell(std::vector<bin_t*> &bins, int cell, bool hazard) = 0;
+    virtual void mark_cell(std::vector<cell_bin_t*> &bins, int cell, bool hazard) = 0;
 
     // AC3: Arc Consistency. Time is O(ed^3) where e is #edges in constraint graph and
     // d is size of larges domain: there are at most 2ed arc revisions since each revision
     // or arc (y,x) is caused by a removed element from the domain of x (D_x), and each
     // such revision takes time d^2 because for each element of D_x, a consistent element
     // of D_y must be found. Space is O(e) since this is the maximum size of the worklist.
-    void ac3(std::vector<bin_t*> &bins, int seed_bin, bool propagate) {
+    void ac3(std::vector<cell_bin_t*> &bins, int seed_bin, bool propagate) {
         assert(seed_bin >= 0);
         assert(seed_bin < rows_ * cols_);
         assert(hazard_at(bins, seed_bin) || no_hazard_at(bins, seed_bin));
@@ -357,19 +357,19 @@ class belief_t {
     }
 
     // Knowledge-query methods
-    virtual bool hazard_at(const std::vector<bin_t*> &bins, int cell) const {
+    virtual bool hazard_at(const std::vector<cell_bin_t*> &bins, int cell) const {
         return bins[cell]->obj_at();
     }
-    bool no_hazard_at(const std::vector<bin_t*> &bins, int cell) const {
+    bool no_hazard_at(const std::vector<cell_bin_t*> &bins, int cell) const {
         return bins[cell]->no_obj_at();
     }
-    std::pair<int, int> num_surrounding_objs(const std::vector<bin_t*> &bins, int cell) const {
+    std::pair<int, int> num_surrounding_objs(const std::vector<cell_bin_t*> &bins, int cell) const {
         return bins[cell]->num_surrounding_objs();
     }
-    float obj_probability(const std::vector<bin_t*> &bins, int cell, float prior) const {
+    float obj_probability(const std::vector<cell_bin_t*> &bins, int cell, float prior) const {
         return bins[cell]->obj_probability(prior);
     }
-    bool virgin(const std::vector<bin_t*> &bins, int cell) const {
+    bool virgin(const std::vector<cell_bin_t*> &bins, int cell) const {
         return bins[cell]->virgin();
     }
 
