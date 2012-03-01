@@ -11,6 +11,30 @@ class ordered_vector_t {
     int capacity_;
     int size_;
 
+    int binary_search(int e) const {
+        int lb = 0, ub = size_ - 1, mid = (lb + ub) / 2;
+        if( e < vector_[lb] ) {
+            mid = lb - 1;
+        } else if( vector_[ub] <= e ) {
+            mid = ub;
+        } else {
+            assert(vector_[lb] <= e);
+            assert(e < vector_[ub]);
+            while( lb != mid ) {
+                if( vector_[mid] <= e ) {
+                    lb = mid;
+                } else {
+                    ub = mid;
+                }
+                mid = (lb + ub) / 2;
+            }
+            assert(vector_[mid] <= e);
+            assert(e < vector_[mid+1]);
+        }
+        assert((mid == -1) || (vector_[mid] <= e));
+        return mid;
+    }
+
   public:
     ordered_vector_t() : vector_(0), capacity_(0), size_(0) { }
     explicit ordered_vector_t(const ordered_vector_t &vec)
@@ -45,26 +69,7 @@ class ordered_vector_t {
             vector_[0] = e;
             ++size_;
         } else {
-            int lb = 0, ub = size_ - 1, mid = (lb + ub) / 2;
-            if( e < vector_[lb] ) {
-                mid = lb - 1;
-            } else if( vector_[ub] <= e ) {
-                mid = ub;
-            } else {
-                assert(vector_[lb] <= e);
-                assert(e < vector_[ub]);
-                while( lb != mid ) {
-                    if( vector_[mid] <= e ) {
-                        lb = mid;
-                    } else {
-                        ub = mid;
-                    }
-                    mid = (lb + ub) / 2;
-                }
-                assert(vector_[mid] <= e);
-                assert(e < vector_[mid+1]);
-            }
-
+            int mid = binary_search(e);
             if( (mid == -1) || (vector_[mid] != e) ) {
                 reserve(1 + capacity_);
                 for( int i = size_ - 1; i > mid; --i ) {
@@ -73,6 +78,31 @@ class ordered_vector_t {
                 vector_[mid+1] = e;
                 ++size_;
             }
+        }
+    }
+
+    // TODO: make this more efficient
+    void insert(const ordered_vector_t &vec) {
+        for( const_iterator it = vec.begin(); it != vec.end(); ++it ) {
+            if( (size_ == 0) || (*it > vector_[size_-1]) ) {
+                // copy the whole vector at the end
+                int copysz = vec.size() - it.index();
+                reserve(size_ + copysz);
+                memcpy(&vector_[size_], &vec.vector_[it.index()], copysz * sizeof(int));
+                return;
+            } else {
+                insert(*it);
+            }
+        }
+    }
+
+    void erase(int e) {
+        int mid = binary_search(e);
+        if( (mid != -1) && (vector_[mid] == e) ) {
+            for( int i = mid; i < size_ - 1; ++i ) {
+                vector_[i] = vector_[i+1];
+            }
+            --size_;
         }
     }
 

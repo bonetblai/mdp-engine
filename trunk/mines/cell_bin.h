@@ -1,5 +1,5 @@
-#ifndef BIN_H
-#define BIN_H
+#ifndef CELL_BIN_H
+#define CELL_BIN_H
 
 #include "ordered_vector.h"
 #include <cassert>
@@ -7,7 +7,7 @@
 #include <vector>
 #include <math.h>
 
-class bin_t {
+class cell_bin_t {
     int row_;
     int col_;
     int type_;
@@ -17,12 +17,12 @@ class bin_t {
     static int num_objs_[];
 
   public:
-    bin_t(int row, int col, int type) : row_(row), col_(col), type_(type) { }
-    explicit bin_t(const bin_t &bin)
+    cell_bin_t(int row = 0, int col = 0, int type = 0) : row_(row), col_(col), type_(type) { }
+    explicit cell_bin_t(const cell_bin_t &bin)
       : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(bin.bin_) { }
-    bin_t(bin_t &&bin)
+    cell_bin_t(cell_bin_t &&bin)
       : row_(bin.row_), col_(bin.col_), type_(bin.type_), bin_(std::move(bin.bin_)) { }
-    ~bin_t() { }
+    ~cell_bin_t() { }
 
     enum { TOP = 1, BOTTOM = 2, LEFT = 4, RIGHT = 8 };
 
@@ -31,7 +31,7 @@ class bin_t {
         if( initialized ) return;
         initialized = true;
 
-        std::cout << "bin_t: initialization" << std::endl;
+        std::cout << "cell_bin_t: initialization" << std::endl;
         for( int p = 0; p < 512; ++p ) {
             int num = 0;
             for( int q = p; q != 0; q = q >> 1 ) {
@@ -142,14 +142,14 @@ class bin_t {
         bin_.erase_ordered_indices(indices_to_erase);
     }
 
-    bool operator==(const bin_t &bin) const {
+    bool operator==(const cell_bin_t &bin) const {
         return (row_ == bin.row_) && (col_ == bin.col_) && (bin_ == bin.bin_);
     }
-    bool operator!=(const bin_t &bin) const {
+    bool operator!=(const cell_bin_t &bin) const {
         return *this == bin ? false : true;
     }
 
-    const bin_t& operator=(const bin_t &bin) {
+    const cell_bin_t& operator=(const cell_bin_t &bin) {
         row_ = bin.row_;
         col_ = bin.col_;
         type_ = bin.type_;
@@ -166,10 +166,10 @@ class bin_t {
     const_iterator end() const { return bin_.end(); }
 };
 
-int bin_t::virgin_size_[16];
-int bin_t::num_objs_[512];
+int cell_bin_t::virgin_size_[16];
+int cell_bin_t::num_objs_[512];
 
-inline std::ostream& operator<<(std::ostream &os, const bin_t &bin) {
+inline std::ostream& operator<<(std::ostream &os, const cell_bin_t &bin) {
     bin.print(os);
     return os;
 }

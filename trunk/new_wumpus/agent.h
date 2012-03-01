@@ -119,8 +119,8 @@ class state_t {
     int pos_;
     int heading_;
     int narrows_;
-    int gold_pos_;
 
+    int gold_pos_;
     int n_possible_gold_places_;
     std::vector<bool> possible_gold_;
 

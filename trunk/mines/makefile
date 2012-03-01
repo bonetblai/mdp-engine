@@ -12,5 +12,5 @@ clean:
 .cc.o:
 		$(G++) $(CCFLAGS) -c $<
 
-main.o	:	main.cc agent.h mines_belief.h belief.h bin.h ordered_vector.h
+main.o	:	main.cc agent.h mines_belief.h belief.h cell_bin.h ordered_vector.h
 

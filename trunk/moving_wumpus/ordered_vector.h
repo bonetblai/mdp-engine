@@ -93,6 +93,7 @@ class ordered_vector_t {
                 int copysz = vec.size() - it.index();
                 reserve(size_ + copysz);
                 memcpy(&vector_[size_], &vec.vector_[it.index()], copysz * sizeof(int));
+                size_ += copysz;
                 return;
             } else {
                 insert(*it);

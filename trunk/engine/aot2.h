@@ -346,6 +346,33 @@ template<typename T> class aot2_t : public improvement_t<T> {
         }
         (this->*clear_internal_state_ptr_)();
 
+#if 0
+        std::cout << std::endl << root->state_;
+        std::cout << "root: children.sz=" << root->children_.size() << std::endl;
+        for( int i = 0, isz = root->children_.size(); i < isz; ++i ) {
+            extern const Heuristic::heuristic_t<T> *global_heuristic;
+            action_node_t<T> *a = root->children_[i];
+            std::cout << "  a=" << a->action_ << ", children=" << a->children_.size() << ", value=" << a->value_ << std::endl;
+            for( int j = 0, jsz = a->children_.size(); j < jsz; ++j ) {
+                float p = a->children_[j].first;
+                state_node_t<T> *s = a->children_[j].second;
+                std::cout << "    p=" << p << ", value=" << s->value_ << ", h=" << global_heuristic->value(s->state_) << std::endl;
+                std::cout << s->state_;
+            }
+
+            //std::vector<std::pair<T, float> > outcomes;
+            //policy_t<T>::problem().next(root->state_, a->action_, outcomes);
+            //std::cout << "my-outcomes: sz=" << outcomes.size() << std::endl;
+            //for( int j = 0, jsz = outcomes.size(); j < jsz; ++j ) {
+            //    float p = outcomes[j].second;
+            //    T &s = outcomes[j].first;
+            //    std::cout << "    p=" << p << std::endl;
+            //    std::cout << s;
+            //}
+        }
+        assert(0);
+#endif
+
         assert((width_ == 0) ||
                ((root != 0) &&
                 policy_t<T>::problem().applicable(s, root->random_best_action())));

@@ -12,8 +12,8 @@ class wumpus_belief_t : public belief_t {
     static std::list<wumpus_belief_t*> beliefs_;
 
   protected:
-    std::vector<bin_t*> pit_bins_;
-    std::vector<bin_t*> wumpus_bins_;
+    std::vector<cell_bin_t*> pit_bins_;
+    std::vector<cell_bin_t*> wumpus_bins_;
 
   public:
     wumpus_belief_t() : belief_t() {
@@ -21,8 +21,8 @@ class wumpus_belief_t : public belief_t {
         wumpus_bins_.reserve(rows_ * cols_);
         for( int r = 0; r < rows_; ++r ) {
             for( int c = 0; c < cols_; ++c ) {
-                pit_bins_.push_back(new bin_t(r, c, types_[r * cols_ + c]));
-                wumpus_bins_.push_back(new bin_t(r, c, types_[r * cols_ + c]));
+                pit_bins_.push_back(new cell_bin_t(r, c, types_[r * cols_ + c]));
+                wumpus_bins_.push_back(new cell_bin_t(r, c, types_[r * cols_ + c]));
             }
         }
     }
@@ -30,8 +30,8 @@ class wumpus_belief_t : public belief_t {
         pit_bins_.reserve(rows_ * cols_);
         wumpus_bins_.reserve(rows_ * cols_);
         for( int p = 0; p < rows_ * cols_; ++p ) {
-            pit_bins_.push_back(new bin_t(*bel.pit_bins_[p]));
-            wumpus_bins_.push_back(new bin_t(*bel.wumpus_bins_[p]));
+            pit_bins_.push_back(new cell_bin_t(*bel.pit_bins_[p]));
+            wumpus_bins_.push_back(new cell_bin_t(*bel.wumpus_bins_[p]));
         }
     }
     wumpus_belief_t(wumpus_belief_t &&bel) : belief_t(std::move(bel)) {
@@ -70,7 +70,7 @@ class wumpus_belief_t : public belief_t {
     }
 
     static void initialize(int rows, int cols) {
-        bin_t::initialize();
+        cell_bin_t::initialize();
         belief_t::initialize(rows, cols, belief_t::manhattan_neighbourhood);
     }
 
@@ -139,7 +139,7 @@ class wumpus_belief_t : public belief_t {
         }
     }
 
-    virtual void mark_cell(std::vector<bin_t*> &bins, int cell, bool hazard) {
+    virtual void mark_cell(std::vector<cell_bin_t*> &bins, int cell, bool hazard) {
     }
     void pit_ac3(int seed_bin, bool propagate = true) {
         ac3(pit_bins_, seed_bin, propagate);
