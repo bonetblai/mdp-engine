@@ -24,9 +24,18 @@
 #include "algorithm.h"
 #include "parameters.h"
 
+#include "aot.h"
+#include "aot2.h"
+#include "uct.h"
+#include "uct2.h"
+#include "rollout.h"
+#include "parameters.h"
+
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <cassert>
+#include <strings.h>
 
 //#define DEBUG
 
@@ -139,6 +148,158 @@ inline void print_result(std::ostream &os, const result_t<T> *result) {
 }
 
 }; // namespace Dispatcher
+
+
+namespace Online {
+
+template<typename T>
+inline std::pair<const Policy::policy_t<T>*, std::string>
+  select_policy(const std::string &base_name,
+                const std::string &policy_type,
+                std::vector<std::pair<const Policy::policy_t<T>*, std::string> > bases,
+                const parameters_t &par) {
+
+    std::stringstream ss;
+
+    // locate base policy
+    const Policy::policy_t<T> *base = 0;
+    std::string base_str = base_name;
+    for( unsigned i = 0; i < bases.size(); ++i ) {
+        if( bases[i].second == base_name ) {
+            base = bases[i].first;
+            break;
+        }
+    }
+    if( base == 0 ) {
+        ss << "inexistent base: " << base_name;
+        return std::make_pair(base, ss.str());
+    }
+
+    // make compound policy
+    const Policy::policy_t<T> *policy = 0;
+
+    if( policy_type == "direct" ) {
+        policy = base->clone();
+        ss << base_str;
+    } else if( policy_type == "rollout" ) {
+        ss << "nrollout(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",nesting=" << par.par1_
+           << ")";
+        policy = Policy::make_nested_rollout(*base, par.width_, par.depth_, par.par1_);
+    } else if( policy_type == "uct" ) {
+        ss << "uct(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",par=" << par.par1_
+           << ")";
+        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_);
+    } else if( policy_type == "nuct" ) {
+        ss << "nuct(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",par=" << par.par1_
+           << ")";
+        policy = Policy::make_uct2(*base, par.width_, par.depth_, par.par1_);
+    } else if( policy_type == "aot" ) {
+        ss << "aot(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "aot*" ) {
+        ss << "aot*(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+    } else if( policy_type == "aot-value" ) {
+        ss << "aot-value(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "aot-random" ) {
+        ss << "aot-random(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
+    } else if( policy_type == "naot" ) {
+        ss << "naot(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "naot*" ) {
+        ss << "naot*(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+    } else if( policy_type == "naot-value" ) {
+        ss << "naot-value(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+    } else if( policy_type == "naot-random" ) {
+        ss << "naot-random(" << base_str
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
+    } else {
+        ss << "inexistent policy: " << policy_type;
+    }
+
+    return std::make_pair(policy, ss.str());
+}
+
+template<typename T>
+inline std::pair<std::pair<float, float>, float>
+  evaluate_policy(const Policy::policy_t<T> &policy,
+                  const parameters_t &par,
+                  bool verbose = false) {
+    float start_time = Utils::read_time_in_seconds();
+    std::pair<float, float> value =
+      Evaluation::evaluation_with_stdev(policy,
+                                        policy.problem().init(),
+                                        par.evaluation_trials_,
+                                        par.evaluation_depth_,
+                                        verbose);
+    float time = Utils::read_time_in_seconds() - start_time;
+    return std::make_pair(value, time);
+}
+
+}; // namespace Evaluation
+
+}; // namespace Online
 
 #undef DEBUG
 
