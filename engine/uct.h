@@ -102,7 +102,7 @@ template<typename T> class uct_t : public improvement_t<T> {
     unsigned width_;
     unsigned depth_bound_;
     float parameter_;
-    bool random_tie_breaking_;
+    bool random_ties_;
     mutable hash_t<T> table_;
 
   public:
@@ -110,12 +110,12 @@ template<typename T> class uct_t : public improvement_t<T> {
           unsigned width,
           unsigned depth_bound,
           float parameter,
-          bool random_tie_breaking)
+          bool random_ties)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
         parameter_(parameter),
-        random_tie_breaking_(random_tie_breaking) {
+        random_ties_(random_ties) {
     }
     virtual ~uct_t() { }
 
@@ -127,12 +127,12 @@ template<typename T> class uct_t : public improvement_t<T> {
         }
         typename hash_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
-        Problem::action_t action = select_action(s, it->second, 0, false, random_tie_breaking_);
+        Problem::action_t action = select_action(s, it->second, 0, false, random_ties_);
         assert(policy_t<T>::problem().applicable(s, action));
         return action;
     }
     virtual const policy_t<T>* clone() const {
-        return new uct_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_, random_tie_breaking_);
+        return new uct_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_, random_ties_);
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=uct(width="
@@ -190,7 +190,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             return value;
         } else {
             // select action for this node and increase counts
-            Problem::action_t a = select_action(s, it->second, depth, true, random_tie_breaking_);
+            Problem::action_t a = select_action(s, it->second, depth, true, random_ties_);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
 
@@ -220,12 +220,14 @@ template<typename T> class uct_t : public improvement_t<T> {
                                     const data_t &data,
                                     int depth,
                                     bool add_bonus,
-                                    bool random_tie_breaking) const {
+                                    bool random_ties) const {
         float log_ns = logf(data.counts_[0]);
         std::vector<Problem::action_t> best_actions;
+        int nactions = policy_t<T>::problem().number_actions(state);
         float best_value = std::numeric_limits<float>::max();
 
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
+        best_actions.reserve(random_ties ? nactions : 1);
+        for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( policy_t<T>::problem().applicable(state, a) ) {
                 // if this action has never been taken in this node, select it
                 if( data.counts_[1+a] == 0 ) {
@@ -244,7 +246,7 @@ template<typename T> class uct_t : public improvement_t<T> {
                         best_value = value;
                         best_actions.clear();
                     }
-                    if( best_actions.empty() || random_tie_breaking )
+                    if( random_ties || best_actions.empty() )
                         best_actions.push_back(a);
                 }
             }
@@ -266,8 +268,8 @@ inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
                                    unsigned width,
                                    unsigned depth_bound,
                                    float parameter,
-                                   bool random_tie_breaking) {
-    return new UCT::uct_t<T>(base_policy, width, depth_bound, parameter, random_tie_breaking);
+                                   bool random_ties) {
+    return new UCT::uct_t<T>(base_policy, width, depth_bound, parameter, random_ties);
 }
 
 }; // namespace Policy
