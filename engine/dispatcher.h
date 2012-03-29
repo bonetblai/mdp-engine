@@ -85,7 +85,7 @@ inline void solve(const Problem::problem_t<T> &problem, const Heuristic::heurist
             result.algorithm_ = index;
             result.algorithm_name_ = algorithm_name[index];
             result.seed_ = parameters.seed_;
-            Random::seeds(parameters.seed_);
+            Random::set_seed(parameters.seed_);
 
             float start_time = Utils::read_time_in_seconds();
             result.hash_ = new Problem::hash_t<T>(problem, new Heuristic::wrapper_t<T>(heuristic));
