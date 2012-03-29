@@ -25,7 +25,6 @@
 #include "parameters.h"
 
 #include "aot.h"
-#include "aot2.h"
 #include "uct.h"
 #include "rollout.h"
 #include "parameters.h"
@@ -196,8 +195,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",par=" << par.par1_
            << ")";
         policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_, false);
-    } else if( policy_type == "uct(random_ties)" ) {
-        ss << "nuct(" << base_str
+    } else if( policy_type == "uct/random_ties" ) {
+        ss << "uct/random_ties(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
@@ -211,7 +210,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_);
     } else if( policy_type == "aot*" ) {
         ss << "aot*(" << base_str
            << ",width=" << par.width_
@@ -220,7 +219,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, true, par.par2_);
     } else if( policy_type == "aot-value" ) {
         ss << "aot-value(" << base_str
            << ",width=" << par.width_
@@ -229,7 +228,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_);
     } else if( policy_type == "aot-random" ) {
         ss << "aot-random(" << base_str
            << ",width=" << par.width_
@@ -238,43 +237,43 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
-    } else if( policy_type == "naot" ) {
-        ss << "naot(" << base_str
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_, 1, 1, 1);
+    } else if( policy_type == "aot/random_ties" ) {
+        ss << "aot/random_ties(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
-    } else if( policy_type == "naot*" ) {
-        ss << "naot*(" << base_str
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_);
+    } else if( policy_type == "aot*/random_ties" ) {
+        ss << "aot*/random_ties(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, true, par.par2_);
-    } else if( policy_type == "naot-value" ) {
-        ss << "naot-value(" << base_str
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, true, par.par2_);
+    } else if( policy_type == "aot-value/random_ties" ) {
+        ss << "aot-value/random_ties(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_);
-    } else if( policy_type == "naot-random" ) {
-        ss << "naot-random(" << base_str
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_);
+    } else if( policy_type == "aot-random/random_ties" ) {
+        ss << "aot-random/random_ties(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot2(*base, par.width_, par.depth_, par.par1_, false, par.par2_, 1, 1, 1);
+          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
     } else {
         ss << "inexistent policy: " << policy_type;
     }

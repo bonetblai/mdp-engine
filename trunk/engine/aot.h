@@ -105,18 +105,24 @@ template<typename T> struct state_node_t : public node_t<T> {
     bool is_goal_;
     bool is_dead_end_;
     unsigned depth_;
-    int best_action_;
     std::vector<std::pair<int, action_node_t<T>*> > parents_;
     std::vector<action_node_t<T>*> children_;
 
     state_node_t(const T &state, unsigned depth = 0)
-      : state_(state), is_goal_(false), is_dead_end_(false),
-        depth_(depth), best_action_(Problem::noop) { }
+      : state_(state), is_goal_(false), is_dead_end_(false), depth_(depth) { }
     virtual ~state_node_t() { }
 
-    Problem::action_t best_action() const {
-        return best_action_ == Problem::noop ?
-          Problem::noop : children_[best_action_]->action_;
+    Problem::action_t best_action(bool random_ties) const {
+        std::vector<Problem::action_t> actions;
+        actions.reserve(random_ties ? children_.size() : 1);
+        for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
+            action_node_t<T> *a_node = children_[i];
+            if( (a_node->value_ == node_t<T>::value_) &&
+                (random_ties || actions.empty()) ) {
+                actions.push_back(a_node->action_);
+            }
+        }
+        return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
 
     bool is_leaf() const {
@@ -131,7 +137,6 @@ template<typename T> struct state_node_t : public node_t<T> {
                 float child_value = children_[i]->value_;
                 if( child_value < node_t<T>::value_ ) {
                     node_t<T>::value_ = child_value;
-                    best_action_ = i;
                 }
             }
         }
@@ -141,7 +146,6 @@ template<typename T> struct state_node_t : public node_t<T> {
         if( indent ) os << std::setw(2 * depth_) << "";
         os << "[state=" << state_
            << ",depth=" << depth_
-           << ",best_action=" << best_action()
            << ",#pa=" << parents_.size()
            << ",#chld=" << children_.size()
            << ",value=" << node_t<T>::value_
@@ -253,6 +257,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     unsigned width_;
     unsigned depth_bound_;
     float parameter_;
+    bool random_ties_;
     bool delayed_evaluation_;
     unsigned expansions_per_iteration_;
     unsigned leaf_nsamples_;
@@ -288,6 +293,7 @@ template<typename T> class aot_t : public improvement_t<T> {
           unsigned width,
           unsigned depth_bound,
           float parameter,
+          bool random_ties,
           bool delayed_evaluation,
           unsigned expansions_per_iteration,
           unsigned leaf_nsamples,
@@ -297,6 +303,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         width_(width),
         depth_bound_(depth_bound),
         parameter_(parameter),
+        random_ties_(random_ties),
         delayed_evaluation_(delayed_evaluation),
         expansions_per_iteration_(expansions_per_iteration),
         leaf_nsamples_(leaf_nsamples),
@@ -344,14 +351,41 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
         (this->*clear_internal_state_ptr_)();
 
+#if 0
+        std::cout << std::endl << root->state_;
+        std::cout << "root: children.sz=" << root->children_.size() << std::endl;
+        for( int i = 0, isz = root->children_.size(); i < isz; ++i ) {
+            extern const Heuristic::heuristic_t<T> *global_heuristic;
+            action_node_t<T> *a = root->children_[i];
+            std::cout << "  a=" << a->action_ << ", children=" << a->children_.size() << ", value=" << a->value_ << std::endl;
+            for( int j = 0, jsz = a->children_.size(); j < jsz; ++j ) {
+                float p = a->children_[j].first;
+                state_node_t<T> *s = a->children_[j].second;
+                std::cout << "    p=" << p << ", value=" << s->value_ << ", h=" << global_heuristic->value(s->state_) << std::endl;
+                std::cout << s->state_;
+            }
+
+            //std::vector<std::pair<T, float> > outcomes;
+            //policy_t<T>::problem().next(root->state_, a->action_, outcomes);
+            //std::cout << "my-outcomes: sz=" << outcomes.size() << std::endl;
+            //for( int j = 0, jsz = outcomes.size(); j < jsz; ++j ) {
+            //    float p = outcomes[j].second;
+            //    T &s = outcomes[j].first;
+            //    std::cout << "    p=" << p << std::endl;
+            //    std::cout << s;
+            //}
+        }
+        assert(0);
+#endif
+
         assert((width_ == 0) ||
                ((root != 0) &&
-                policy_t<T>::problem().applicable(s, root->best_action())));
+                policy_t<T>::problem().applicable(s, root->best_action(random_ties_))));
         assert(expanded <= width_);
 
         // select best action
         return width_ == 0 ?
-          improvement_t<T>::base_policy_(s) : root->best_action();
+          improvement_t<T>::base_policy_(s) : root->best_action(random_ties_);
     }
 
     virtual const policy_t<T>* clone() const {
@@ -359,6 +393,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                          width_,
                          depth_bound_,
                          parameter_,
+                         random_ties_,
                          delayed_evaluation_,
                          expansions_per_iteration_,
                          leaf_nsamples_,
@@ -684,15 +719,15 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         } else {
             assert(!s_node->children_.empty());
-            float best_value = s_node->children_[s_node->best_action_]->value_;
+            float best_value = s_node->value_;
             if( s_node->in_best_policy_ ) {
                 assert(s_node->delta_ >= 0);
 
                 // compute Delta
                 float Delta = std::numeric_limits<float>::max();
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
-                    if( i != s_node->best_action_ ) {
-                        action_node_t<T> *a_node = s_node->children_[i];
+                    action_node_t<T> *a_node = s_node->children_[i];
+                    if( a_node->value_ != best_value ) {
                         float d = a_node->value_ - best_value;
                         Delta = Utils::min(Delta, d);
                     }
@@ -701,7 +736,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 // compute delta
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->children_[i];
-                    if( i == s_node->best_action_ ) {
+                    if( a_node->value_ == best_value ) {
                         a_node->delta_ = Utils::min(s_node->delta_, Delta);
                         a_node->in_best_policy_ = true;
                         assert(a_node->delta_ >= 0);
@@ -956,6 +991,7 @@ inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
                                    unsigned width,
                                    unsigned depth_bound,
                                    float parameter,
+                                   bool random_ties,
                                    bool delayed_evaluation = true,
                                    unsigned expansions_per_iteration = 100,
                                    unsigned leaf_nsamples = 1,
@@ -965,6 +1001,7 @@ inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
                              width,
                              depth_bound,
                              parameter,
+                             random_ties,
                              delayed_evaluation,
                              expansions_per_iteration,
                              leaf_nsamples,

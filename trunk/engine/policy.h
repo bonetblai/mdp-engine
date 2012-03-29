@@ -120,27 +120,28 @@ template<typename T> class base_greedy_t : public policy_t<T> {
   protected:
     const Heuristic::heuristic_t<T> &heuristic_;
     bool optimistic_;
-    bool random_;
+    bool random_ties_;
 
   public:
     base_greedy_t(const Problem::problem_t<T> &problem,
                   const Heuristic::heuristic_t<T> &heuristic,
                   bool optimistic,
-                  bool random)
-      : policy_t<T>(problem), heuristic_(heuristic), optimistic_(optimistic), random_(random) {
+                  bool random_ties)
+      : policy_t<T>(problem), heuristic_(heuristic), optimistic_(optimistic), random_ties_(random_ties) {
     }
     virtual ~base_greedy_t() { }
     virtual const policy_t<T>* clone() const {
-        return new base_greedy_t(policy_t<T>::problem(), heuristic_, optimistic_, random_);
+        return new base_greedy_t(policy_t<T>::problem(), heuristic_, optimistic_, random_ties_);
     }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
         std::vector<std::pair<T, float> > outcomes;
         std::vector<Problem::action_t> best_actions;
-        best_actions.reserve(policy_t<T>::problem().number_actions(s));
+        int nactions = policy_t<T>::problem().number_actions(s);
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
+        best_actions.reserve(random_ties_ ? nactions : 1);
+        for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( policy_t<T>::problem().applicable(s, a) ) {
                 float value = optimistic_ ? std::numeric_limits<float>::max() : 0;
                 policy_t<T>::problem().next(s, a, outcomes);
@@ -159,7 +160,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
                         best_value = value;
                         best_actions.clear();
                     }
-                    if( best_actions.empty() || random_ )
+                    if( random_ties_ || best_actions.empty() )
                         best_actions.push_back(a);
                 }
             }
@@ -168,7 +169,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=greedy(opt=" << (optimistic_ ? "true" : "false")
-           << ", random=" << (random_ ? "true" : "false") << ")" << std::endl;
+           << ", random_tie_breaking=" << (random_ties_ ? "true" : "false") << ")" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
