@@ -34,6 +34,7 @@ namespace Policy {
 
 namespace Rollout {
 
+// nested rollout policy
 template<typename T> class rollout_t : public improvement_t<T> {
   protected:
     unsigned width_;
@@ -45,11 +46,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
       : improvement_t<T>(base_policy),
         width_(width), depth_(depth), nesting_(nesting) {
     }
-    virtual ~rollout_t() {
-        if( nesting_ > 1 ) {
-            // TODO: delete nested policy
-        }
-    }
+    virtual ~rollout_t() { }
 
     virtual const policy_t<T>* clone() const {
         return new rollout_t(improvement_t<T>::base_policy_, width_, depth_, nesting_);
@@ -79,10 +76,11 @@ template<typename T> class rollout_t : public improvement_t<T> {
         return best_action;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=rollout(width="
-           << width_ << ",depth="
-           << depth_ << ",nesting="
-           << nesting_ << ")" << std::endl;
+        os << "stats: policy-type=rollout("
+           << "width=" << width_
+           << ",depth=" << depth_
+           << ",nesting=" << nesting_
+           << ")" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         improvement_t<T>::base_policy_.print_stats(os);
     }
