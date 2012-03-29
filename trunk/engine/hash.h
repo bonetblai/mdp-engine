@@ -34,8 +34,8 @@
 
 namespace Problem {
 
-#ifndef ACTION_TYPE
-#define ACTION_TYPE
+#ifndef __ACTION_TYPE
+#define __ACTION_TYPE
     typedef int action_t;
     const action_t noop = -1;
 #endif
