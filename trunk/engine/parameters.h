@@ -63,5 +63,26 @@ struct parameters_t {
 
 }; // end of namespace Algorithm
 
+
+namespace Online {
+
+namespace Evaluation {
+
+struct parameters_t {
+    unsigned evaluation_trials_;
+    unsigned evaluation_depth_;
+    unsigned width_;
+    unsigned depth_;
+    float par1_;
+    unsigned par2_;
+    parameters_t()
+      : evaluation_trials_(1000), evaluation_depth_(100),
+        width_(0), depth_(0), par1_(0), par2_(0) { }
+};
+
+}; // namespace Evaluation
+
+}; // namespace Online
+
 #endif
 
