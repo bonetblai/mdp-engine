@@ -28,6 +28,8 @@
 
 //#define DEBUG
 
+namespace Online {
+
 namespace Policy {
 
 namespace Rollout {
@@ -110,6 +112,8 @@ inline const policy_t<T>* make_nested_rollout(const policy_t<T> &base_policy,
 }
 
 }; // namespace Policy
+
+}; // namespace Online
 
 #undef DEBUG
 

@@ -30,6 +30,8 @@
 
 //#define DEBUG
 
+namespace Online {
+
 namespace Policy {
 
 namespace UCT2 {
@@ -260,6 +262,8 @@ inline const policy_t<T>* make_uct2(const policy_t<T> &base_policy,
 }
 
 }; // namespace Policy
+
+}; // namespace Online
 
 #undef DEBUG
 

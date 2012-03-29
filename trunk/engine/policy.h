@@ -32,8 +32,11 @@
 
 //#define DEBUG
 
+namespace Online {
+
 namespace Policy {
 
+// Abstract class that defines the interface for action-selection polcicies
 template<typename T> class policy_t {
   protected:
     const Problem::problem_t<T> &problem_;
@@ -51,6 +54,7 @@ template<typename T> class policy_t {
     virtual void print_stats(std::ostream &os) const = 0;
 };
 
+// Abstract class for improvement of a base policy
 template<typename T> class improvement_t : public policy_t<T> {
   protected:
     const policy_t<T> &base_policy_;
@@ -62,6 +66,7 @@ template<typename T> class improvement_t : public policy_t<T> {
     virtual ~improvement_t() { }
 };
 
+// Random base policy: select a random applicable action
 template<typename T> class random_t : public policy_t<T> {
   public:
     random_t(const Problem::problem_t<T> &problem) : policy_t<T>(problem) { }
@@ -86,6 +91,7 @@ template<typename T> class random_t : public policy_t<T> {
     }
 };
 
+// Hash-based based policy: select best action using bestQValue method of hash table
 template<typename T> class hash_policy_t : public policy_t<T> {
   protected:
     const Problem::hash_t<T> &hash_;
@@ -109,55 +115,24 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     }
 };
 
-template<typename T> class greedy_t : public policy_t<T> {
+// Base class for greedy policies wrt 1-step-lookahead of heuristic
+template<typename T> class base_greedy_t : public policy_t<T> {
   protected:
     const Heuristic::heuristic_t<T> &heuristic_;
+    bool optimistic_;
+    bool random_;
 
   public:
-    greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
-      : policy_t<T>(problem), heuristic_(heuristic) {
+    base_greedy_t(const Problem::problem_t<T> &problem,
+                  const Heuristic::heuristic_t<T> &heuristic,
+                  bool optimistic,
+                  bool random)
+      : policy_t<T>(problem), heuristic_(heuristic), optimistic_(optimistic), random_(random) {
     }
-    virtual ~greedy_t() { }
-    virtual const policy_t<T>* clone() const { return new greedy_t(policy_t<T>::problem(), heuristic_); }
-
-    virtual Problem::action_t operator()(const T &s) const {
-        ++policy_t<T>::decisions_;
-        std::vector<std::pair<T, float> > outcomes;
-        Problem::action_t best_action = Problem::noop;
-        float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
-            if( policy_t<T>::problem().applicable(s, a) ) {
-                float value = 0;
-                policy_t<T>::problem().next(s, a, outcomes);
-                for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                    value += outcomes[i].second * heuristic_.value(outcomes[i].first);
-                }
-                value += policy_t<T>::problem().cost(s, a);
-
-                if( value < best_value ) {
-                    best_value = value;
-                    best_action = a;
-                }
-            }
-        }
-        return best_action;
+    virtual ~base_greedy_t() { }
+    virtual const policy_t<T>* clone() const {
+        return new base_greedy_t(policy_t<T>::problem(), heuristic_, optimistic_, random_);
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=greedy()" << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-    }
-};
-
-template<typename T> class random_greedy_t : public policy_t<T> {
-  protected:
-    const Heuristic::heuristic_t<T> &heuristic_;
-
-  public:
-    random_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
-      : policy_t<T>(problem), heuristic_(heuristic) {
-    }
-    virtual ~random_greedy_t() { }
-    virtual const policy_t<T>* clone() const { return new random_greedy_t(policy_t<T>::problem(), heuristic_); }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
@@ -167,10 +142,15 @@ template<typename T> class random_greedy_t : public policy_t<T> {
         float best_value = std::numeric_limits<float>::max();
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
             if( policy_t<T>::problem().applicable(s, a) ) {
-                float value = 0;
+                float value = optimistic_ ? std::numeric_limits<float>::max() : 0;
                 policy_t<T>::problem().next(s, a, outcomes);
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                    value += outcomes[i].second * heuristic_.value(outcomes[i].first);
+                    float hval = heuristic_.value(outcomes[i].first);
+                    if( optimistic_ ) {
+                        value = hval < value ? hval : value;
+                    } else {
+                        value += hval;
+                    }
                 }
                 value += policy_t<T>::problem().cost(s, a);
 
@@ -179,64 +159,56 @@ template<typename T> class random_greedy_t : public policy_t<T> {
                         best_value = value;
                         best_actions.clear();
                     }
-                    best_actions.push_back(a);
+                    if( best_actions.empty() || random_ )
+                        best_actions.push_back(a);
                 }
             }
         }
         return best_actions[Random::uniform(best_actions.size())];
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=random-greedy()" << std::endl;
+        os << "stats: policy-type=greedy(opt=" << (optimistic_ ? "true" : "false")
+           << ", random=" << (random_ ? "true" : "false") << ")" << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
 
-template<typename T> class optimistic_greedy_t : public policy_t<T> {
-  protected:
-    const Heuristic::heuristic_t<T> &heuristic_;
+// Greedy policy with fixed tie breaking
+template<typename T> class greedy_t : public base_greedy_t<T> {
+  public:
+    greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
+      : base_greedy_t<T>(problem, heuristic, false, false) { }
+    virtual ~greedy_t() { }
+};
 
+// Greedy policy with random tie breaking
+template<typename T> class random_greedy_t : public base_greedy_t<T> {
+  public:
+    random_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
+      : base_greedy_t<T>(problem, heuristic, false, true) { }
+    virtual ~random_greedy_t() { }
+};
+
+// Optimistic greedy policy with fixed tie breaking
+template<typename T> class optimistic_greedy_t : public policy_t<T> {
   public:
     optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
-      : policy_t<T>(problem), heuristic_(heuristic) {
-    }
+      : base_greedy_t<T>(problem, heuristic, true, false) { }
     virtual ~optimistic_greedy_t() { }
-    virtual const policy_t<T>* clone() const { return new optimistic_greedy_t(policy_t<T>::problem(), heuristic_); }
+};
 
-    virtual Problem::action_t operator()(const T &s) const {
-        ++policy_t<T>::decisions_;
-        std::vector<std::pair<T, float> > outcomes;
-        Problem::action_t best_action = Problem::noop;
-        float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
-            if( policy_t<T>::problem().applicable(s, a) ) {
-                float min_value = std::numeric_limits<float>::max();
-                policy_t<T>::problem().next(s, a, outcomes);
-                for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                    float value = heuristic_.value(outcomes[i].first);
-                    min_value = value < min_value ? value : min_value;
-                }
-                min_value += policy_t<T>::problem().cost(s, a);
-                std::cout << "  action=" << a << ", value=" << min_value << std::endl;
-
-                if( min_value < best_value ) {
-                    best_value = min_value;
-                    best_action = a;
-                }
-            }
-        }
-        std::cout << "best-action=" << best_action << std::endl;
-        return best_action;
-    }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=random-greedy()" << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-    }
+// Optimistic greedy policy with random tie breaking
+template<typename T> class random_optimistic_greedy_t : public policy_t<T> {
+  public:
+    random_optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
+      : base_greedy_t<T>(problem, heuristic, true, true) { }
+    virtual ~random_optimistic_greedy_t() { }
 };
 
 }; // namespace Policy
 
 
-// Policy evaluation
+// Online evaluation
 namespace Evaluation {
 
 template<typename T>
@@ -318,6 +290,8 @@ inline std::pair<float, float>
 }
 
 }; // namespace Evaluation
+
+}; // namespace Online
 
 #undef DEBUG
 
