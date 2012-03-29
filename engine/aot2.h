@@ -33,6 +33,8 @@
 //#define DEBUG
 #define USE_BDD_PQ
 
+namespace Online {
+
 namespace Policy {
 
 namespace AOT2 {
@@ -1002,6 +1004,8 @@ inline const policy_t<T>* make_aot2(const policy_t<T> &base_policy,
 }
 
 }; // namespace Policy
+
+}; // namespace Online
 
 #undef DEBUG
 
