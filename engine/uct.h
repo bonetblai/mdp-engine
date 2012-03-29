@@ -102,14 +102,20 @@ template<typename T> class uct_t : public improvement_t<T> {
     unsigned width_;
     unsigned depth_bound_;
     float parameter_;
+    bool random_tie_breaking_;
     mutable hash_t<T> table_;
 
   public:
-    uct_t(const policy_t<T> &base_policy, unsigned width, unsigned depth_bound, float parameter)
+    uct_t(const policy_t<T> &base_policy,
+          unsigned width,
+          unsigned depth_bound,
+          float parameter,
+          bool random_tie_breaking)
       : improvement_t<T>(base_policy),
         width_(width),
         depth_bound_(depth_bound),
-        parameter_(parameter) {
+        parameter_(parameter),
+        random_tie_breaking_(random_tie_breaking) {
     }
     virtual ~uct_t() { }
 
@@ -121,12 +127,12 @@ template<typename T> class uct_t : public improvement_t<T> {
         }
         typename hash_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
-        Problem::action_t action = select_action(s, it->second, 0, false);
+        Problem::action_t action = select_action(s, it->second, 0, false, random_tie_breaking_);
         assert(policy_t<T>::problem().applicable(s, action));
         return action;
     }
     virtual const policy_t<T>* clone() const {
-        return new uct_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_);
+        return new uct_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_, random_tie_breaking_);
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy-type=uct(width="
@@ -184,7 +190,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             return value;
         } else {
             // select action for this node and increase counts
-            Problem::action_t a = select_action(s, it->second, depth, true);
+            Problem::action_t a = select_action(s, it->second, depth, true, random_tie_breaking_);
             ++it->second.counts_[0];
             ++it->second.counts_[1+a];
 
@@ -213,9 +219,10 @@ template<typename T> class uct_t : public improvement_t<T> {
     Problem::action_t select_action(const T &state,
                                     const data_t &data,
                                     int depth,
-                                    bool add_bonus) const {
+                                    bool add_bonus,
+                                    bool random_tie_breaking) const {
         float log_ns = logf(data.counts_[0]);
-        Problem::action_t best_action = Problem::noop;
+        std::vector<Problem::action_t> best_actions;
         float best_value = std::numeric_limits<float>::max();
 
         for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(state); ++a ) {
@@ -232,14 +239,18 @@ template<typename T> class uct_t : public improvement_t<T> {
                 float value = data.values_[1+a] + bonus;
 
                 // update best action so far
-                if( value < best_value ) {
-                    best_value = value;
-                    best_action = a;
+                if( value <= best_value ) {
+                    if( value < best_value ) {
+                        best_value = value;
+                        best_actions.clear();
+                    }
+                    if( best_actions.empty() || random_tie_breaking )
+                        best_actions.push_back(a);
                 }
             }
         }
-        assert(best_action != Problem::noop);
-        return best_action;
+        assert(!best_actions.empty());
+        return best_actions[Random::uniform(best_actions.size())];
     }
 
     float evaluate(const T &s, unsigned depth) const {
@@ -254,8 +265,9 @@ template<typename T>
 inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
                                    unsigned width,
                                    unsigned depth_bound,
-                                   float parameter) {
-    return new UCT::uct_t<T>(base_policy, width, depth_bound, parameter);
+                                   float parameter,
+                                   bool random_tie_breaking) {
+    return new UCT::uct_t<T>(base_policy, width, depth_bound, parameter, random_tie_breaking);
 }
 
 }; // namespace Policy

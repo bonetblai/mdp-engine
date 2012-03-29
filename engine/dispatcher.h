@@ -27,7 +27,6 @@
 #include "aot.h"
 #include "aot2.h"
 #include "uct.h"
-#include "uct2.h"
 #include "rollout.h"
 #include "parameters.h"
 
@@ -152,6 +151,8 @@ inline void print_result(std::ostream &os, const result_t<T> *result) {
 
 namespace Online {
 
+namespace Evaluation {
+
 template<typename T>
 inline std::pair<const Policy::policy_t<T>*, std::string>
   select_policy(const std::string &base_name,
@@ -194,14 +195,14 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_);
-    } else if( policy_type == "nuct" ) {
+        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_, false);
+    } else if( policy_type == "uct(random_ties)" ) {
         ss << "nuct(" << base_str
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = Policy::make_uct2(*base, par.width_, par.depth_, par.par1_);
+        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_, true);
     } else if( policy_type == "aot" ) {
         ss << "aot(" << base_str
            << ",width=" << par.width_
