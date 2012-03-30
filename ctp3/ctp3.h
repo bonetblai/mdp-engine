@@ -26,10 +26,10 @@ inline unsigned rotation(unsigned x) {
 }
 
 
-template<typename T> struct bits_t {
+template<typename T> struct print_bits_t {
     T field_;
     int base_;
-    bits_t(const T field, int base) : field_(field), base_(base) { }
+    print_bits_t(const T field, int base) : field_(field), base_(base) { }
     void print(std::ostream &os) const {
         if( field_ != 0 ) {
             T aux = field_;
@@ -42,7 +42,7 @@ template<typename T> struct bits_t {
     }
 };
 
-template<typename T> inline std::ostream& operator<<(std::ostream &os, const bits_t<T> &bits) {
+template<typename T> inline std::ostream& operator<<(std::ostream &os, const print_bits_t<T> &bits) {
     bits.print(os);
     return os;
 }
@@ -120,10 +120,10 @@ struct state_info_t {
     void print(std::ostream &os) const {
         os << "K={";
         for( int i = 0; i < words_for_edges_; ++i )
-            os << bits_t<unsigned>(known_[i], i << 5);
+            os << print_bits_t<unsigned>(known_[i], i << 5);
         os << "},B={";
         for( int i = 0; i < words_for_edges_; ++i )
-            os << bits_t<unsigned>(blocked_[i], i << 5);
+            os << print_bits_t<unsigned>(blocked_[i], i << 5);
         os << "}";
     }
 };
@@ -135,7 +135,6 @@ inline std::ostream& operator<<(std::ostream &os, const state_info_t &info) {
     return os;
 }
 
-
 struct cache_functions_t {
     bool operator()(const state_info_t &info1, const state_info_t &info2) const {
         return info1 == info2;
@@ -146,10 +145,7 @@ struct cache_functions_t {
 };
 
 class shortest_path_cache_item_t
-  : public std::tr1::unordered_map<state_info_t,
-                                   int*,
-                                   cache_functions_t,
-                                   cache_functions_t> {
+  : public std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
   public:
     void clear() {
         for( iterator it = begin(); it != end(); ++it )
@@ -248,7 +244,6 @@ struct state_t {
     state_info_t info_;
     unsigned visited_[WORDS_FOR_NODES];
     mutable bool shared_;
-    //mutable const int *distances_;
     mutable int *distances_;
     mutable int heuristic_;
 
@@ -428,7 +423,7 @@ struct state_t {
     void print(std::ostream &os) const {
         os << "(" << current_ << "," << info_ << ",V={";
         for( int i = 0; i < words_for_nodes_; ++i )
-            os << bits_t<unsigned>(visited_[i], i << 5);
+            os << print_bits_t<unsigned>(visited_[i], i << 5);
         os << "}";
         if( is_dead_end() ) os << ",DEAD";
         os << ")";
@@ -746,12 +741,12 @@ class zero_heuristic_t: public Heuristic::heuristic_t<state_t> {
     float operator()(const state_t &s) const { return value(s); }
 };
 
-class optimistic_policy_t : public Policy::policy_t<state_t> {
+class optimistic_policy_t : public Online::Policy::policy_t<state_t> {
     const CTP::graph_t &graph_;
     float multiplier_;
   public:
     optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph, float multiplier = 1.0)
-      : Policy::policy_t<state_t>(problem), graph_(graph), multiplier_(multiplier) { }
+      : Online::Policy::policy_t<state_t>(problem), graph_(graph), multiplier_(multiplier) { }
     virtual ~optimistic_policy_t() { }
     virtual Problem::action_t operator()(const state_t &s) const {
         float best_cost = FLT_MAX;
@@ -768,7 +763,7 @@ class optimistic_policy_t : public Policy::policy_t<state_t> {
         }
         return best_action;
     }
-    virtual const Policy::policy_t<state_t>* clone() const {
+    virtual const Online::Policy::policy_t<state_t>* clone() const {
         return new optimistic_policy_t(problem(), graph_);
     }
     virtual void print_stats(std::ostream &os) const { }
@@ -804,7 +799,7 @@ float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
 
 inline
 std::pair<float, float> branching_factor(const problem_t &problem, unsigned nsamples) {
-    Policy::random_t<state_t> random_policy(problem);
+  Online::Policy::random_t<state_t> random_policy(problem);
     for( unsigned i = 0; i < nsamples; ++i ) {
         state_t s = problem.init();
         while( !problem.terminal(s) ) {
