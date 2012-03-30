@@ -26,6 +26,7 @@
 
 #include "aot.h"
 #include "uct.h"
+#include "online_rtdp.h"
 #include "rollout.h"
 #include "parameters.h"
 
@@ -153,131 +154,172 @@ namespace Online {
 namespace Evaluation {
 
 template<typename T>
+const Policy::policy_t<T>*
+  fetch_policy(const std::string &name,
+               std::vector<std::pair<const Policy::policy_t<T>*, std::string> > &base_policies) {
+    const Policy::policy_t<T> *policy = 0;
+    for( unsigned i = 0; i < base_policies.size(); ++i ) {
+        if( base_policies[i].second == name ) {
+            policy = base_policies[i].first;
+            break;
+        }
+    }
+    return policy;
+}
+
+template<typename T>
+const Heuristic::heuristic_t<T>*
+  fetch_heuristic(const std::string &name,
+                  std::vector<std::pair<const Heuristic::heuristic_t<T>*, std::string> > &heuristics) {
+    const Heuristic::heuristic_t<T> *heuristic = 0;
+    for( unsigned i = 0; i < heuristics.size(); ++i ) {
+        if( heuristics[i].second == name ) {
+            heuristic = heuristics[i].first;
+            break;
+        }
+    }
+    return heuristic;
+}
+
+inline bool policy_requires_heuristic(const std::string &policy_type) {
+    if( policy_type == "finite-horizon-lrtdp" )
+        return true;
+    else
+        return false;
+}
+
+template<typename T>
 inline std::pair<const Policy::policy_t<T>*, std::string>
   select_policy(const std::string &base_name,
                 const std::string &policy_type,
-                std::vector<std::pair<const Policy::policy_t<T>*, std::string> > bases,
+                std::vector<std::pair<const Policy::policy_t<T>*, std::string> > &base_policies,
+                std::vector<std::pair<const Heuristic::heuristic_t<T>*, std::string> > &heuristics,
                 const parameters_t &par) {
 
     std::stringstream ss;
 
-    // locate base policy
-    const Policy::policy_t<T> *base = 0;
-    std::string base_str = base_name;
-    for( unsigned i = 0; i < bases.size(); ++i ) {
-        if( bases[i].second == base_name ) {
-            base = bases[i].first;
-            break;
+    // fetch base policy/heuristic
+    const Policy::policy_t<T> *base_policy = 0;
+    const Heuristic::heuristic_t<T> *heuristic = 0;
+    if( policy_requires_heuristic(policy_type) ) {
+        heuristic = fetch_heuristic(base_name, heuristics);
+        ss << "error: inexistent heuristic: " << base_name;
+        if( heuristic == 0 ) {
+            return std::make_pair(base_policy, ss.str());
         }
-    }
-    if( base == 0 ) {
-        ss << "inexistent base: " << base_name;
-        return std::make_pair(base, ss.str());
+    } else {
+        base_policy = fetch_policy(base_name, base_policies);
+        if( base_policy == 0 ) {
+            ss << "error: inexistent base policy: " << base_name;
+            return std::make_pair(base_policy, ss.str());
+        }
     }
 
     // make compound policy
     const Policy::policy_t<T> *policy = 0;
 
     if( policy_type == "direct" ) {
-        policy = base->clone();
-        ss << base_str;
+        policy = base_policy->clone();
+        ss << base_name;
     } else if( policy_type == "rollout" ) {
-        ss << "nrollout(" << base_str
+        ss << "nrollout(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",nesting=" << par.par1_
            << ")";
-        policy = Policy::make_nested_rollout(*base, par.width_, par.depth_, par.par1_);
+        policy = Policy::make_nested_rollout(*base_policy, par.width_, par.depth_, par.par1_);
     } else if( policy_type == "uct" ) {
-        ss << "uct(" << base_str
+        ss << "uct(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_, false);
+        policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, false);
     } else if( policy_type == "uct/random_ties" ) {
-        ss << "uct/random_ties(" << base_str
+        ss << "uct/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = Policy::make_uct(*base, par.width_, par.depth_, par.par1_, true);
+        policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, true);
     } else if( policy_type == "aot" ) {
-        ss << "aot(" << base_str
+        ss << "aot(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
     } else if( policy_type == "aot*" ) {
-        ss << "aot*(" << base_str
+        ss << "aot*(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, true, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, true, par.par2_);
     } else if( policy_type == "aot-value" ) {
-        ss << "aot-value(" << base_str
+        ss << "aot-value(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
     } else if( policy_type == "aot-random" ) {
-        ss << "aot-random(" << base_str
+        ss << "aot-random(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, false, false, par.par2_, 1, 1, 1);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_, 1, 1, 1);
     } else if( policy_type == "aot/random_ties" ) {
-        ss << "aot/random_ties(" << base_str
+        ss << "aot/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
     } else if( policy_type == "aot*/random_ties" ) {
-        ss << "aot*/random_ties(" << base_str
+        ss << "aot*/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, true, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, true, par.par2_);
     } else if( policy_type == "aot-value/random_ties" ) {
-        ss << "aot-value/random_ties(" << base_str
+        ss << "aot-value/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
     } else if( policy_type == "aot-random/random_ties" ) {
-        ss << "aot-random/random_ties(" << base_str
+        ss << "aot-random/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
         policy =
-          Policy::make_aot(*base, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
+    } else if( policy_type == "finite-horizon-lrtdp" ) {
+        policy =
+          Policy::make_finite_horizon_lrtdp(*heuristic, par.depth_, par.width_, true, false);
     } else {
         ss << "inexistent policy: " << policy_type;
     }
-
     return std::make_pair(policy, ss.str());
 }
 

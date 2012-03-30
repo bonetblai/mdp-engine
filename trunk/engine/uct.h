@@ -67,6 +67,10 @@ struct data_t {
     std::vector<int> counts_;
     data_t(const std::vector<float> &values, const std::vector<int> &counts)
       : values_(values), counts_(counts) { }
+    data_t(const data_t &data)
+      : values_(data.values_), counts_(data.counts_) { }
+    data_t(data_t &&data)
+      : values_(std::move(data.values_)), counts_(std::move(data.counts_)) { }
 };
 
 template<typename T> class hash_t :
