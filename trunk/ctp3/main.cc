@@ -6,16 +6,18 @@
 
 #include "ctp3.h"
 
-#include "../evaluation.h"
+#include "dispatcher.h"
 
 using namespace std;
 
-namespace Policy {
-  namespace AOT {
-    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-  };
-  namespace AOT2 {
-    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+namespace Online {
+  namespace Policy {
+    namespace AOT {
+        const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    };
+    namespace AOT2 {
+        const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    };
   };
 };
 
@@ -58,7 +60,7 @@ int main(int argc, const char **argv) {
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t eval_pars;
+    Online::Evaluation::parameters_t eval_pars;
 
     cout << fixed;
     Algorithm::parameters_t alg_pars;
@@ -149,7 +151,7 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
-    Random::seeds(alg_pars.seed_);
+    Random::set_seed(alg_pars.seed_);
     state_t::initialize(graph, false, (int)5e5);
     problem_t problem(graph, dead_end_value, false, (int)5e5);
 
@@ -164,23 +166,27 @@ int main(int argc, const char **argv) {
     }
 
     // create heuristic
+    std::vector<std::pair<const Heuristic::heuristic_t<state_t>*, std::string> > heuristics;
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( (h == 1) || (h == 11) ) {
         heuristic = new min_min_t;
         if( h == 11 ) {
-            Policy::AOT::global_heuristic = heuristic;
-            Policy::AOT2::global_heuristic = heuristic;
+            Online::Policy::AOT::global_heuristic = heuristic;
+            Online::Policy::AOT2::global_heuristic = heuristic;
         }
+        heuristics.push_back(std::make_pair(heuristic, "min-min"));
     } else if( (h == 2) || (h == 12) ) {
         heuristic = new min_min_t(0.5);
         if( h == 12 ) {
-            Policy::AOT::global_heuristic = heuristic;
-            Policy::AOT2::global_heuristic = heuristic;
+            Online::Policy::AOT::global_heuristic = heuristic;
+            Online::Policy::AOT2::global_heuristic = heuristic;
         }
+        heuristics.push_back(std::make_pair(heuristic, "min-min/half"));
     } else if( h == 10 ) {
         heuristic = new zero_heuristic_t;
-        Policy::AOT::global_heuristic = heuristic;
-        Policy::AOT2::global_heuristic = heuristic;
+        Online::Policy::AOT::global_heuristic = heuristic;
+        Online::Policy::AOT2::global_heuristic = heuristic;
+        heuristics.push_back(std::make_pair(heuristic, "zero"));
     }
 
     // solve problem with algorithms
@@ -196,27 +202,28 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+    vector<pair<const Online::Policy::policy_t<state_t>*, string> > base_policies;
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
-        Policy::hash_policy_t<state_t> optimal(*hash);
-        bases.push_back(make_pair(optimal.clone(), "optimal"));
+        Online::Policy::hash_policy_t<state_t> optimal(*hash);
+        base_policies.push_back(make_pair(optimal.clone(), "optimal"));
     }
     if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        bases.push_back(make_pair(greedy.clone(), "greedy"));
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        base_policies.push_back(make_pair(greedy.clone(), "greedy"));
     }
-    Policy::random_t<state_t> random(problem);
-    bases.push_back(make_pair(&random, "random"));
+    Online::Policy::random_t<state_t> random(problem);
+    base_policies.push_back(make_pair(&random, "random"));
     optimistic_policy_t optimistic(problem, graph);
-    bases.push_back(make_pair(&optimistic, "optimistic"));
+    base_policies.push_back(make_pair(&optimistic, "optimistic"));
     optimistic_policy_t optimistic_half_scaled(problem, graph, 0.5);
-    bases.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
+    base_policies.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
+    pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
+      Online::Evaluation::select_policy(base_name, policy_type, base_policies, heuristics, eval_pars);
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph, dead_end_value);
         vector<int> distances;
