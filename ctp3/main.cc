@@ -223,7 +223,7 @@ int main(int argc, const char **argv) {
 
     // evaluate
     pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
-      Online::Evaluation::select_policy(base_name, policy_type, base_policies, heuristics, eval_pars);
+      Online::Evaluation::select_policy(problem, base_name, policy_type, base_policies, heuristics, eval_pars);
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph, dead_end_value);
         vector<int> distances;
