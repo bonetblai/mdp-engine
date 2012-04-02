@@ -203,8 +203,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
     const Heuristic::heuristic_t<T> *heuristic = 0;
     if( policy_requires_heuristic(policy_type) ) {
         heuristic = fetch_heuristic(base_name, heuristics);
-        ss << "error: inexistent heuristic: " << base_name;
         if( heuristic == 0 ) {
+            ss << "error: inexistent heuristic: " << base_name;
             return std::make_pair(base_policy, ss.str());
         }
     } else {
@@ -315,6 +315,10 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         policy =
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
     } else if( policy_type == "finite-horizon-lrtdp" ) {
+        ss << "finite-horizon-lrtdp(h=" << base_name
+           << ",max-trials=" << par.width_
+           << ",horizon=" << par.depth_
+           << ")";
         policy =
           Policy::make_finite_horizon_lrtdp(*heuristic, par.depth_, par.width_, true, false);
     } else {
