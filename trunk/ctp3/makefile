@@ -11,7 +11,7 @@ clean:
 		rm -f $(OBJS) $(TARGET) *~ core
 
 .cc.o:
-		$(G++) $(CCFLAGS) -c $<
+		$(G++) $(CCFLAGS) $(EXTRA) -c $<
 
 main.o:		ctp3.h graph.h
 main.o:		../engine/algorithm.h ../engine/dispatcher.h ../engine/hash.h
