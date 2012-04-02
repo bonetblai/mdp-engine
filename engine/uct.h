@@ -69,8 +69,10 @@ struct data_t {
       : values_(values), counts_(counts) { }
     data_t(const data_t &data)
       : values_(data.values_), counts_(data.counts_) { }
+#if 0
     data_t(data_t &&data)
       : values_(std::move(data.values_)), counts_(std::move(data.counts_)) { }
+#endif
 };
 
 template<typename T> class hash_t :
