@@ -190,7 +190,8 @@ inline bool policy_requires_heuristic(const std::string &policy_type) {
 
 template<typename T>
 inline std::pair<const Policy::policy_t<T>*, std::string>
-  select_policy(const std::string &base_name,
+  select_policy(const Problem::problem_t<T> &problem,
+                const std::string &base_name,
                 const std::string &policy_type,
                 std::vector<std::pair<const Policy::policy_t<T>*, std::string> > &base_policies,
                 std::vector<std::pair<const Heuristic::heuristic_t<T>*, std::string> > &heuristics,
@@ -320,7 +321,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ",horizon=" << par.depth_
            << ")";
         policy =
-          Policy::make_finite_horizon_lrtdp(*heuristic, par.depth_, par.width_, true, false);
+          Policy::make_finite_horizon_lrtdp(problem, *heuristic, par.depth_, par.width_, true, false);
     } else {
         ss << "inexistent policy: " << policy_type;
     }
