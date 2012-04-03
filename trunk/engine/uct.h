@@ -150,7 +150,7 @@ template<typename T> class uct_t : public improvement_t<T> {
         return new uct_t(improvement_t<T>::base_policy_, width_, horizon_, parameter_, random_ties_);
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << policy_t<T>::name();
+        os << "stats: policy=" << policy_t<T>::name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         improvement_t<T>::base_policy_.print_stats(os);
     }
