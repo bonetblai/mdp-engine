@@ -164,10 +164,13 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         node_ref_t<T> root(s, 0);
         data_t *root_dptr = table_.get_data_ptr(root);
         for( unsigned trial = 0; (trial < max_trials_) && !labeled(root_dptr); ++trial ) {
-            //std::cout << "finite_horizon_lrtdp_t: root value =" << root_dptr->value_ << std::endl;
             lrtdp_trial(root, root_dptr);
         }
-        //std::cout << "finite_horizon_lrtdp_t: final root value =" << root_dptr->value_ << std::endl;
+#ifdef DEBUG
+        std::cout << "finite_horizon_lrtdp_t: root-value=" << root_dptr->value_
+                  << ", labeled=" << (root_dptr->labeled_ ? "true" : "false")
+                  << std::endl;
+#endif
         clear_table();
         return best_action(root, random_ties_);
     }
