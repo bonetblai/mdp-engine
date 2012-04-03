@@ -197,7 +197,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
         return best_actions[Random::uniform(best_actions.size())];
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << policy_t<T>::name();
+        os << "stats: policy=" << policy_t<T>::name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
