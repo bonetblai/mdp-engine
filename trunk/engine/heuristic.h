@@ -39,9 +39,15 @@ namespace Algorithm {
 namespace Heuristic {
 
 template<typename T> class heuristic_t {
+  protected:
+    std::string name_;
+
   public:
-    heuristic_t() { }
+    heuristic_t(std::string &name) : name_(name) { }
+    heuristic_t() : name_("") { }
     virtual ~heuristic_t() { }
+    void set_name(const std::string &name) { name_ = name; }
+    const std::string& name() const { return name_; }
     virtual float value(const T &s) const = 0;
     virtual void reset_stats() const = 0;
     virtual float setup_time() const = 0;
@@ -59,7 +65,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
 
   public:
     min_min_heuristic_t(const Problem::problem_t<T> &problem)
-      : problem_(problem), hash_(problem), time_(0) {
+      : heuristic_t<T>("min-min()"), problem_(problem), hash_(problem), time_(0) {
 
       Algorithm::parameters_t parameters;
       parameters.vi.max_number_iterations_ = std::numeric_limits<unsigned>::max();
@@ -84,7 +90,8 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
     const Problem::hash_t<T> &hash_;
 
   public:
-    hash_heuristic_t(const Problem::hash_t<T> &hash) : hash_(hash) { }
+    hash_heuristic_t(const Problem::hash_t<T> &hash)
+      : heuristic_t<T>("hash()"), hash_(hash) { }
     virtual ~hash_heuristic_t() { }
     virtual float value(const T &s) const { return hash_.value(s); }
     virtual float setup_time() const { return 0; }

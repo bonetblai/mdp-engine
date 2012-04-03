@@ -22,6 +22,7 @@
 #include "policy.h"
 
 #include <iostream>
+#include <sstream>
 #include <cassert>
 #include <limits>
 #include <vector>
@@ -42,9 +43,19 @@ template<typename T> class rollout_t : public improvement_t<T> {
     unsigned nesting_;
 
   public:
-    rollout_t(const policy_t<T> &base_policy, unsigned width, unsigned depth, unsigned nesting)
+    rollout_t(const policy_t<T> &base_policy,
+              unsigned width,
+              unsigned depth,
+              unsigned nesting)
       : improvement_t<T>(base_policy),
         width_(width), depth_(depth), nesting_(nesting) {
+        std::stringstream name_stream;
+        name_stream << "rollout("
+                    << "width=" << width_
+                    << ",depth=" << depth_
+                    << ",nesting=" << nesting_
+                    << ")";
+        policy_t<T>::set_name(name_stream.str());
     }
     virtual ~rollout_t() { }
 
@@ -76,11 +87,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
         return best_action;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=rollout("
-           << "width=" << width_
-           << ",depth=" << depth_
-           << ",nesting=" << nesting_
-           << ")" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name();
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         improvement_t<T>::base_policy_.print_stats(os);
     }
