@@ -257,10 +257,10 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         if( dptr != 0 ) {
             return std::make_pair(dptr->value_, dptr->labeled_);
         } else {
-            float hvalue = 0;
+            float hvalue = 0; // default value for terminal node
             if( dead_end(node) ) {
                 hvalue = policy_t<T>::problem().dead_end_value();
-            } else {
+            } else if( !terminal(node) ) {
                 hvalue = heuristic_.value(node.state());
             }
             return std::make_pair(hvalue, false);
@@ -284,7 +284,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     }
 
     bool labeled(const node_ref_t<T> &node) const {
-        if( labeling_ ) {
+        if( !labeling_ ) {
             return false;
         } else {
             data_t *dptr = table_.data_ptr(node);
@@ -332,17 +332,19 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         data_t *dptr = root_dptr;
         bool node_is_dead_end = dead_end(node);
         while( !labeled(dptr) && !terminal(node) && !node_is_dead_end ) {
+            //std::cout << "trial: state=" << node.state()
+            //          << ", dptr=" << dptr << std::endl;
             std::pair<float, Problem::action_t> p = bestQValue(node).first;
             Problem::action_t best_action = p.second;
             update_value(node, p.first);
             node.set_state(policy_t<T>::problem().sample(node.state(), best_action).first);
             node.set_depth(1 + node.depth());
-            if( labeling_ ) visited.push_back(std::make_pair(node.state(), dptr));
             node_is_dead_end = dead_end(node);
             dptr = table_.get_data_ptr(node);
+            if( labeling_ ) visited.push_back(std::make_pair(node.state(), dptr));
         }
 
-        if( terminal(node) || node_is_dead_end ) {
+        if( !labeled(dptr) ) {
             dptr->value_ = node_is_dead_end ? policy_t<T>::problem().dead_end_value() : 0;
             if( labeling_ ) dptr->labeled_ = true;
         }
@@ -350,9 +352,13 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         // try labeling nodes in reverse visited order
         for( unsigned depth = visited.size(); depth > 0; --depth ) {
             node_t<T> node(visited[depth - 1].first, depth - 1);
-            data_t  *dptr = visited[depth - 1].second;
-            bool labeled = try_label(node, dptr);
-            if( !labeled ) break;
+            data_t *dptr = visited[depth - 1].second;
+            bool has_label = labeled(dptr) || try_label(node, dptr);
+            //std::cout << "labeling: state=" << node.state()
+            //          << ", dptr=" << dptr
+            //          << ", labeled=" << has_label
+            //          << std::endl;
+            if( !has_label ) break;
         }
     }
 
