@@ -117,6 +117,11 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
+            case 'l':
+                eval_pars.labeling_ = true;
+                ++argv;
+                --argc;
+                break;
             case 's':
                 alg_pars.seed_ = strtoul(argv[1], 0, 0);
                 argv += 2;
