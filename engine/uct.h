@@ -22,6 +22,7 @@
 #include "policy.h"
 
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <cassert>
 #include <limits>
@@ -106,7 +107,7 @@ template<typename T> class hash_t :
 template<typename T> class uct_t : public improvement_t<T> {
   protected:
     unsigned width_;
-    unsigned depth_bound_;
+    unsigned horizon_;
     float parameter_;
     bool random_ties_;
     mutable hash_t<T> table_;
@@ -114,14 +115,22 @@ template<typename T> class uct_t : public improvement_t<T> {
   public:
     uct_t(const policy_t<T> &base_policy,
           unsigned width,
-          unsigned depth_bound,
+          unsigned horizon,
           float parameter,
           bool random_ties)
       : improvement_t<T>(base_policy),
         width_(width),
-        depth_bound_(depth_bound),
+        horizon_(horizon),
         parameter_(parameter),
         random_ties_(random_ties) {
+        std::stringstream name_stream;
+        name_stream << "uct("
+                    << "width=" << width_
+                    << ",horizon=" << horizon_
+                    << ",par=" << parameter_
+                    << ",random-ties=" << (random_ties_ ? "true" : "false")
+                    << ")";
+        policy_t<T>::set_name(name_stream.str());
     }
     virtual ~uct_t() { }
 
@@ -138,13 +147,10 @@ template<typename T> class uct_t : public improvement_t<T> {
         return action;
     }
     virtual const policy_t<T>* clone() const {
-        return new uct_t(improvement_t<T>::base_policy_, width_, depth_bound_, parameter_, random_ties_);
+        return new uct_t(improvement_t<T>::base_policy_, width_, horizon_, parameter_, random_ties_);
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=uct(width="
-           << width_ << ",depth="
-           << depth_bound_ << ",par="
-           << parameter_ << ")" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name();
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         improvement_t<T>::base_policy_.print_stats(os);
     }
@@ -169,7 +175,7 @@ template<typename T> class uct_t : public improvement_t<T> {
         std::cout << std::setw(2*depth) << "" << "search_tree(" << s << "):";
 #endif
 
-        if( (depth == depth_bound_) || policy_t<T>::problem().terminal(s) ) {
+        if( (depth == horizon_) || policy_t<T>::problem().terminal(s) ) {
 #ifdef DEBUG
             std::cout << " end" << std::endl;
 #endif
@@ -263,7 +269,7 @@ template<typename T> class uct_t : public improvement_t<T> {
 
     float evaluate(const T &s, unsigned depth) const {
         return Evaluation::evaluation(improvement_t<T>::base_policy_,
-                                      s, 1, depth_bound_ - depth);
+                                      s, 1, horizon_ - depth);
     }
 };
 
@@ -272,10 +278,10 @@ template<typename T> class uct_t : public improvement_t<T> {
 template<typename T>
 inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
                                    unsigned width,
-                                   unsigned depth_bound,
+                                   unsigned horizon,
                                    float parameter,
                                    bool random_ties) {
-    return new UCT::uct_t<T>(base_policy, width, depth_bound, parameter, random_ties);
+    return new UCT::uct_t<T>(base_policy, width, horizon, parameter, random_ties);
 }
 
 }; // namespace Policy

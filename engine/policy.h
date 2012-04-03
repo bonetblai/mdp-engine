@@ -25,6 +25,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <cassert>
 #include <limits>
 #include <vector>
@@ -39,14 +40,20 @@ namespace Policy {
 // Abstract class that defines the interface for action-selection polcicies
 template<typename T> class policy_t {
   protected:
+    std::string name_;
     const Problem::problem_t<T> &problem_;
     mutable unsigned decisions_;
 
   public:
+    policy_t(const std::string &name, const Problem::problem_t<T> &problem)
+      : name_(name), problem_(problem), decisions_(0) {
+    }
     policy_t(const Problem::problem_t<T> &problem)
-      : problem_(problem), decisions_(0) {
+      : name_(""), problem_(problem), decisions_(0) {
     }
     virtual ~policy_t() { }
+    void set_name(const std::string &name) { name_ = name; }
+    const std::string& name() const { return name_; }
     const Problem::problem_t<T>& problem() const { return problem_; }
     unsigned decisions() const { return decisions_; }
     virtual Problem::action_t operator()(const T &s) const = 0;
@@ -60,8 +67,13 @@ template<typename T> class improvement_t : public policy_t<T> {
     const policy_t<T> &base_policy_;
 
   public:
+    improvement_t(const std::string &name, const policy_t<T> &base_policy)
+      : policy_t<T>(name, base_policy.problem()),
+        base_policy_(base_policy) {
+    }
     improvement_t(const policy_t<T> &base_policy)
-      : policy_t<T>(base_policy.problem()), base_policy_(base_policy) {
+      : policy_t<T>(base_policy.problem()),
+        base_policy_(base_policy) {
     }
     virtual ~improvement_t() { }
 };
@@ -69,9 +81,11 @@ template<typename T> class improvement_t : public policy_t<T> {
 // Random base policy: select a random applicable action
 template<typename T> class random_t : public policy_t<T> {
   public:
-    random_t(const Problem::problem_t<T> &problem) : policy_t<T>(problem) { }
+    random_t(const Problem::problem_t<T> &problem) : policy_t<T>("random()", problem) { }
     virtual ~random_t() { }
-    virtual const policy_t<T>* clone() const { return new random_t(policy_t<T>::problem()); }
+    virtual const policy_t<T>* clone() const {
+        return new random_t(policy_t<T>::problem());
+    }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
@@ -86,7 +100,7 @@ template<typename T> class random_t : public policy_t<T> {
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=random()" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
@@ -98,7 +112,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
 
   public:
     hash_policy_t(const Problem::hash_t<T> &hash)
-      : policy_t<T>(hash.problem()), hash_(hash) {
+      : policy_t<T>("hash()", hash.problem()), hash_(hash) {
     }
     virtual ~hash_policy_t() { }
     virtual const policy_t<T>* clone() const { return new hash_policy_t(hash_); }
@@ -110,7 +124,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
         return p.first;
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=hash()" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
@@ -123,15 +137,30 @@ template<typename T> class base_greedy_t : public policy_t<T> {
     bool random_ties_;
 
   public:
+    base_greedy_t(const std::string &name,
+                  const Problem::problem_t<T> &problem,
+                  const Heuristic::heuristic_t<T> &heuristic,
+                  bool optimistic,
+                  bool random_ties)
+      : policy_t<T>(name, problem), heuristic_(heuristic),
+        optimistic_(optimistic), random_ties_(random_ties) {
+    }
     base_greedy_t(const Problem::problem_t<T> &problem,
                   const Heuristic::heuristic_t<T> &heuristic,
                   bool optimistic,
                   bool random_ties)
-      : policy_t<T>(problem), heuristic_(heuristic), optimistic_(optimistic), random_ties_(random_ties) {
+      : policy_t<T>(problem), heuristic_(heuristic),
+        optimistic_(optimistic), random_ties_(random_ties) {
+        std::stringstream name_stream;
+        name_stream << "greedy("
+                    << "optimistic=" << (optimistic_ ? "true" : "false")
+                    << ",random_ties=" << (random_ties_ ? "true" : "false")
+                    << ")";
+        policy_t<T>::set_name(name_stream.str());
     }
     virtual ~base_greedy_t() { }
     virtual const policy_t<T>* clone() const {
-        return new base_greedy_t(policy_t<T>::problem(), heuristic_, optimistic_, random_ties_);
+        return new base_greedy_t(policy_t<T>::name(), policy_t<T>::problem(), heuristic_, optimistic_, random_ties_);
     }
 
     virtual Problem::action_t operator()(const T &s) const {
@@ -150,7 +179,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
                     if( optimistic_ ) {
                         value = hval < value ? hval : value;
                     } else {
-                        value += hval;
+                        value += outcomes[i].second * hval;
                     }
                 }
                 value += policy_t<T>::problem().cost(s, a);
@@ -168,8 +197,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
         return best_actions[Random::uniform(best_actions.size())];
     }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=greedy(opt=" << (optimistic_ ? "true" : "false")
-           << ", random_tie_breaking=" << (random_ties_ ? "true" : "false") << ")" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name();
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
     }
 };
