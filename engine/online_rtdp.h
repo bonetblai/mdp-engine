@@ -35,6 +35,11 @@ namespace Policy {
 
 namespace RTDP {
 
+////////////////////////////////////////////////
+//
+// Hash Table
+//
+
 template<typename T> struct node_ref_t;
 
 template<typename T> struct node_t : public std::pair<T, unsigned> {
@@ -63,12 +68,6 @@ template<typename T> struct node_ref_t : public std::pair<const T&, unsigned> {
 template<typename T> node_t<T>::node_t(const node_ref_t<T> &node)
   : std::pair<T, unsigned>(node.state(), node.depth()) {
 }
-
-
-////////////////////////////////////////////////
-//
-// Hash Table
-//
 
 template<typename T> struct map_functions_t {
     size_t operator()(const node_t<T> &node) const {
@@ -141,29 +140,35 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     mutable hash_table_t<T> table_;
     mutable unsigned total_number_expansions_;
 
-    // CHECK: heuristic_ is not used!!!!
   public:
     finite_horizon_lrtdp_t(const Problem::problem_t<T> &problem,
                            const Heuristic::heuristic_t<T> &heuristic,
-                           unsigned horizon, unsigned max_trials,
-                           bool labeling, bool random_ties)
+                           unsigned horizon,
+                           unsigned max_trials,
+                           bool labeling,
+                           bool random_ties)
       : policy_t<T>(problem), heuristic_(heuristic),
         horizon_(horizon), max_trials_(max_trials),
         labeling_(labeling), random_ties_(random_ties) {
-        std::cout << "finite_horizon_lrtdp_t: hola" << std::endl;
+        std::stringstream name_stream;
+        name_stream << "finite-horizon-lrtdp("
+                    << "horizon=" << horizon_
+                    << ",max-trials=" << max_trials_
+                    << ",labeling=" << (labeling_ ? "true" : "false")
+                    << ")";
+        policy_t<T>::set_name(name_stream.str());
     }
     virtual ~finite_horizon_lrtdp_t() { }
 
     virtual Problem::action_t operator()(const T &s) const {
-        //std::cout << "hola0" << std::endl;
         node_ref_t<T> root(s, 0);
         data_t *root_dptr = table_.get_data_ptr(root);
-        //std::cout << "hola1: max_trials=" << max_trials_ << std::endl;
-        for( unsigned trials = 0; (trials < max_trials_) && !labeled(root_dptr); ++trials ) {
-            //std::cout << "trial=" << trials << std::endl;
+        for( unsigned trial = 0; (trial < max_trials_) && !labeled(root_dptr); ++trial ) {
+            //std::cout << "finite_horizon_lrtdp_t: root value =" << root_dptr->value_ << std::endl;
             lrtdp_trial(root, root_dptr);
         }
-        //std::cout << "hola2" << std::endl;
+        //std::cout << "finite_horizon_lrtdp_t: final root value =" << root_dptr->value_ << std::endl;
+        clear_table();
         return best_action(root, random_ties_);
     }
 
@@ -172,21 +177,23 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     }
 
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy-type=finite_horizon_lrtdp("
-           << "horizon=" << horizon_
-           << ", max-trials=" << max_trials_
-           << ", labeling=" << (labeling_ ? "true" : "false")
-           << ", random-ties=" << (random_ties_ ? "true" : "false")
-           << ")" << std::endl;
+        os << "stats: policy=" << policy_t<T>::name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         os << "stats: #expansions=" << total_number_expansions_ << std::endl;
+    }
+
+    void clear_table() const {
+        for( typename hash_table_t<T>::const_iterator it = table_.begin(); it != table_.end(); ++it ) {
+            delete it->second;
+        }
+        table_.clear();
     }
 
     Problem::action_t best_action(const node_ref_t<T> &node, bool random_ties) const {
         std::vector<Problem::action_t> actions;
         int nactions = policy_t<T>::problem().number_actions(node.state());
         float best_value = std::numeric_limits<float>::max();
-        actions.reserve(random_ties_ ? nactions : 1);
+        actions.reserve(random_ties ? nactions : 1);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( policy_t<T>::problem().applicable(node.state(), a) ) {
                 std::pair<float, bool> p = QValue(node, a);
@@ -201,30 +208,30 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             }
         }
         assert(!actions.empty());
+        assert(actions.size() == 1);
         return actions[Random::uniform(actions.size())];
     }
 
     std::pair<float, bool> QValue(const node_ref_t<T> &node, Problem::action_t a) const {
+        ++total_number_expansions_;
         float qvalue = 0;
-        bool labeled_children = true;
+        bool all_children_labeled = true;
         std::vector<std::pair<T, float> > outcomes;
         policy_t<T>::problem().next(node.state(), a, outcomes);
-        //std::cout << "outcomes: sz=" << outcomes.size() << std::endl;
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
             float prob = outcomes[i].second;
             node_ref_t<T> next_node(state, 1 + node.depth());
             std::pair<float, bool> p = value(next_node);
             qvalue += prob * p.first;
-            labeled_children = labeled_children && p.second;
-            //std::cout << "  p=" << prob << ", value=" << p.first << std::endl;
+            all_children_labeled = all_children_labeled && p.second;
         }
-        //std::cout << "qvalue before cost = " << qvalue << std::endl;
         qvalue += policy_t<T>::problem().cost(node.state(), a);
-        return std::make_pair(qvalue, labeled_children);
+        return std::make_pair(qvalue, all_children_labeled);
     }
 
-    std::pair<float, Problem::action_t> bestQValue(const node_ref_t<T> &node) const {
+    std::pair<std::pair<float, Problem::action_t>, bool> bestQValue(const node_ref_t<T> &node) const {
+        bool all_labeled = false;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         int nactions = policy_t<T>::problem().number_actions(node.state());
@@ -232,32 +239,33 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             if( policy_t<T>::problem().applicable(node.state(), a) ) {
                 std::pair<float, bool> p = QValue(node, a);
                 if( (best_action == Problem::noop) || (p.first < best_value) ) {
+                    all_labeled = p.second;
                     best_value = p.first;
                     best_action = a;
-                    //std::cout << "BEST=" << p.first << std::endl;
                 }
             }
         }
-        //if( best_action == Problem::noop ) std::cout << "state=" << node.state() << std::endl;
         assert(best_action != Problem::noop);
-        return std::make_pair(best_value, best_action);
+        return std::make_pair(std::make_pair(best_value, best_action), all_labeled);
     }
 
     std::pair<float, bool> value(const node_ref_t<T> &node) const {
-        //std::cout << "value: value=" << std::flush;
         const data_t *dptr = table_.data_ptr(node);
         if( dptr != 0 ) {
-            //std::cout << dptr->value_ << std::endl;
             return std::make_pair(dptr->value_, dptr->labeled_);
         } else {
-            float hvalue = heuristic_.value(node.state());
+            float hvalue = 0;
+            if( dead_end(node) ) {
+                hvalue = policy_t<T>::problem().dead_end_value();
+            } else {
+                hvalue = heuristic_.value(node.state());
+            }
             return std::make_pair(hvalue, false);
         }
     }
 
     void update_value(data_t *dptr, float value) const {
         assert(dptr != 0);
-        //std::cout << "update_value: old_value=" << dptr->value_ << ", new_value=" << value << std::endl;
         dptr->value_ = value;
     }
 
@@ -269,7 +277,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
 
     bool labeled(const data_t *dptr) const {
         assert(dptr != 0);
-        return labeling_ ? false : dptr->labeled_;
+        return dptr->labeled_;
     }
 
     bool labeled(const node_ref_t<T> &node) const {
@@ -281,23 +289,22 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         }
     }
 
-    bool label(const node_ref_t<T> &node, data_t *dptr) const {
-        std::cout << "begin labeling" << std::endl;
+    bool try_label(const node_ref_t<T> &node, data_t *dptr) const {
         bool labeled = true;
         if( dead_end(node) ) {
-            dptr->value_ = 10e3; // XXXXXXX
+            dptr->value_ = policy_t<T>::problem().dead_end_value();
         } else if( terminal(node) ) {
-            float value = heuristic_.value(node.state());
-            //std::cout << "terminal value=" << value << std::endl;
-            //std::cout << node.state() << std::endl;
-            dptr->value_ = value;
+            dptr->value_ = 0;
         } else {
-            labeled = false;
-            //std::pair<float, Problem::action_t> p = bestQValue(node);
-            //std::cout << "HOLA" << std::endl;
+            std::pair<std::pair<float, Problem::action_t>, bool> p = bestQValue(node);
+            if( (p.first.first == dptr->value_) && p.second ) {
+                labeled = true;
+            } else {
+                dptr->value_ = p.first.first;
+                labeled = p.second;
+            }
         }
         dptr->labeled_ = labeled;
-        std::cout << "end labeling" << std::endl;
         return labeled;
     }
 
@@ -306,11 +313,11 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     }
 
     bool dead_end(const node_ref_t<T> &node) const {
-        //std::cout << "dead_end: status=" << (policy_t<T>::problem().dead_end(node.state()) ? 1 : 0) << std::endl;
         return policy_t<T>::problem().dead_end(node.state());
     }
 
     void lrtdp_trial(const node_ref_t<T> &root, data_t *root_dptr) const {
+        // set up queue of visited nodes (for labeling)
         std::vector<std::pair<T, data_t*> > visited;
         if( labeling_ ) {
             visited.reserve(horizon_);
@@ -319,11 +326,10 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
 
         // lrtdp trial
         node_t<T> node(root);
+        data_t *dptr = root_dptr;
         bool node_is_dead_end = dead_end(node);
-        data_t *dptr = table_.get_data_ptr(node);
         while( !labeled(dptr) && !terminal(node) && !node_is_dead_end ) {
-            //std::cout << "lrtdp_trial: step" << std::endl;
-            std::pair<float, Problem::action_t> p = bestQValue(node);
+            std::pair<float, Problem::action_t> p = bestQValue(node).first;
             Problem::action_t best_action = p.second;
             update_value(node, p.first);
             node.set_state(policy_t<T>::problem().sample(node.state(), best_action).first);
@@ -332,26 +338,19 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             node_is_dead_end = dead_end(node);
             dptr = table_.get_data_ptr(node);
         }
-        //std::cout << "END TRIAL: terminal=" << (terminal(node) ? 1 : 0) << std::endl;
-
-        if( node_is_dead_end ) {
-            //std::cout << "NODE IS DEAD END" << std::endl;
-        }
 
         if( terminal(node) || node_is_dead_end ) {
-            dptr->value_ = 0;
+            dptr->value_ = node_is_dead_end ? policy_t<T>::problem().dead_end_value() : 0;
+            if( labeling_ ) dptr->labeled_ = true;
         }
 
         // try labeling nodes in reverse visited order
-        //std::cout << "BEGIN LABELING: sz=" << visited.size() << std::endl;
         for( unsigned depth = visited.size(); depth > 0; --depth ) {
-            //std::cout << "depth=" << depth << std::endl;
             node_t<T> node(visited[depth - 1].first, depth - 1);
             data_t  *dptr = visited[depth - 1].second;
-            bool labeled = label(node, dptr);
+            bool labeled = try_label(node, dptr);
             if( !labeled ) break;
         }
-        //std::cout << "END LABELING" << std::endl;
     }
 
 };
@@ -365,7 +364,12 @@ inline const policy_t<T>* make_finite_horizon_lrtdp(const Problem::problem_t<T> 
                                                     unsigned max_trials,
                                                     bool labeling,
                                                     bool random_ties) {
-    return new RTDP::finite_horizon_lrtdp_t<T>(problem, heuristic, horizon, max_trials, false, random_ties);
+    return new RTDP::finite_horizon_lrtdp_t<T>(problem,
+                                               heuristic,
+                                               horizon,
+                                               max_trials,
+                                               labeling,
+                                               random_ties);
 }
 
 }; // namespace Policy
