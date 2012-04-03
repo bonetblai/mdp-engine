@@ -34,13 +34,29 @@ inline void set_seed(int seed) {
     seed48(useed);
 }
 
+inline float _random_float() {
+    float d = drand48();
+#ifdef DEBUG
+    std::cerr << "_random_float: " << d << std::endl;
+#endif
+    return d;
+}
+
+inline unsigned _random_unsigned() {
+    int r = lrand48();
+#ifdef DEBUG
+    std::cerr << "_random_unsigned: " << r << std::endl;
+#endif
+    return r;
+}
+
 inline float real() {
-    return drand48();
+    return _random_float();
 }
 
 inline unsigned uniform(unsigned max) {
     assert(max > 0);
-    return max == 1 ? 0 : lrand48() % max;
+    return max == 1 ? 0 : _random_unsigned() % max;
 }
 
 inline unsigned uniform(unsigned min, unsigned max) {
