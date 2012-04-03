@@ -317,11 +317,12 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
     } else if( policy_type == "finite-horizon-lrtdp" ) {
         ss << "finite-horizon-lrtdp(h=" << base_name
-           << ",max-trials=" << par.width_
            << ",horizon=" << par.depth_
+           << ",max-trials=" << par.width_
+           << ",labeling=" << (par.labeling_ ? "true" : "false")
            << ")";
         policy =
-          Policy::make_finite_horizon_lrtdp(problem, *heuristic, par.depth_, par.width_, true, false);
+          Policy::make_finite_horizon_lrtdp(problem, *heuristic, par.depth_, par.width_, par.labeling_, false);
     } else {
         ss << "inexistent policy: " << policy_type;
     }
