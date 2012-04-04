@@ -327,13 +327,20 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             visited.push_back(std::make_pair(root.state(), root_dptr));
         }
 
+#ifdef DEBUG
+        std::cout << "lrtdp_trial: new trial" << std::endl;
+#endif
+
         // lrtdp trial
         node_t<T> node(root);
         data_t *dptr = root_dptr;
         bool node_is_dead_end = dead_end(node);
         while( !labeled(dptr) && !terminal(node) && !node_is_dead_end ) {
-            //std::cout << "trial: state=" << node.state()
-            //          << ", dptr=" << dptr << std::endl;
+#ifdef DEBUG
+            std::cout << "lrtdp_trial: state=" << node.state()
+                      << ", depth=" << node.depth()
+                      << ", dptr=" << dptr << std::endl;
+#endif
             std::pair<float, Problem::action_t> p = bestQValue(node).first;
             Problem::action_t best_action = p.second;
             update_value(node, p.first);
@@ -343,6 +350,12 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             dptr = table_.get_data_ptr(node);
             if( labeling_ ) visited.push_back(std::make_pair(node.state(), dptr));
         }
+
+#ifdef DEBUG
+        std::cout << "lrtdp_trial: end state=" << node.state()
+                  << ", depth=" << node.depth()
+                  << ", dptr=" << dptr << std::endl;
+#endif
 
         if( !labeled(dptr) ) {
             dptr->value_ = node_is_dead_end ? policy_t<T>::problem().dead_end_value() : 0;
@@ -354,10 +367,11 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             node_t<T> node(visited[depth - 1].first, depth - 1);
             data_t *dptr = visited[depth - 1].second;
             bool has_label = labeled(dptr) || try_label(node, dptr);
-            //std::cout << "labeling: state=" << node.state()
-            //          << ", dptr=" << dptr
-            //          << ", labeled=" << has_label
-            //          << std::endl;
+#ifdef DEBUG
+            std::cout << "lrtdp_trial: labeling: state=" << node.state()
+                      << ", dptr=" << dptr
+                      << std::endl;
+#endif
             if( !has_label ) break;
         }
     }
