@@ -8,7 +8,7 @@ all:
 	@#./generate-rcont-task4
 	@#./generate-rcont-task5
 	@#./generate-rcont-task6
-	./generate-rcont-task9
+	@#./generate-rcont-task9
 	@#./generate-race-task10
 	@#./generate-ctp3-task12
 	@#./generate-ctp3-task13
@@ -18,6 +18,7 @@ all:
 	@#./generate-ctp3-task17
 	@#./generate-ctp3-task18
 	@#./generate-ctp3-task19
+	./generate-ctp3-task20
 	@#./generate-sailing-task20
 	@#./generate-sailing-task21
 	@#./generate-sailing-task22
