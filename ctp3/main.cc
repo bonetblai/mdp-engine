@@ -15,9 +15,6 @@ namespace Online {
     namespace AOT {
         const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
     };
-    namespace AOT2 {
-        const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-    };
   };
 };
 
@@ -54,6 +51,7 @@ int main(int argc, const char **argv) {
     bool formatted = false;
     int shortcut_cost = (int)5e3;
     float dead_end_value = 1e3;
+    float divisor = 1.0;
 
     int calculate_feature = 0;
     int calculate_nsamples = 0;
@@ -64,6 +62,12 @@ int main(int argc, const char **argv) {
 
     cout << fixed;
     Algorithm::parameters_t alg_pars;
+
+    cout << "Arguments:";
+    for( int i = 0; i < argc; ++i ) {
+        cout << " " << argv[i];
+    }
+    cout << endl;
 
     // parse arguments
     ++argv;
@@ -94,6 +98,11 @@ int main(int argc, const char **argv) {
                 break;
             case 'd':
                 dead_end_value = strtod(argv[1], 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'D':
+                divisor = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -171,27 +180,18 @@ int main(int argc, const char **argv) {
     }
 
     // create heuristic
-    std::vector<std::pair<const Heuristic::heuristic_t<state_t>*, std::string> > heuristics;
+    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( (h == 1) || (h == 11) ) {
-        heuristic = new min_min_t;
+        heuristic = new min_min_t(divisor);
         if( h == 11 ) {
             Online::Policy::AOT::global_heuristic = heuristic;
-            Online::Policy::AOT2::global_heuristic = heuristic;
         }
-        heuristics.push_back(std::make_pair(heuristic, "min-min"));
-    } else if( (h == 2) || (h == 12) ) {
-        heuristic = new min_min_t(0.5);
-        if( h == 12 ) {
-            Online::Policy::AOT::global_heuristic = heuristic;
-            Online::Policy::AOT2::global_heuristic = heuristic;
-        }
-        heuristics.push_back(std::make_pair(heuristic, "min-min/half"));
+        heuristics.push_back(make_pair(heuristic, "min-min"));
     } else if( h == 10 ) {
-        heuristic = new zero_heuristic_t;
+        heuristic = new Heuristic::zero_heuristic_t<state_t>;
         Online::Policy::AOT::global_heuristic = heuristic;
-        Online::Policy::AOT2::global_heuristic = heuristic;
-        heuristics.push_back(std::make_pair(heuristic, "zero"));
+        heuristics.push_back(make_pair(heuristic, "zero"));
     }
 
     // solve problem with algorithms
@@ -227,7 +227,7 @@ int main(int argc, const char **argv) {
     base_policies.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
 
     // evaluate
-    pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
+    pair<const Online::Policy::policy_t<state_t>*, string> policy =
       Online::Evaluation::select_policy(problem, base_name, policy_type, base_policies, heuristics, eval_pars);
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph, dead_end_value);
@@ -263,7 +263,7 @@ int main(int argc, const char **argv) {
                 //cout << "act=" << action << endl;
                 assert(action != Problem::noop);
                 assert(problem.applicable(state, action));
-                std::pair<state_t, bool> p = pwhs.sample(state, action);
+                pair<state_t, bool> p = pwhs.sample(state, action);
 #if 1
                 if( pwhs.cost(state, action) == shortcut_cost ) {
                     cout << "large cost" << endl;
@@ -300,8 +300,8 @@ int main(int argc, const char **argv) {
         cout << policy.second
              << "= " << setprecision(5) << avg
              << " " << stdev << setprecision(2)
-             << " ( " << Utils::read_time_in_seconds() - start_time
-             << " secs " << policy.first->decisions() << " decisions)" << std::endl;
+             << " ( " << Utils::read_time_in_seconds() - start_time << " secs "
+             << policy.first->decisions() << " decisions)" << endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;
