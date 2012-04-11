@@ -43,7 +43,7 @@ template<typename T> class heuristic_t {
     std::string name_;
 
   public:
-    heuristic_t(std::string &name) : name_(name) { }
+    heuristic_t(const std::string &name) : name_(name) { }
     heuristic_t() : name_("") { }
     virtual ~heuristic_t() { }
     void set_name(const std::string &name) { name_ = name; }
@@ -57,15 +57,28 @@ template<typename T> class heuristic_t {
     float total_time() const { return setup_time() + eval_time(); }
 };
 
+template<typename T> class zero_heuristic_t : public heuristic_t<T> {
+  public:
+    zero_heuristic_t() : heuristic_t<T>("zero()") { }
+    virtual ~zero_heuristic_t() { }
+    virtual float value(const T &s) const { return 0; }
+    virtual void reset_stats() const { }
+    virtual float setup_time() const { return 0; }
+    virtual float eval_time() const { return 0; }
+    virtual size_t size() const { return 0; }
+    virtual void dump(std::ostream &os) const { }
+};
+
 template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
   protected:
+    float divisor_;
     const Problem::problem_t<T> &problem_;
     mutable Problem::min_hash_t<T> hash_;
     mutable float time_;
 
   public:
-    min_min_heuristic_t(const Problem::problem_t<T> &problem)
-      : heuristic_t<T>("min-min()"), problem_(problem), hash_(problem), time_(0) {
+    min_min_heuristic_t(const Problem::problem_t<T> &problem, float divisor = 1.0)
+      : heuristic_t<T>("min-min()"), divisor_(divisor), problem_(problem), hash_(problem), time_(0) {
 
       Algorithm::parameters_t parameters;
       parameters.vi.max_number_iterations_ = std::numeric_limits<unsigned>::max();
@@ -76,8 +89,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
       time_ = end_time - start_time;
     } 
     virtual ~min_min_heuristic_t() { }
-
-    virtual float value(const T &s) const { return hash_.value(s); }
+    virtual float value(const T &s) const { return hash_.value(s) / divisor_; }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return time_; }
     virtual float eval_time() const { return 0; }
