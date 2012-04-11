@@ -161,8 +161,13 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     virtual ~finite_horizon_lrtdp_t() { }
 
     virtual Problem::action_t operator()(const T &s) const {
+        // initialize
+        ++policy_t<T>::decisions_;
+        clear_table();
         node_ref_t<T> root(s, 0);
         data_t *root_dptr = table_.get_data_ptr(root);
+
+        // perform trials
         for( unsigned trial = 0; (trial < max_trials_) && !labeled(root_dptr); ++trial ) {
             lrtdp_trial(root, root_dptr);
         }
@@ -171,7 +176,6 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
                   << ", labeled=" << (root_dptr->labeled_ ? "true" : "false")
                   << std::endl;
 #endif
-        clear_table();
         return best_action(root, random_ties_);
     }
 

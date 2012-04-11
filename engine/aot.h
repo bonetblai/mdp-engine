@@ -484,7 +484,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 std::vector<node_t<T>*> &nodes_to_propagate) const {
         ++total_number_expansions_;
         node_t<T> *node = (this->*select_node_for_expansion_ptr_)(root);
-        node->expand(this, nodes_to_propagate);
+        if( node != 0 ) node->expand(this, nodes_to_propagate);
     }
     void expand(action_node_t<T> *a_node,
                 std::vector<node_t<T>*> &nodes_to_propagate,
@@ -935,9 +935,9 @@ template<typename T> class aot_t : public improvement_t<T> {
     node_t<T>* select_from_priority_queue() const {
         node_t<T> *node = 0;
         if( empty_inside_priority_queue() ) {
-            node = select_from_outside();
+            node = parameter_ < 1 ? select_from_outside() : 0;
         } else if( empty_outside_priority_queue() ) {
-            node = select_from_inside();
+            node = parameter_ > 0 ? select_from_inside() : 0;
         } else {
             if( Random::real() < parameter_ )
                 node = select_from_inside();
@@ -946,8 +946,8 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
 
 #ifdef DEBUG
-        std::cout << "pop ";
-        node->print(std::cout, false);
+        std::cout << "pop " << (node == 0 ? "<null>" : "");
+        if( node != 0 ) node->print(std::cout, false);
         std::cout << std::endl;
 #endif
 
