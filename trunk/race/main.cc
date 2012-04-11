@@ -1,12 +1,22 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
-#include <string>
+
+#define EXPERIMENT
 
 #include "race.h"
 
-#include "../evaluation.h"
+#include "dispatcher.h"
 
 using namespace std;
+
+namespace Online {
+  namespace Policy {
+    namespace AOT {
+        const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    };
+  };
+};
 
 void usage(ostream &os) {
     os << "usage: race [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <file>"
@@ -39,18 +49,25 @@ void usage(ostream &os) {
 
 int main(int argc, const char **argv) {
     FILE *is = 0;
-
     float p = 1.0;
     unsigned bitmap = 0;
     int h = 0;
     bool formatted = false;
+    float dead_end_value = 1e3;
+    float divisor = 1.0;
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t eval_pars;
+    Online::Evaluation::parameters_t eval_pars;
 
     cout << fixed;
     Algorithm::parameters_t alg_pars;
+
+    cout << "Arguments:";
+    for( int i = 0; i < argc; ++i ) {
+        cout << " " << argv[i];
+    }
+    cout << endl;
 
     // parse arguments
     ++argv;
@@ -65,6 +82,16 @@ int main(int argc, const char **argv) {
                 break;
             case 'b':
                 alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'd':
+                dead_end_value = strtod(argv[1], 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'D':
+                divisor = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -87,6 +114,11 @@ int main(int argc, const char **argv) {
                 h = strtol(argv[1], 0, 0);
                 argv += 2;
                 argc -= 2;
+                break;
+            case 'l':
+                eval_pars.labeling_ = true;
+                ++argv;
+                --argc;
                 break;
             case 'p':
                 p = strtod(argv[1], 0);
@@ -124,18 +156,25 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
-    Random::seeds(alg_pars.seed_);
+    Random::set_seed(alg_pars.seed_);
     grid_t grid;
     grid.parse(cout, is);
     problem_t problem(grid, p);
     fclose(is);
 
     // create heuristic
+    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( h == 1 ) {
-        heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
-    } else if( h == 2 ) {
-        //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
+    if( (h == 1) || (h == 11) ) {
+        heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem, divisor);
+        if( h == 11 ) {
+            Online::Policy::AOT::global_heuristic = heuristic;
+        }
+        heuristics.push_back(make_pair(heuristic, "min-min"));
+    } else if( h == 10 ) {
+        heuristic = new Heuristic::zero_heuristic_t<state_t>;
+        Online::Policy::AOT::global_heuristic = heuristic;
+        heuristics.push_back(make_pair(heuristic, "zero"));
     }
 
     // solve problem with algorithms
@@ -151,29 +190,31 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+    vector<pair<const Online::Policy::policy_t<state_t>*, string> > base_policies;
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
-        Policy::hash_policy_t<state_t> optimal(*hash);
-        bases.push_back(make_pair(optimal.clone(), "optimal"));
+        Online::Policy::hash_policy_t<state_t> optimal(*hash);
+        base_policies.push_back(make_pair(optimal.clone(), "optimal"));
     }
     if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        bases.push_back(make_pair(greedy.clone(), "greedy"));
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        base_policies.push_back(make_pair(greedy.clone(), "greedy"));
     }
-    Policy::random_t<state_t> random(problem);
-    bases.push_back(make_pair(&random, "random"));
+    Online::Policy::random_t<state_t> random(problem);
+    base_policies.push_back(make_pair(&random, "random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
+    pair<const Online::Policy::policy_t<state_t>*, string> policy =
+      Online::Evaluation::select_policy(problem, base_name, policy_type, base_policies, heuristics, eval_pars);
     if( policy.first != 0 ) {
-        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, eval_pars, true);
+        pair<pair<float, float>, float> eval = Online::Evaluation::evaluate_policy(*policy.first, eval_pars, true);
         cout << policy.second
              << "= " << setprecision(5) << eval.first.first
-             << " " << eval.first.second
-             << setprecision(2) << " ( " << eval.second << " secs " << policy.first->decisions() << " decisions)" << endl;
+             << " " << eval.first.second << setprecision(2)
+             << " ( " << eval.second << " secs "
+             << policy.first->decisions() << " decisions)" << endl;
         policy.first->print_stats(cout);
     } else {
         cout << "error: " << policy.second << endl;
