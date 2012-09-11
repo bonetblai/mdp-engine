@@ -219,7 +219,7 @@ template<typename T> class random_greedy_t : public base_greedy_t<T> {
 };
 
 // Optimistic greedy policy with fixed tie breaking
-template<typename T> class optimistic_greedy_t : public policy_t<T> {
+template<typename T> class optimistic_greedy_t : public base_greedy_t<T> {
   public:
     optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
       : base_greedy_t<T>(problem, heuristic, true, false) { }
@@ -227,7 +227,7 @@ template<typename T> class optimistic_greedy_t : public policy_t<T> {
 };
 
 // Optimistic greedy policy with random tie breaking
-template<typename T> class random_optimistic_greedy_t : public policy_t<T> {
+template<typename T> class random_optimistic_greedy_t : public base_greedy_t<T> {
   public:
     random_optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic)
       : base_greedy_t<T>(problem, heuristic, true, true) { }
