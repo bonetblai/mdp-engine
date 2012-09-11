@@ -98,12 +98,12 @@ template<typename T> class hash_table_t :
     virtual ~hash_table_t() { }
 
     const data_t* data_ptr(const node_ref_t<T> &node) const {
-        const_iterator it = find(node);
+        const_iterator it = base_type::find(node);
         return it == end() ? 0 : it->second;
     }
 
     data_t* data_ptr(const node_ref_t<T> &node) {
-        const_iterator it = find(node);
+        const_iterator it = base_type::find(node);
         return it == end() ? 0 : it->second;
     }
 
