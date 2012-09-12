@@ -89,6 +89,7 @@ template<typename T> class hash_table_t :
   public:
     typedef typename Hash::generic_hash_map_t<node_t<T>, data_t*, map_functions_t<T> >
             base_type;
+    typedef typename base_type::iterator iterator;
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
     const_iterator end() const { return base_type::end(); }
