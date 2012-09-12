@@ -252,7 +252,16 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
-    } else if( policy_type == "aot*" ) {
+    } else if( policy_type == "aot/random_ties" ) {
+        ss << "aot(" << base_name
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
+    } else if( policy_type == "aot*" ) { // this is aot* with delayed evaluation (i.e., w/ non-full expansion)
         ss << "aot*(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
@@ -261,7 +270,16 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, true, par.par2_);
-    } else if( policy_type == "aot-value" ) {
+    } else if( policy_type == "aot*/random_ties" ) { // this is aot* with delayed evaluation (i.e., w/ non-full expansion)
+        ss << "aot*(" << base_name
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, true, par.par2_);
+    } else if( policy_type == "aot-value" ) { // this is exactly as "aot" but provide handle; to make effective, set global_heuristic
         ss << "aot-value(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
@@ -270,7 +288,16 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
-    } else if( policy_type == "aot-random" ) {
+    } else if( policy_type == "aot-value/random_ties" ) { // this is exactly as "aot" but provide handle; to make effective, set global_heuristic
+        ss << "aot-value(" << base_name
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",p=" << par.par1_
+           << ",exp=" << par.par2_
+           << ")";
+        policy =
+          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
+    } else if( policy_type == "aot-random" ) { // aot w/ random-leaf selection strategy
         ss << "aot-random(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
@@ -279,34 +306,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         policy =
           Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_, 1, 1, 1);
-    } else if( policy_type == "aot/random_ties" ) {
-        ss << "aot/random_ties(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
-    } else if( policy_type == "aot*/random_ties" ) {
-        ss << "aot*/random_ties(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, true, par.par2_);
-    } else if( policy_type == "aot-value/random_ties" ) {
-        ss << "aot-value/random_ties(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
-    } else if( policy_type == "aot-random/random_ties" ) {
+    } else if( policy_type == "aot-random/random_ties" ) { // aot w/ random-leaf selection strategy
         ss << "aot-random/random_ties(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
