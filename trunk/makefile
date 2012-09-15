@@ -1,4 +1,4 @@
-PROBLEMS =	ctp ctp2 ctp3 puzzle race rect sailing tree wet
+PROBLEMS=	ctp3 puzzle race rect sailing tree wet
 
 all:
 	for p in $(PROBLEMS); do \
