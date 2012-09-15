@@ -6,16 +6,16 @@
 
 #include "sailing.h"
 
-#include "../evaluation.h"
-
 using namespace std;
 
-namespace Policy {
-  namespace AOT {
-    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-  };
-  namespace AOT2 {
-    const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+namespace Online {
+  namespace Policy {
+    namespace AOT {
+      const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    };
+    namespace AOT2 {
+      const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
+    };
   };
 };
 
@@ -55,7 +55,7 @@ int main(int argc, const char **argv) {
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t eval_pars;
+    Online::Evaluation::parameters_t eval_pars;
 
     cout << fixed;
     Algorithm::parameters_t alg_pars;
@@ -132,28 +132,29 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
-    Random::seeds(alg_pars.seed_);
+    Random::set_seed(alg_pars.seed_);
     problem_t problem(dim, dim);
 
     // create heuristic
+    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( (h == 1) || (h == 11) ) {
         heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
         if( h == 11 ) {
-            Policy::AOT::global_heuristic = heuristic;
-            Policy::AOT2::global_heuristic = heuristic;
+            Online::Policy::AOT::global_heuristic = heuristic;
+            Online::Policy::AOT2::global_heuristic = heuristic;
         }
     } else if( (h == 2) || (h == 12) ) {
         Heuristic::heuristic_t<state_t> *base = new Heuristic::min_min_heuristic_t<state_t>(problem);
         heuristic = new scaled_heuristic_t(base, 0.5);
         if( h == 12 ) {
-            Policy::AOT::global_heuristic = heuristic;
-            Policy::AOT2::global_heuristic = heuristic;
+            Online::Policy::AOT::global_heuristic = heuristic;
+            Online::Policy::AOT2::global_heuristic = heuristic;
         }
     } else if( h == 10 ) {
         heuristic = new zero_heuristic_t;
-        Policy::AOT::global_heuristic = heuristic;
-        Policy::AOT2::global_heuristic = heuristic;
+        Online::Policy::AOT::global_heuristic = heuristic;
+        Online::Policy::AOT2::global_heuristic = heuristic;
     }
 
     // solve problem with algorithms
@@ -169,29 +170,30 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+    vector<pair<const Online::Policy::policy_t<state_t>*, string> > bases;
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
-        Policy::hash_policy_t<state_t> optimal(*hash);
+        Online::Policy::hash_policy_t<state_t> optimal(*hash);
         bases.push_back(make_pair(optimal.clone(), "optimal"));
     }
     if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
     }
     if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy-scaled"));
     }
-    Policy::random_t<state_t> random(problem);
+    Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
+    pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
+      Online::Evaluation::select_policy(problem, base_name, policy_type, bases, heuristics, eval_pars);
     if( policy.first != 0 ) {
-        pair<pair<float, float>, float> eval = Evaluation::evaluate_policy(*policy.first, eval_pars, true);
+        pair<pair<float, float>, float> eval = Online::Evaluation::evaluate_policy(*policy.first, eval_pars, true);
         cout << policy.second
              << "= " << setprecision(5) << eval.first.first
              << " " << eval.first.second

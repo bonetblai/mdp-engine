@@ -4,13 +4,6 @@
 
 #define DISCOUNT   1
 
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 const Problem::action_t onelfwd = 0;
@@ -151,6 +144,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return true;
     }
+    virtual bool dead_end(const state_t &s) const { return false; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
