@@ -5,7 +5,6 @@
 #define EXPERIMENT
 
 #include "race.h"
-
 #include "dispatcher.h"
 
 using namespace std;

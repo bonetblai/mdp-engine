@@ -2,13 +2,6 @@
 #include <iostream>
 #include <iomanip>
 
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 const Problem::action_t up = 0;

@@ -1,7 +1,7 @@
 CXX	=	clang++
 CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
 OBJS	=	main.o
-TARGET	=	sailing
+TARGET	=	ctp2
 
 $(TARGET):	$(OBJS)
 		$(CXX) $(CCFLAGS) -o $(TARGET) $(OBJS)

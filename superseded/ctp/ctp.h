@@ -4,17 +4,7 @@
 #include <vector>
 #include <limits>
 
-//#define  DISCOUNT  .95
-#define  DISCOUNT  1
-
 #include "parsing.h"
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 struct state_t {

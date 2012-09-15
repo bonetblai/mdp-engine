@@ -4,8 +4,6 @@
 
 #include "ctp2.h"
 
-#include "../evaluation.h"
-
 using namespace std;
 
 void usage(ostream &os) {
@@ -43,7 +41,7 @@ int main(int argc, const char **argv) {
 
     string base_name;
     string policy_type;
-    Evaluation::parameters_t eval_pars;
+    Online::Evaluation::parameters_t eval_pars;
 
     cout << fixed;
     Algorithm::parameters_t alg_pars;
@@ -123,12 +121,13 @@ int main(int argc, const char **argv) {
 
     // build problem instances
     cout << "seed=" << alg_pars.seed_ << endl;
-    Random::seeds(alg_pars.seed_);
+    Random::set_seed(alg_pars.seed_);
     state_t::initialize(graph);
     problem_t problem(graph);
     cout << "P(bad weather)=" << probability_bad_weather(graph, 1e5) << endl;
 
     // create heuristic
+    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 1 ) {
         heuristic = new min_min_t;
@@ -149,23 +148,24 @@ int main(int argc, const char **argv) {
     }
 
     // evaluate policies
-    vector<pair<const Policy::policy_t<state_t>*, string> > bases;
+    vector<pair<const Online::Policy::policy_t<state_t>*, string> > bases;
 
     // fill base policies
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
-        Policy::hash_policy_t<state_t> optimal(*hash);
+        Online::Policy::hash_policy_t<state_t> optimal(*hash);
         bases.push_back(make_pair(optimal.clone(), "optimal"));
     }
     if( heuristic != 0 ) {
-        Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
     }
-    Policy::random_t<state_t> random(problem);
+    Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 
     // evaluate
-    pair<const Policy::policy_t<state_t>*, std::string> policy = Evaluation::select_policy(base_name, policy_type, bases, eval_pars);
+    pair<const Online::Policy::policy_t<state_t>*, std::string> policy = 
+      Online::Evaluation::select_policy(problem, base_name, policy_type, bases, heuristics, eval_pars);
     if( policy.first != 0 ) {
         problem_with_hidden_state_t pwhs(graph);
         vector<int> distances;

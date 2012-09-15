@@ -4,13 +4,6 @@
 
 #define DISCOUNT   .95
 
-#include "algorithm.h"
-#include "parameters.h"
-#include "heuristic.h"
-
-#include "policy.h"
-#include "rollout.h"
-#include "mcts.h"
 #include "dispatcher.h"
 
 #define XVER          (version&0x1)
@@ -109,6 +102,7 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual Problem::action_t number_actions(const state_t &s) const { return 5; }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s ) const { return s == goal_; }
+    virtual bool dead_end(const state_t &s ) const { return false; }
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return true;
     }
