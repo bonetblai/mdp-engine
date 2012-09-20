@@ -37,6 +37,8 @@ namespace Rollout {
 
 // nested rollout policy
 template<typename T> class rollout_t : public improvement_t<T> {
+  using policy_t<T>::problem;
+
   protected:
     unsigned width_;
     unsigned depth_;
@@ -67,14 +69,12 @@ template<typename T> class rollout_t : public improvement_t<T> {
         ++policy_t<T>::decisions_;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
-            if( policy_t<T>::problem().applicable(s, a) ) {
+        for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
+            if( problem().applicable(s, a) ) {
                 float value = 0;
                 for( unsigned trial = 0; trial < width_; ++trial ) {
-                    std::pair<T, bool> p = policy_t<T>::problem().sample(s, a);
-                    value +=
-                      policy_t<T>::problem().cost(s, a) +
-                      policy_t<T>::problem().discount() * evaluate(p.first);
+                    std::pair<T, bool> p = problem().sample(s, a);
+                    value += problem().cost(s, a) + problem().discount() * evaluate(p.first);
                 }
                 value /= width_;
                 if( value < best_value ) {

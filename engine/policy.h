@@ -80,20 +80,22 @@ template<typename T> class improvement_t : public policy_t<T> {
 
 // Random base policy: select a random applicable action
 template<typename T> class random_t : public policy_t<T> {
+  using policy_t<T>::problem;
+
   public:
     random_t(const Problem::problem_t<T> &problem) : policy_t<T>("random()", problem) { }
     virtual ~random_t() { }
     virtual const policy_t<T>* clone() const {
-        return new random_t(policy_t<T>::problem());
+        return new random_t(problem());
     }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
-        if( policy_t<T>::problem().dead_end(s) ) return Problem::noop;
+        if( problem().dead_end(s) ) return Problem::noop;
         std::vector<Problem::action_t> actions;
-        actions.reserve(policy_t<T>::problem().number_actions(s));
-        for( Problem::action_t a = 0; a < policy_t<T>::problem().number_actions(s); ++a ) {
-            if( policy_t<T>::problem().applicable(s, a) ) {
+        actions.reserve(problem().number_actions(s));
+        for( Problem::action_t a = 0; a < problem().number_actions(s); ++a ) {
+            if( problem().applicable(s, a) ) {
                 actions.push_back(a);
             }
         }
@@ -107,6 +109,8 @@ template<typename T> class random_t : public policy_t<T> {
 
 // Hash-based based policy: select best action using bestQValue method of hash table
 template<typename T> class hash_policy_t : public policy_t<T> {
+  using policy_t<T>::problem;
+
   protected:
     const Problem::hash_t<T> &hash_;
 
@@ -120,7 +124,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
         std::pair<Problem::action_t, float> p = hash_.bestQValue(s);
-        assert(policy_t<T>::problem().applicable(s, p.first));
+        assert(problem().applicable(s, p.first));
         return p.first;
     }
     virtual void print_stats(std::ostream &os) const {
@@ -131,6 +135,8 @@ template<typename T> class hash_policy_t : public policy_t<T> {
 
 // Base class for greedy policies wrt 1-step-lookahead of heuristic
 template<typename T> class base_greedy_t : public policy_t<T> {
+  using policy_t<T>::problem;
+
   protected:
     const Heuristic::heuristic_t<T> &heuristic_;
     bool optimistic_;
@@ -160,20 +166,20 @@ template<typename T> class base_greedy_t : public policy_t<T> {
     }
     virtual ~base_greedy_t() { }
     virtual const policy_t<T>* clone() const {
-        return new base_greedy_t(policy_t<T>::name(), policy_t<T>::problem(), heuristic_, optimistic_, random_ties_);
+        return new base_greedy_t(policy_t<T>::name(), problem(), heuristic_, optimistic_, random_ties_);
     }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
         std::vector<std::pair<T, float> > outcomes;
         std::vector<Problem::action_t> best_actions;
-        int nactions = policy_t<T>::problem().number_actions(s);
+        int nactions = problem().number_actions(s);
         float best_value = std::numeric_limits<float>::max();
         best_actions.reserve(random_ties_ ? nactions : 1);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
-            if( policy_t<T>::problem().applicable(s, a) ) {
+            if( problem().applicable(s, a) ) {
                 float value = optimistic_ ? std::numeric_limits<float>::max() : 0;
-                policy_t<T>::problem().next(s, a, outcomes);
+                problem().next(s, a, outcomes);
                 for( size_t i = 0, isz = outcomes.size(); i < isz; ++i ) {
                     float hval = heuristic_.value(outcomes[i].first);
                     if( optimistic_ ) {
@@ -182,7 +188,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
                         value += outcomes[i].second * hval;
                     }
                 }
-                value += policy_t<T>::problem().cost(s, a);
+                value += problem().cost(s, a);
 
                 if( value <= best_value ) {
                     if( value < best_value ) {
