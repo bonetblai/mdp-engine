@@ -105,6 +105,8 @@ template<typename T> class hash_t :
 //
 
 template<typename T> class uct_t : public improvement_t<T> {
+  using policy_t<T>::problem;
+
   protected:
     unsigned width_;
     unsigned horizon_;
@@ -143,7 +145,7 @@ template<typename T> class uct_t : public improvement_t<T> {
         typename hash_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
         Problem::action_t action = select_action(s, it->second, 0, false, random_ties_);
-        assert(policy_t<T>::problem().applicable(s, action));
+        assert(problem().applicable(s, action));
         return action;
     }
     virtual const policy_t<T>* clone() const {
@@ -175,25 +177,25 @@ template<typename T> class uct_t : public improvement_t<T> {
         std::cout << std::setw(2*depth) << "" << "search_tree(" << s << "):";
 #endif
 
-        if( (depth == horizon_) || policy_t<T>::problem().terminal(s) ) {
+        if( (depth == horizon_) || problem().terminal(s) ) {
 #ifdef DEBUG
             std::cout << " end" << std::endl;
 #endif
             return 0;
         }
 
-        if( policy_t<T>::problem().dead_end(s) ) {
+        if( problem().dead_end(s) ) {
 #ifdef DEBUG
             std::cout << " dead-end" << std::endl;
 #endif
-            return policy_t<T>::problem().dead_end_value();
+            return problem().dead_end_value();
         }
 
         typename hash_t<T>::iterator it = table_.find(std::make_pair(depth, s));
 
         if( it == table_.end() ) {
-            std::vector<float> values(1 + policy_t<T>::problem().number_actions(s), 0);
-            std::vector<int> counts(1 + policy_t<T>::problem().number_actions(s), 0);
+            std::vector<float> values(1 + problem().number_actions(s), 0);
+            std::vector<int> counts(1 + problem().number_actions(s), 0);
             table_.insert(std::make_pair(std::make_pair(depth, s), data_t(values, counts)));
             float value = evaluate(s, depth);
 #ifdef DEBUG
@@ -207,8 +209,8 @@ template<typename T> class uct_t : public improvement_t<T> {
             ++it->second.counts_[1+a];
 
             // sample next state
-            std::pair<const T, bool> p = policy_t<T>::problem().sample(s, a);
-            float cost = policy_t<T>::problem().cost(s, a);
+            std::pair<const T, bool> p = problem().sample(s, a);
+            float cost = problem().cost(s, a);
 
 #ifdef DEBUG
             std::cout << " count=" << it->second.counts_[0]-1
@@ -222,7 +224,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             float &old_value = it->second.values_[1+a];
             float n = it->second.counts_[1+a];
             float new_value = cost +
-              policy_t<T>::problem().discount() * search_tree(p.first, 1 + depth);
+              problem().discount() * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
             return old_value;
         }
@@ -235,12 +237,12 @@ template<typename T> class uct_t : public improvement_t<T> {
                                     bool random_ties) const {
         float log_ns = logf(data.counts_[0]);
         std::vector<Problem::action_t> best_actions;
-        int nactions = policy_t<T>::problem().number_actions(state);
+        int nactions = problem().number_actions(state);
         float best_value = std::numeric_limits<float>::max();
 
         best_actions.reserve(random_ties ? nactions : 1);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
-            if( policy_t<T>::problem().applicable(state, a) ) {
+            if( problem().applicable(state, a) ) {
                 // if this action has never been taken in this node, select it
                 if( data.counts_[1+a] == 0 ) {
                     return a;
