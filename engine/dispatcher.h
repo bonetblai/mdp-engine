@@ -103,7 +103,9 @@ inline void solve(const Problem::problem_t<T> &problem, const Heuristic::heurist
             result.value_ = result.hash_->value(s);
             result.updates_ = result.hash_->updates();
             result.expansions_ = problem.expansions();
-            result.psize_ = problem.policy_size(*result.hash_, s);
+            result.psize_ = std::numeric_limits<unsigned>::max();
+            if( algorithm != Algorithm::simple_astar<T> )
+                result.psize_ = problem.policy_size(*result.hash_, s);
 
             float end_time = Utils::read_time_in_seconds();
             result.htime_ = !heuristic ? 0 : heuristic->total_time();
