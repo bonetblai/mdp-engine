@@ -2,21 +2,10 @@
 #include <fstream>
 #include <vector>
 
-#define EXPERIMENT
-
 #include "ctp3.h"
-
 #include "dispatcher.h"
 
 using namespace std;
-
-namespace Online {
-  namespace Policy {
-    namespace AOT {
-        const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-    };
-  };
-};
 
 void usage(ostream &os) {
     os << "usage: ctp3 [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <file>"
@@ -179,19 +168,16 @@ int main(int argc, const char **argv) {
         cout << "max-branching=" << p.second << endl;
     }
 
-    // create heuristic
+    // create heuristics
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
+    heuristics.push_back(make_pair(new Heuristic::zero_heuristic_t<state_t>, "zero"));
+    heuristics.push_back(make_pair(new min_min_t(divisor), "min-min"));
+
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( (h == 1) || (h == 11) ) {
-        heuristic = new min_min_t(divisor);
-        if( h == 11 ) {
-            Online::Policy::AOT::global_heuristic = heuristic;
-        }
-        heuristics.push_back(make_pair(heuristic, "min-min"));
-    } else if( h == 10 ) {
+    } if( h == 0 ) {
         heuristic = new Heuristic::zero_heuristic_t<state_t>;
-        Online::Policy::AOT::global_heuristic = heuristic;
-        heuristics.push_back(make_pair(heuristic, "zero"));
+    } else if( h == 1) {
+        heuristic = new min_min_t(divisor);
     }
 
     // solve problem with algorithms

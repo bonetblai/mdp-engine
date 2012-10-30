@@ -2,8 +2,6 @@
 #include <iomanip>
 #include <strings.h>
 
-#include "dispatcher.h"
-
 #define DISCOUNT .95
 
 class state_t {

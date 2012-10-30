@@ -2,22 +2,10 @@
 #include <strings.h>
 #include <vector>
 
-#define EXPERIMENT
-
+#include <dispatcher.h>
 #include "sailing.h"
 
 using namespace std;
-
-namespace Online {
-  namespace Policy {
-    namespace AOT {
-      const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-    };
-    namespace AOT2 {
-      const Heuristic::heuristic_t<state_t> *global_heuristic = 0;
-    };
-  };
-};
 
 void usage(ostream &os) {
     os << "usage: sailing [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <dim>"
@@ -137,24 +125,18 @@ int main(int argc, const char **argv) {
 
     // create heuristic
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
+    heuristics.push_back(make_pair(new zero_heuristic_t, "zero"));
+    heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "min-min"));
+    heuristics.push_back(make_pair(new scaled_heuristic_t(new Heuristic::min_min_heuristic_t<state_t>(problem), 0.5), "min-min-scaled"));
+
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( (h == 1) || (h == 11) ) {
+    if( h == 0 ) {
+        heuristic = new zero_heuristic_t;
+    } else if( h == 1 ) {
         heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
-        if( h == 11 ) {
-            Online::Policy::AOT::global_heuristic = heuristic;
-            Online::Policy::AOT2::global_heuristic = heuristic;
-        }
-    } else if( (h == 2) || (h == 12) ) {
+    } else if( h == 2 ) {
         Heuristic::heuristic_t<state_t> *base = new Heuristic::min_min_heuristic_t<state_t>(problem);
         heuristic = new scaled_heuristic_t(base, 0.5);
-        if( h == 12 ) {
-            Online::Policy::AOT::global_heuristic = heuristic;
-            Online::Policy::AOT2::global_heuristic = heuristic;
-        }
-    } else if( h == 10 ) {
-        heuristic = new zero_heuristic_t;
-        Online::Policy::AOT::global_heuristic = heuristic;
-        Online::Policy::AOT2::global_heuristic = heuristic;
     }
 
     // solve problem with algorithms
