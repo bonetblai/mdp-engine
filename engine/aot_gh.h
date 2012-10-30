@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef AOT_H
-#define AOT_H
+#ifndef AOT_GH_H
+#define AOT_GH_H
 
 #include "policy.h"
 #include "bdd_priority_queue.h"
@@ -29,14 +29,14 @@
 #include <vector>
 #include <queue>
 
-//#define DEBUG
+#define DEBUG
 #define USE_BDD_PQ
 
 namespace Online {
 
 namespace Policy {
 
-namespace AOT {
+namespace AOT_GH {
 
 template<typename T> class aot_t; // Forward reference
 
@@ -46,17 +46,21 @@ template<typename T> class aot_t; // Forward reference
 //
 
 template<typename T> struct node_t {
-    float value_;
+    float value_; // CHECK: to be removed
+    float gvalue_;
+    float hvalue_;
     float delta_;
     unsigned nsamples_;
     bool in_best_policy_;
     bool in_queue_;
     bool in_pq_;
 
-    node_t(float value = 0, float delta = 0)
-      : value_(value), delta_(delta), nsamples_(0),
+    node_t(float gvalue = 0, float hvalue = 0, float delta = 0)
+      : gvalue_(gvalue), hvalue_(hvalue), delta_(delta), nsamples_(0),
         in_best_policy_(false), in_queue_(false), in_pq_(false) { }
     virtual ~node_t() { }
+
+    float value() const { return gvalue_ + hvalue_; }
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
     virtual void expand(const aot_t<T> *policy,
@@ -66,7 +70,8 @@ template<typename T> struct node_t {
 
 template<typename T> struct state_node_t;
 template<typename T> struct action_node_t : public node_t<T> {
-    using node_t<T>::value_;
+    using node_t<T>::gvalue_;
+    using node_t<T>::hvalue_;
     using node_t<T>::delta_;
 
     Problem::action_t action_;
@@ -91,7 +96,8 @@ template<typename T> struct action_node_t : public node_t<T> {
     virtual void print(std::ostream &os, bool indent = true) const {
         if( indent ) os << std::setw(2 * parent_->depth_) << "";
         os << "[action=" << action_
-           << ",value=" << value_
+           << ",g=" << gvalue_
+           << ",h=" << hvalue_
            << ",delta=" << delta_
            << "]";
     }
@@ -105,7 +111,8 @@ template<typename T> struct action_node_t : public node_t<T> {
 };
 
 template<typename T> struct state_node_t : public node_t<T> {
-    using node_t<T>::value_;
+    using node_t<T>::gvalue_;
+    using node_t<T>::hvalue_;
     using node_t<T>::delta_;
 
     const T state_;
@@ -155,7 +162,8 @@ template<typename T> struct state_node_t : public node_t<T> {
            << ",depth=" << depth_
            << ",#pa=" << parents_.size()
            << ",#chld=" << children_.size()
-           << ",value=" << value_
+           << ",g=" << gvalue_
+           << ",h=" << hvalue_
            << ",delta=" << delta_
            << "]";
     }
@@ -470,12 +478,15 @@ template<typename T> class aot_t : public improvement_t<T> {
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth),
                                          node));
             if( problem().terminal(state) ) {
-                node->value_ = 0;
+                node->gvalue_ = 0;
+                node->hvalue_ = 0;
                 node->is_goal_ = true;
             } else if( problem().dead_end(state) ) {
-                node->value_ = problem().dead_end_value();
+                node->gvalue_ = problem().dead_end_value();
+                node->hvalue_ = 0;
                 node->is_dead_end_ = true;
             } else {
+                // CHECK: don't know what to set here
                 node->value_ = evaluate(state, depth);
                 node->nsamples_ = leaf_nsamples_;
             }
@@ -996,29 +1007,29 @@ template<typename T> class aot_t : public improvement_t<T> {
 
 };
 
-}; // namespace AOT
+}; // namespace AOT_GH
 
 template<typename T>
-inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
-                                   unsigned width,
-                                   unsigned horizon,
-                                   float probability,
-                                   bool random_ties,
-                                   bool delayed_evaluation = true,
-                                   unsigned expansions_per_iteration = 100,
-                                   unsigned leaf_nsamples = 1,
-                                   unsigned delayed_evaluation_nsamples = 1,
-                                   int leaf_selection_strategy = 0) {
-    return new AOT::aot_t<T>(base_policy,
-                             width,
-                             horizon,
-                             probability,
-                             random_ties,
-                             delayed_evaluation,
-                             expansions_per_iteration,
-                             leaf_nsamples,
-                             delayed_evaluation_nsamples,
-                             leaf_selection_strategy);
+inline const policy_t<T>* make_aot_gh(const policy_t<T> &base_policy,
+                                      unsigned width,
+                                      unsigned horizon,
+                                      float probability,
+                                      bool random_ties,
+                                      bool delayed_evaluation = true,
+                                      unsigned expansions_per_iteration = 100,
+                                      unsigned leaf_nsamples = 1,
+                                      unsigned delayed_evaluation_nsamples = 1,
+                                      int leaf_selection_strategy = 0) {
+    return new AOT_GH::aot_t<T>(base_policy,
+                                width,
+                                horizon,
+                                probability,
+                                random_ties,
+                                delayed_evaluation,
+                                expansions_per_iteration,
+                                leaf_nsamples,
+                                delayed_evaluation_nsamples,
+                                leaf_selection_strategy);
 }
 
 }; // namespace Policy
