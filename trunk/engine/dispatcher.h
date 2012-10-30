@@ -25,6 +25,7 @@
 #include "parameters.h"
 
 #include "aot.h"
+#include "aot_gh.h"
 #include "uct.h"
 #include "online_rtdp.h"
 #include "rollout.h"
@@ -104,7 +105,7 @@ inline void solve(const Problem::problem_t<T> &problem, const Heuristic::heurist
             result.updates_ = result.hash_->updates();
             result.expansions_ = problem.expansions();
             result.psize_ = std::numeric_limits<unsigned>::max();
-            if( algorithm != Algorithm::simple_astar<T> )
+            if( algorithm != &Algorithm::simple_astar<T> )
                 result.psize_ = problem.policy_size(*result.hash_, s);
 
             float end_time = Utils::read_time_in_seconds();
@@ -184,6 +185,7 @@ const Heuristic::heuristic_t<T>*
 }
 
 inline bool policy_requires_heuristic(const std::string &policy_type) {
+    // CHECK: add aot/heuristic and aot/gh
     if( policy_type == "finite-horizon-lrtdp" )
         return true;
     else
@@ -222,103 +224,78 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
     const Policy::policy_t<T> *policy = 0;
 
     if( policy_type == "direct" ) {
-        policy = base_policy->clone();
         ss << base_name;
+        policy = base_policy->clone();
     } else if( policy_type == "rollout" ) {
-        ss << "nrollout(" << base_name
+        ss << policy_type << "(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",nesting=" << par.par1_
            << ")";
         policy = Policy::make_nested_rollout(*base_policy, par.width_, par.depth_, par.par1_);
-    } else if( policy_type == "uct" ) {
-        ss << "uct(" << base_name
+    } else if( policy_type.compare(0, 3, "uct") ) {
+        // UCT family
+        ss << policy_type << "(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",par=" << par.par1_
            << ")";
-        policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, false);
-    } else if( policy_type == "uct/random_ties" ) {
-        ss << "uct/random_ties(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",par=" << par.par1_
-           << ")";
-        policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, true);
-    } else if( policy_type == "aot" ) {
-        ss << "aot(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
-    } else if( policy_type == "aot/random_ties" ) {
-        ss << "aot(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_);
-    } else if( policy_type == "aot*" ) { // this is aot* with delayed evaluation (i.e., w/ non-full expansion)
-        ss << "aot*(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, true, par.par2_);
-    } else if( policy_type == "aot*/random_ties" ) { // this is aot* with delayed evaluation (i.e., w/ non-full expansion)
-        ss << "aot*(" << base_name
+        bool random_ties = policy_type == "uct/random-ties";
+        policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, random_ties);
+    } else if( policy_type.compare(0, 3, "aot") ) {
+        // Determine type and modifiers
+        bool random_ties = false;
+        bool delayed = false;
+        bool random_leaf = false;
+        bool g_plus_h = false;
+        if( policy_type.length() > 3 ) {
+            // CHECK: fill this code
+            assert(0);
+        }
+
+        // Constraint: delayed => not random-leaf, not heuristic, not g+h
+        // Constraint: random-leaf => not delayed, not heuristic, not g+h
+        // Constraint: g+h => not delayed, not random_leaf, heuristic
+        if( delayed && random_leaf ) {
+            ss << "error: AOT/delayed & AOT/random-leaf are incompatible.";
+        } else if( delayed && (heuristic != 0) ) {
+            ss << "error: AOT/delayed & AOT/heuristic are incompatible.";
+        } else if( delayed && g_plus_h ) {
+            ss << "error: AOT/delayed & AOT/g+h are incompatible.";
+        } else if( random_leaf && heuristic ) {
+            ss << "error: AOT/random-leaf & AOT/heuristic are incompatible.";
+        } else if( random_leaf && g_plus_h ) {
+            ss << "error: AOT/random-leaf & AOT/g+h are incompatible.";
+        } else if( g_plus_h && (heuristic == 0) ) {
+            ss << "error: AOT/g+h required AOT/heuristic.";
+        }
+        if( ss.str().length() > 0 ) return std::make_pair(policy, ss.str());
+            
+        // AOT family
+        ss << policy_type << "(" << base_name
            << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
            << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, true, par.par2_);
-    } else if( policy_type == "aot-value" ) { // this is exactly as "aot" but provide handle; to make effective, set global_heuristic
-        ss << "aot-value(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
-    } else if( policy_type == "aot-value/random_ties" ) { // this is exactly as "aot" but provide handle; to make effective, set global_heuristic
-        ss << "aot-value(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_);
-    } else if( policy_type == "aot-random" ) { // aot w/ random-leaf selection strategy
-        ss << "aot-random(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, false, false, par.par2_, 1, 1, 1);
-    } else if( policy_type == "aot-random/random_ties" ) { // aot w/ random-leaf selection strategy
-        ss << "aot-random/random_ties(" << base_name
-           << ",width=" << par.width_
-           << ",depth=" << par.depth_
-           << ",p=" << par.par1_
-           << ",exp=" << par.par2_
-           << ")";
-        policy =
-          Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, true, false, par.par2_, 1, 1, 1);
+
+        if( random_leaf ) {
+            policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_, 1, 1, 1);
+        } else if( g_plus_h ) {
+            policy = Policy::make_aot_gh(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
+        } else {
+            policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, delayed, par.par2_);
+        }
+
+        if( heuristic != 0 ) {
+            if( g_plus_h ) {
+                dynamic_cast<const Online::Policy::AOT_GH::aot_t<T>*>(policy)->set_heuristic(heuristic);
+            } else {
+                dynamic_cast<const Online::Policy::AOT::aot_t<T>*>(policy)->set_heuristic(heuristic);
+            }
+        }
     } else if( policy_type == "finite-horizon-lrtdp" ) {
-        ss << "finite-horizon-lrtdp(h=" << base_name
+        ss << policy_type << "(" << base_name
            << ",horizon=" << par.depth_
            << ",max-trials=" << par.width_
            << ",labeling=" << (par.labeling_ ? "true" : "false")
