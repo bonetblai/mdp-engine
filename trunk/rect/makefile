@@ -1,4 +1,4 @@
-CXX	=	clang++
+CXX	=	g++
 CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
 OBJS	=	main.o
 TARGET	=	rect
