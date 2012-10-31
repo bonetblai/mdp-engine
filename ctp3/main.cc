@@ -174,7 +174,7 @@ int main(int argc, const char **argv) {
     heuristics.push_back(make_pair(new min_min_t(divisor), "min-min"));
 
     Heuristic::heuristic_t<state_t> *heuristic = 0;
-    } if( h == 0 ) {
+    if( h == 0 ) {
         heuristic = new Heuristic::zero_heuristic_t<state_t>;
     } else if( h == 1) {
         heuristic = new min_min_t(divisor);

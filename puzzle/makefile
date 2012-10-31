@@ -1,4 +1,4 @@
-CXX	=	clang++
+CXX	=	g++
 CCFLAGS	=	-Wall -g -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
 OBJS	=	main.o
 TARGET	=	puzzle
