@@ -288,7 +288,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         if( random_leaf ) {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_, 1, 1, 1);
         } else if( g_plus_h ) {
-            policy = Policy::make_aot_gh(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
+            policy = Policy::make_aot_gh(*base_policy, 1.0, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
         } else {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, delayed, par.par2_);
         }
