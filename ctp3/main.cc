@@ -40,7 +40,7 @@ int main(int argc, const char **argv) {
     bool formatted = false;
     int shortcut_cost = (int)5e3;
     float dead_end_value = 1e3;
-    float divisor = 1.0;
+    float heuristic_weight = 1.0;
 
     int calculate_feature = 0;
     int calculate_nsamples = 0;
@@ -90,11 +90,6 @@ int main(int argc, const char **argv) {
                 argv += 2;
                 argc -= 2;
                 break;
-            case 'D':
-                divisor = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
             case 'e':
                 alg_pars.epsilon_ = strtod(argv[1], 0);
                 argv += 2;
@@ -127,6 +122,16 @@ int main(int argc, const char **argv) {
                 break;
             case 't':
                 eval_pars.evaluation_trials_ = strtoul(argv[1], 0, 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'w':
+                eval_pars.weight_ = strtod(argv[1], 0);
+                argv += 2;
+                argc -= 2;
+                break;
+            case 'W':
+                heuristic_weight = strtod(argv[1], 0);
                 argv += 2;
                 argc -= 2;
                 break;
@@ -171,13 +176,19 @@ int main(int argc, const char **argv) {
     // create heuristics
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     heuristics.push_back(make_pair(new Heuristic::zero_heuristic_t<state_t>, "zero"));
-    heuristics.push_back(make_pair(new min_min_t(divisor), "min-min"));
+    Heuristic::heuristic_t<state_t> *heuristic = new min_min_t;
+    if( heuristic_weight != 1.0 ) {
+        heuristic = new Heuristic::weighted_heuristic_t<state_t>(*heuristic, heuristic_weight);
+    }
+    heuristics.push_back(make_pair(heuristic, "min-min"));
 
-    Heuristic::heuristic_t<state_t> *heuristic = 0;
+    heuristic = 0;
     if( h == 0 ) {
         heuristic = new Heuristic::zero_heuristic_t<state_t>;
     } else if( h == 1) {
-        heuristic = new min_min_t(divisor);
+        heuristic = new min_min_t;
+        if( heuristic_weight != 1.0 )
+            heuristic = new Heuristic::weighted_heuristic_t<state_t>(*heuristic, heuristic_weight);
     }
 
     // solve problem with algorithms

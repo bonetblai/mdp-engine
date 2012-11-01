@@ -188,7 +188,8 @@ inline bool policy_requires_heuristic(const std::string &policy_type) {
     if( policy_type == "finite-horizon-lrtdp" ) {
         return true;
     } else if( !policy_type.compare(0, 3, "aot") ) {
-        return policy_type.find("heuristic") != std::string::npos;
+        return (policy_type.find("heuristic") != std::string::npos) ||
+               (policy_type.find("g+h") != std::string::npos);
     } else
         return false;
 }
@@ -275,8 +276,9 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         if( ss.str().length() > 0 ) return std::make_pair(policy, ss.str());
             
         // AOT family
-        ss << policy_type << "(" << base_name
-           << ",width=" << par.width_
+        ss << policy_type << "(" << base_name;
+        if( g_plus_h ) ss << ",w=" << par.weight_;
+        ss << ",width=" << par.width_
            << ",depth=" << par.depth_
            << ",p=" << par.par1_
            << ",exp=" << par.par2_
@@ -288,7 +290,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         if( random_leaf ) {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_, 1, 1, 1);
         } else if( g_plus_h ) {
-            policy = Policy::make_aot_gh(*base_policy, 1.0, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
+            policy = Policy::make_aot_gh(*base_policy, par.weight_, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
         } else {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, delayed, par.par2_);
         }
