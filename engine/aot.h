@@ -79,13 +79,11 @@ template<typename T> struct action_node_t : public node_t<T> {
 
     bool is_leaf() const { return children_.empty(); }
     void update_value(float discount) {
-        node_t<T>::value_ = 0;
+        value_ = 0;
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
-            node_t<T>::value_ +=
-              children_[i].first * children_[i].second->value_;
+            value_ += children_[i].first * children_[i].second->value_;
         }
-        node_t<T>::value_ =
-          action_cost_ + discount * node_t<T>::value_;
+        value_ = action_cost_ + discount * value_;
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
@@ -139,13 +137,14 @@ template<typename T> struct state_node_t : public node_t<T> {
     void update_value() {
         assert(!is_goal_);
         if( !is_dead_end_ ) {
-            node_t<T>::value_ = std::numeric_limits<float>::max();
+            value_ = std::numeric_limits<float>::max();
             for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
                 float child_value = children_[i]->value_;
-                if( child_value < node_t<T>::value_ ) {
-                    node_t<T>::value_ = child_value;
+                if( child_value < value_ ) {
+                    value_ = child_value;
                 }
             }
+            assert(value_ < std::numeric_limits<float>::max());
         }
     }
 
@@ -508,6 +507,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(a_node->is_leaf());
         assert(!a_node->parent_->is_goal_);
         assert(!a_node->parent_->is_dead_end_);
+        a_node->value_ = 0;
         std::vector<std::pair<T, float> > outcomes;
         problem().next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
@@ -528,8 +528,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         nodes_to_propagate.push_back(a_node);
 
         // re-sample sibling action nodes that are still leaves.
-        // CHECK: this code need to be fixed when using heuristic instead of policies
-        if( picked_from_queue ) {
+        if( picked_from_queue && (heuristic_ == 0)) {
             state_node_t<T> *parent = a_node->parent_;
             const T &state = parent->state_;
             unsigned depth = 1 + parent->depth_;
@@ -575,7 +574,6 @@ template<typename T> class aot_t : public improvement_t<T> {
                     // instead of full-width expansion to calculate value,
                     // estimate by sampling states and applying rollouts
                     // of base policy
-                    // CHECK: this need to be revised when using heuristics
                     float eval = evaluate(s_node->state_, a, 1+s_node->depth_);
                     a_node->value_ = a_node->action_cost_ + problem().discount() * eval;
                     a_node->nsamples_ = delayed_evaluation_nsamples_ * leaf_nsamples_;
@@ -609,7 +607,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                     float old_value = a_node->value_;
                     a_node->update_value(problem().discount());
                     assert(a_node->parent_ != 0);
-                    if( !a_node->parent_->in_queue_ && (a_node->value_ != old_value) ) {
+                    if( !a_node->parent_->in_queue_ && (old_value != a_node->value_) ) {
                         queue.push_back(a_node->parent_);
                         a_node->parent_->in_queue_ = true;
                     }
