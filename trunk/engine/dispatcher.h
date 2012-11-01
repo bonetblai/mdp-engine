@@ -105,7 +105,7 @@ inline void solve(const Problem::problem_t<T> &problem, const Heuristic::heurist
             result.updates_ = result.hash_->updates();
             result.expansions_ = problem.expansions();
             result.psize_ = std::numeric_limits<unsigned>::max();
-            if( algorithm != &Algorithm::simple_astar<T> )
+            if( algorithm != static_cast<typename algorithm_table_t<T>::type>(Algorithm::simple_astar<T>) )
                 result.psize_ = problem.policy_size(*result.hash_, s);
 
             float end_time = Utils::read_time_in_seconds();
