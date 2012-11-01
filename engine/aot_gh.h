@@ -274,6 +274,7 @@ template<typename T> class aot_t : public improvement_t<T> {
   using policy_t<T>::problem;
 
   protected:
+    float w_;
     unsigned width_;
     unsigned horizon_;
     float probability_;
@@ -313,6 +314,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
   public:
     aot_t(const policy_t<T> &base_policy,
+          float w,
           unsigned width,
           unsigned horizon,
           float probability,
@@ -323,6 +325,7 @@ template<typename T> class aot_t : public improvement_t<T> {
           unsigned delayed_evaluation_nsamples,
           int leaf_selection_strategy)
       : improvement_t<T>(base_policy),
+        w_(w),
         width_(width),
         horizon_(horizon),
         probability_(probability),
@@ -349,6 +352,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         // set policy name
         std::stringstream name_stream;
         name_stream << "aot("
+                    << "w=" << w_
                     << "width=" << width_
                     << ",horizon=" << horizon_
                     << ",probability=" << probability_
@@ -423,16 +427,17 @@ template<typename T> class aot_t : public improvement_t<T> {
 #endif
 
         assert((width_ == 0) ||
-               ((root != 0) && problem().applicable(s, root->best_action(1.0, random_ties_))));
+               ((root != 0) && problem().applicable(s, root->best_action(w_, random_ties_))));
         assert(expanded <= width_);
 
         // select best action
         return width_ == 0 ?
-          improvement_t<T>::base_policy_(s) : root->best_action(1.0, random_ties_);
+          improvement_t<T>::base_policy_(s) : root->best_action(w_, random_ties_);
     }
 
     virtual const policy_t<T>* clone() const {
         return new aot_t(improvement_t<T>::base_policy_,
+                         w_,
                          width_,
                          horizon_,
                          probability_,
@@ -1019,6 +1024,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
 template<typename T>
 inline const policy_t<T>* make_aot_gh(const policy_t<T> &base_policy,
+                                      float w,
                                       unsigned width,
                                       unsigned horizon,
                                       float probability,
@@ -1029,6 +1035,7 @@ inline const policy_t<T>* make_aot_gh(const policy_t<T> &base_policy,
                                       unsigned delayed_evaluation_nsamples = 1,
                                       int leaf_selection_strategy = 0) {
     return new AOT_GH::aot_t<T>(base_policy,
+                                w,
                                 width,
                                 horizon,
                                 probability,
