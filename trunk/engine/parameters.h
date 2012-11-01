@@ -76,9 +76,12 @@ struct parameters_t {
     float par1_;
     unsigned par2_;
     unsigned labeling_;
+    float weight_;
     parameters_t()
       : evaluation_trials_(1000), evaluation_depth_(100),
-        width_(0), depth_(0), par1_(0), par2_(0), labeling_(false) { }
+        width_(0), depth_(0), par1_(0), par2_(0), labeling_(false),
+        weight_(1.0) {
+    }
 };
 
 }; // namespace Evaluation

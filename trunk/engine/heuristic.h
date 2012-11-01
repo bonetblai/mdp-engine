@@ -33,7 +33,8 @@
 
 // forward reference
 namespace Algorithm {
-  template<typename T> size_t value_iteration(const Problem::problem_t<T>&, const T &s, Problem::hash_t<T>&, const parameters_t&);
+  template<typename T> size_t
+  value_iteration(const Problem::problem_t<T>&, const T &s, Problem::hash_t<T>&, const parameters_t&);
 };
 
 namespace Heuristic {
@@ -106,10 +107,28 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
       : heuristic_t<T>("hash()"), hash_(hash) { }
     virtual ~hash_heuristic_t() { }
     virtual float value(const T &s) const { return hash_.value(s); }
+    virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return hash_.size(); }
     virtual void dump(std::ostream &os) const { hash_.dump(os); }
+};
+
+template<typename T> class weighted_heuristic_t : public heuristic_t<T> {
+  protected:
+    const heuristic_t<T> &heuristic_;
+    float weight_;
+
+  public:
+    weighted_heuristic_t(const heuristic_t<T> &heuristic, float weight = 1.0)
+      : heuristic_(heuristic), weight_(weight) { }
+    virtual ~weighted_heuristic_t() { }
+    virtual float value(const T &s) const { return weight_ * heuristic_.value(s); }
+    virtual void reset_stats() const { heuristic_.reset_stats(); }
+    virtual float setup_time() const { return heuristic_.setup_time(); }
+    virtual float eval_time() const { return heuristic_.eval_time(); }
+    virtual size_t size() const { return heuristic_.size(); }
+    virtual void dump(std::ostream &os) const { heuristic_.dump(os); }
 };
 
 template<typename T> struct wrapper_t : public Hash::hash_map_t<T>::eval_function_t {

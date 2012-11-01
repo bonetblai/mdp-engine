@@ -29,7 +29,7 @@
 #include <vector>
 #include <queue>
 
-#define DEBUG
+//#define DEBUG
 #define USE_BDD_PQ
 
 namespace Online {
@@ -59,7 +59,7 @@ template<typename T> struct node_t {
         in_best_policy_(false), in_queue_(false), in_pq_(false) { }
     virtual ~node_t() { }
 
-    float gh_value(float w) const { return gvalue_ + w * hvalue_; } // CHECK: proper use of w
+    float gh_value(float w) const { return gvalue_ + w * hvalue_; }
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
     virtual void expand(const aot_t<T> *policy,
@@ -129,10 +129,13 @@ template<typename T> struct state_node_t : public node_t<T> {
     Problem::action_t best_action(float w, bool random_ties) const {
         std::vector<Problem::action_t> actions;
         actions.reserve(random_ties ? children_.size() : 1);
+        float node_value = node_t<T>::gh_value(w);
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
             action_node_t<T> *a_node = children_[i];
-            if( (a_node->gh_value(w) == node_t<T>::gh_value(w)) &&
-                (random_ties || actions.empty()) ) {
+            float a_node_value = a_node->gh_value(w);
+            //float abs_diff_value = fabs(node_value - a_node_value);
+            //if( (abs_diff_value < 1e-3) && (random_ties || actions.empty()) );
+            if( (node_value == a_node_value) && (random_ties || actions.empty()) ) {
                 actions.push_back(a_node->action_);
             }
         }
@@ -353,7 +356,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         std::stringstream name_stream;
         name_stream << "aot("
                     << "w=" << w_
-                    << "width=" << width_
+                    << ",width=" << width_
                     << ",horizon=" << horizon_
                     << ",probability=" << probability_
                     << ",random-ties=" << (random_ties_ ? "true" : "false")

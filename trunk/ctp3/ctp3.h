@@ -712,13 +712,12 @@ class problem_with_hidden_state_t : public problem_t {
 
 
 class min_min_t : public Heuristic::heuristic_t<state_t> {
-    float multiplier_;
   public:
-    min_min_t(float multiplier = 1.0) : multiplier_(multiplier) { }
+    min_min_t() { }
     virtual ~min_min_t() { }
     virtual float value(const state_t &s) const {
         s.compute_heuristic();
-        return (float)s.heuristic_ * multiplier_;
+        return (float)s.heuristic_;
     }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
