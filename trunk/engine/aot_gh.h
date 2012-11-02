@@ -129,10 +129,10 @@ template<typename T> struct state_node_t : public node_t<T> {
     Problem::action_t best_action(float w, bool random_ties) const {
         std::vector<Problem::action_t> actions;
         actions.reserve(random_ties ? children_.size() : 1);
-        float node_value = node_t<T>::gh_value(w);
+        float node_value = node_t<T>::gh_value(1.0);
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
             action_node_t<T> *a_node = children_[i];
-            float a_node_value = a_node->gh_value(w);
+            float a_node_value = a_node->gh_value(1.0);
             //float abs_diff_value = fabs(node_value - a_node_value);
             //if( (abs_diff_value < 1e-3) && (random_ties || actions.empty()) );
             if( (node_value == a_node_value) && (random_ties || actions.empty()) ) {
@@ -146,12 +146,12 @@ template<typename T> struct state_node_t : public node_t<T> {
         //return is_dead_end_ || (!is_goal_ && children_.empty());
         return is_dead_end_ || is_goal_ || children_.empty();
     }
-    void update_value() {
+    void update_value(float w) {
         assert(!is_goal_);
         if( !is_dead_end_ ) {
             float value = std::numeric_limits<float>::max();
             for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
-                float child_value = children_[i]->gh_value(1.0);
+                float child_value = children_[i]->gh_value(w);
                 if( child_value < value ) {
                     value = child_value;
                     gvalue_ = children_[i]->gvalue_;
@@ -628,15 +628,15 @@ template<typename T> class aot_t : public improvement_t<T> {
             state_node_t<T> *s_node = queue.front();
             queue.pop_front();
             s_node->in_queue_ = false;
-            float old_value = s_node->gh_value(1.0);
-            if( !s_node->is_leaf() ) s_node->update_value();
-            if( s_node->is_leaf() || (old_value != s_node->gh_value(1.0)) ) {
+            float old_value = s_node->gh_value(w_);
+            if( !s_node->is_leaf() ) s_node->update_value(w_);
+            if( s_node->is_leaf() || (old_value != s_node->gh_value(w_)) ) {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->parents_[i].second;
-                    float old_value = a_node->gh_value(1.0);
+                    float old_value = a_node->gh_value(w_);
                     a_node->update_value(problem().discount());
                     assert(a_node->parent_ != 0);
-                    if( !a_node->parent_->in_queue_ && (old_value != a_node->gh_value(1.0)) ) {
+                    if( !a_node->parent_->in_queue_ && (old_value != a_node->gh_value(w_)) ) {
                         queue.push_back(a_node->parent_);
                         a_node->parent_->in_queue_ = true;
                     }
@@ -759,7 +759,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         } else {
             assert(!s_node->children_.empty());
-            float best_value = s_node->gh_value(1.0);
+            float best_value = s_node->gh_value(w_);
             if( s_node->in_best_policy_ ) {
                 assert(s_node->delta_ >= 0);
 
@@ -767,8 +767,8 @@ template<typename T> class aot_t : public improvement_t<T> {
                 float Delta = std::numeric_limits<float>::max();
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->children_[i];
-                    if( a_node->gh_value(1.0) != best_value ) {
-                        float d = a_node->gh_value(1.0) - best_value;
+                    if( a_node->gh_value(w_) != best_value ) {
+                        float d = a_node->gh_value(w_) - best_value;
                         Delta = Utils::min(Delta, d);
                     }
                 }
@@ -776,12 +776,12 @@ template<typename T> class aot_t : public improvement_t<T> {
                 // compute delta
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->children_[i];
-                    if( a_node->gh_value(1.0) == best_value ) {
+                    if( a_node->gh_value(w_) == best_value ) {
                         a_node->delta_ = Utils::min(s_node->delta_, Delta);
                         a_node->in_best_policy_ = true;
                         assert(a_node->delta_ >= 0);
                     } else {
-                        a_node->delta_ = best_value - a_node->gh_value(1.0);
+                        a_node->delta_ = best_value - a_node->gh_value(w_);
                         a_node->in_best_policy_ = false;
                         assert(a_node->delta_ <= 0);
                     }
@@ -791,7 +791,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 assert(s_node->delta_ <= 0);
                 for( int i = 0, isz = s_node->children_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->children_[i];
-                    a_node->delta_ = s_node->delta_ + best_value - a_node->gh_value(1.0);
+                    a_node->delta_ = s_node->delta_ + best_value - a_node->gh_value(w_);
                     a_node->in_best_policy_ = false;
                     assert(a_node->delta_ <= 0);
                     a_queue.push_back(a_node);
