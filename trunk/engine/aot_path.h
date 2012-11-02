@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef AOT_H
-#define AOT_H
+#ifndef AOT_PATH_H
+#define AOT_PATH_H
 
 #include "policy.h"
 #include "bdd_priority_queue.h"
@@ -36,7 +36,7 @@ namespace Online {
 
 namespace Policy {
 
-namespace AOT {
+namespace AOT_PATH {
 
 template<typename T> class aot_t; // Forward reference
 
@@ -95,7 +95,7 @@ template<typename T> struct action_node_t : public node_t<T> {
     }
     virtual void expand(const aot_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) {
-        policy->expand(this, nodes_to_propagate);
+        policy->expand_path(this, nodes_to_propagate);
     }
     virtual void propagate(const aot_t<T> *policy) {
         policy->propagate(this);
@@ -126,6 +126,7 @@ template<typename T> struct state_node_t : public node_t<T> {
                 actions.push_back(a_node->action_);
             }
         }
+        //std::cout << "sz=" << actions.size() << std::endl;
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
 
@@ -148,6 +149,8 @@ template<typename T> struct state_node_t : public node_t<T> {
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
+        os << "depth=" << depth_;
+#if 0
         if( indent ) os << std::setw(2 * depth_) << "";
         os << "[state=" << state_
            << ",depth=" << depth_
@@ -156,10 +159,11 @@ template<typename T> struct state_node_t : public node_t<T> {
            << ",value=" << value_
            << ",delta=" << delta_
            << "]";
+#endif
     }
     virtual void expand(const aot_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) {
-        policy->expand(this, nodes_to_propagate);
+        policy->expand_path(this, nodes_to_propagate);
     }
     virtual void propagate(const aot_t<T> *policy) {
         policy->propagate(this);
@@ -498,7 +502,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                            std::vector<node_t<T>*> &nodes_to_propagate) const {
         ++total_number_expansions_;
         node_t<T> *node = (this->*select_node_for_expansion_ptr_)(root);
-        if( node != 0 ) node->expand(this, nodes_to_propagate);
+        if( node != 0 ) { /*std::cout << "BEGIN PATH" << std::endl;*/ node->expand(this, nodes_to_propagate); /*std::cout << "END PATH" << std::endl;*/ }
     }
     void expand(action_node_t<T> *a_node,
                 std::vector<node_t<T>*> &nodes_to_propagate,
@@ -523,7 +527,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             a_node->value_ += prob * p.first->value_;
         }
         a_node->value_ = a_node->action_cost_ + problem().discount() * a_node->value_;
-        nodes_to_propagate.push_back(a_node);
+        //nodes_to_propagate.push_back(a_node);
 
         // re-sample sibling action nodes that are still leaves.
         if( picked_from_queue && (heuristic_ == 0)) {
@@ -550,6 +554,59 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
     }
+
+    // generate succesor state nodes, sample one such nodes, and
+    // continue expansion until reaching horizon
+    void expand_path(action_node_t<T> *a_node,
+                     std::vector<node_t<T>*> &nodes_to_propagate,
+                     bool picked_from_queue = true) const {
+        //std::cout << "entering action_node_t::expand_path()" << std::endl;
+        //assert(a_node->is_leaf());
+        assert(!a_node->parent_->is_goal_);
+        assert(!a_node->parent_->is_dead_end_);
+        a_node->value_ = 0;
+        std::vector<std::pair<T, float> > outcomes;
+        problem().next(a_node->parent_->state_, a_node->action_, outcomes);
+        a_node->children_.reserve(outcomes.size());
+
+        int sampled_child = -1;
+        float r = Random::real();
+        for( unsigned i = 0, isz = outcomes.size(); i < isz; ++i ) {
+            if( r < outcomes[i].second ) {
+                sampled_child = i;
+                break;
+            }
+            r -= outcomes[i].second;
+        }
+        if( sampled_child == -1 ) sampled_child = 0;
+
+        for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
+            const T &state = outcomes[i].first;
+            float prob = outcomes[i].second;
+            std::pair<state_node_t<T>*, bool> p = fetch_node(state, 1 + a_node->parent_->depth_);
+            assert(!p.second);
+            p.first->parents_.push_back(std::make_pair(i, a_node));
+            a_node->children_.push_back(std::make_pair(prob, p.first));
+            a_node->value_ += prob * p.first->value_;
+
+            // if this is selected child and depth < horizon, generate path recursively
+            if( sampled_child == i ) {
+                if( p.first->depth_ >= horizon_ || p.first->is_dead_end_ || p.first->is_goal_ ) {
+                    //std::cout << "[stop=" << (p.first->depth_ >= horizon_ ? 1 : 0) << (p.first->is_dead_end_ ? 1 : 0) << (p.first->is_goal_ ? 1 : 0) << "]" << std::endl;
+                    nodes_to_propagate.push_back(p.first);
+                } else {
+                    //std::cout << "[sampled=" << sampled_child << "] ";
+                    expand_path(p.first, nodes_to_propagate);
+                }
+            }
+        }
+        a_node->value_ = a_node->action_cost_ + problem().discount() * a_node->value_;
+        nodes_to_propagate.push_back(a_node);
+
+        // no re-sampling because we use heuristic
+        assert(heuristic_ != 0);
+    }
+
     void expand(state_node_t<T> *s_node,
                 std::vector<node_t<T>*> &nodes_to_propagate) const {
         assert(s_node->is_leaf());
@@ -579,6 +636,42 @@ template<typename T> class aot_t : public improvement_t<T> {
             }
         }
         nodes_to_propagate.push_back(s_node);
+    }
+
+    // do regular expansion by generating action nodes, then select
+    // action given by base policy, and continue expansion until
+    // reaching horizon
+    void expand_path(state_node_t<T> *s_node,
+                     std::vector<node_t<T>*> &nodes_to_propagate) const {
+        //std::cout << "entering state_node_t::expand_path: depth=" << s_node->depth_ << std::endl;
+        //assert(s_node->is_leaf());
+        assert(!s_node->is_goal_);
+        assert(!s_node->is_dead_end_);
+
+        // calculate selected action by base policy
+        Problem::action_t selected_action = base_policy_(s_node->state_);
+        assert(problem().applicable(s_node->state_, selected_action));
+
+        // expand by generating all applicable actions
+        s_node->children_.reserve(problem().number_actions(s_node->state_));
+        for( Problem::action_t a = 0; a < problem().number_actions(s_node->state_); ++a ) {
+            if( problem().applicable(s_node->state_, a) ) {
+                // create node for this action
+                ++num_nodes_;
+                action_node_t<T> *a_node = new action_node_t<T>(a);
+                a_node->action_cost_ = problem().cost(s_node->state_, a);
+                a_node->parent_ = s_node;
+                s_node->children_.push_back(a_node);
+
+                // if this is selected action, generate path recursively
+                if( a == selected_action ) {
+                    expand_path(a_node, nodes_to_propagate);
+                } else {
+                    expand(a_node, nodes_to_propagate, false);
+                }
+            }
+        }
+        //nodes_to_propagate.push_back(s_node);
     }
 
     // propagate new values bottom-up using BFS and stopping when values changes no further
@@ -939,6 +1032,12 @@ template<typename T> class aot_t : public improvement_t<T> {
                 node = select_from_outside();
         }
 
+#if 0
+        std::cout << "pop " << (node == 0 ? "<null>" : "");
+        if( node != 0 ) node->print(std::cout, false);
+        std::cout << std::endl;
+#endif
+
 #ifdef DEBUG
         std::cout << "pop " << (node == 0 ? "<null>" : "");
         if( node != 0 ) node->print(std::cout, false);
@@ -991,10 +1090,10 @@ template<typename T> class aot_t : public improvement_t<T> {
 
 };
 
-}; // namespace AOT
+}; // namespace AOT_PATH
 
 template<typename T>
-inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
+inline const policy_t<T>* make_aot_path(const policy_t<T> &base_policy,
                                    unsigned width,
                                    unsigned horizon,
                                    float probability,
@@ -1004,7 +1103,7 @@ inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
                                    unsigned leaf_nsamples = 1,
                                    unsigned delayed_evaluation_nsamples = 1,
                                    int leaf_selection_strategy = 0) {
-    return new AOT::aot_t<T>(base_policy,
+    return new AOT_PATH::aot_t<T>(base_policy,
                              width,
                              horizon,
                              probability,

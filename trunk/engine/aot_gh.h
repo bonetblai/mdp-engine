@@ -439,7 +439,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     virtual const policy_t<T>* clone() const {
-        return new aot_t(improvement_t<T>::base_policy_,
+        return new aot_t(base_policy_,
                          w_,
                          width_,
                          horizon_,
@@ -480,7 +480,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // lookup a node in hash table; if not found, create a new entry.
     std::pair<state_node_t<T>*, bool> fetch_node(const T &state,
-                                                      unsigned depth) const {
+                                                 unsigned depth) const {
         typename hash_t<T>::iterator it =
           table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
@@ -539,8 +539,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
             float prob = outcomes[i].second;
-            std::pair<state_node_t<T>*, bool> p =
-              fetch_node(state, 1 + a_node->parent_->depth_);
+            std::pair<state_node_t<T>*, bool> p = fetch_node(state, 1 + a_node->parent_->depth_);
             if( p.second ) {
                 assert(p.first->is_leaf());
                 nodes_to_propagate.push_back(p.first);
@@ -649,7 +648,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     // sampling states
     float evaluate(const T &s, unsigned depth) const {
         total_evaluations_ += leaf_nsamples_;
-        if( (heuristic_ != 0) && (depth <= horizon_) ) {
+        if( (heuristic_ != 0) && (depth < horizon_) ) {
             return heuristic_->value(s);
         } else if( depth >= horizon_ ) {
             return 0;
