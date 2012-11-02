@@ -3,9 +3,15 @@
 #include <vector>
 
 #include "ctp3.h"
-#include "dispatcher.h"
+#include <dispatcher.h>
 
 using namespace std;
+
+namespace Online {
+    namespace Evaluation {
+        const Online::Policy::policy_t<state_t> *global_base_policy = 0;
+    }
+}
 
 void usage(ostream &os) {
     os << "usage: ctp3 [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <file>"
@@ -220,6 +226,7 @@ int main(int argc, const char **argv) {
     base_policies.push_back(make_pair(&random, "random"));
     optimistic_policy_t optimistic(problem, graph);
     base_policies.push_back(make_pair(&optimistic, "optimistic"));
+    Online::Evaluation::global_base_policy = &optimistic;
     optimistic_policy_t optimistic_half_scaled(problem, graph, 0.5);
     base_policies.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
 
