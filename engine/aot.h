@@ -122,8 +122,7 @@ template<typename T> struct state_node_t : public node_t<T> {
         actions.reserve(random_ties ? children_.size() : 1);
         for( unsigned i = 0, isz = children_.size(); i < isz; ++i ) {
             action_node_t<T> *a_node = children_[i];
-            if( (a_node->value_ == node_t<T>::value_) &&
-                (random_ties || actions.empty()) ) {
+            if( (a_node->value_ == value_) && (random_ties || actions.empty()) ) {
                 actions.push_back(a_node->action_);
             }
         }
@@ -260,6 +259,7 @@ template<typename T> class bdd_priority_queue_t :
 
 template<typename T> class aot_t : public improvement_t<T> {
   using policy_t<T>::problem;
+  using improvement_t<T>::base_policy_;
 
   protected:
     unsigned width_;
@@ -415,12 +415,11 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(expanded <= width_);
 
         // select best action
-        return width_ == 0 ?
-          improvement_t<T>::base_policy_(s) : root->best_action(random_ties_);
+        return width_ == 0 ? base_policy_(s) : root->best_action(random_ties_);
     }
 
     virtual const policy_t<T>* clone() const {
-        return new aot_t(improvement_t<T>::base_policy_,
+        return new aot_t(base_policy_,
                          width_,
                          horizon_,
                          probability_,
@@ -441,7 +440,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         os << "stats: #expansions=" << total_number_expansions_
            << ", #evaluations=" << total_evaluations_
            << std::endl;
-        improvement_t<T>::base_policy_.print_stats(os);
+        base_policy_.print_stats(os);
     }
 
     void print_tree(std::ostream &os) const {
@@ -625,8 +624,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         } else if( depth >= horizon_ ) {
             return 0;
         } else {
-            return Evaluation::evaluation(improvement_t<T>::base_policy_, s,
-                                          leaf_nsamples_, horizon_ - depth);
+            return Evaluation::evaluation(base_policy_, s, leaf_nsamples_, horizon_ - depth);
         }
     }
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {
