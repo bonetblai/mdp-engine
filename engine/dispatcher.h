@@ -26,6 +26,7 @@
 
 #include "aot.h"
 #include "aot_gh.h"
+#include "aot_path.h"
 #include "uct.h"
 #include "online_rtdp.h"
 #include "rollout.h"
@@ -189,7 +190,8 @@ inline bool policy_requires_heuristic(const std::string &policy_type) {
         return true;
     } else if( !policy_type.compare(0, 3, "aot") ) {
         return (policy_type.find("heuristic") != std::string::npos) ||
-               (policy_type.find("g+h") != std::string::npos);
+               (policy_type.find("g+h") != std::string::npos) ||
+               (policy_type.find("path") != std::string::npos);
     } else
         return false;
 }
@@ -250,11 +252,13 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         bool delayed = false;
         bool random_leaf = false;
         bool g_plus_h = false;
+        bool path = false;
         if( policy_type.length() > 3 ) {
             random_ties = policy_type.find("random-ties") != std::string::npos;
             delayed = policy_type.find("delayed") != std::string::npos;
             random_leaf = policy_type.find("random-leaf") != std::string::npos;
             g_plus_h = policy_type.find("g+h") != std::string::npos;
+            path = policy_type.find("path") != std::string::npos;
         }
 
         // Constraint: delayed => not random-leaf, not heuristic, not g+h
@@ -291,6 +295,9 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_, 1, 1, 1);
         } else if( g_plus_h ) {
             policy = Policy::make_aot_gh(*base_policy, par.weight_, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
+        } else if( path ) {
+            extern const Policy::policy_t<T> *global_base_policy;
+            policy = Policy::make_aot_path(*global_base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
         } else {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, delayed, par.par2_);
         }
@@ -298,6 +305,8 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         if( heuristic != 0 ) {
             if( g_plus_h ) {
                 dynamic_cast<const Online::Policy::AOT_GH::aot_t<T>*>(policy)->set_heuristic(heuristic);
+            } else if( path ) {
+                dynamic_cast<const Online::Policy::AOT_PATH::aot_t<T>*>(policy)->set_heuristic(heuristic);
             } else {
                 dynamic_cast<const Online::Policy::AOT::aot_t<T>*>(policy)->set_heuristic(heuristic);
             }
