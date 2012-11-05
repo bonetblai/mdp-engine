@@ -958,12 +958,14 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     node_t<T>* select_from_priority_queue() const {
         node_t<T> *node = 0;
-        if( empty_inside_priority_queue() ) {
-            node = probability_ < 1 ? select_from_outside() : 0;
+        if( empty_inside_priority_queue() && empty_outside_priority_queue() ) {
+            node = 0;
+        } else if( empty_inside_priority_queue() ) {
+            node = select_from_outside();
         } else if( empty_outside_priority_queue() ) {
-            node = probability_ > 0 ? select_from_inside() : 0;
+            node = select_from_inside();
         } else {
-            if( Random::real() < probability_ )
+            if( (probability_ == 1) || (Random::real() < probability_) )
                 node = select_from_inside();
             else
                 node = select_from_outside();
