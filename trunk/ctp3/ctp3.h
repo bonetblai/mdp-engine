@@ -4,7 +4,7 @@
 #include <map>
 #include <vector>
 #include <limits.h>
-#include <tr1/unordered_map>
+#include <unordered_map>
 
 #include "graph.h"
 #include "algorithm.h"
@@ -145,12 +145,12 @@ struct cache_functions_t {
 };
 
 class shortest_path_cache_item_t
-  : public std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
+  : public std::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t> {
   public:
     void clear() {
         for( iterator it = begin(); it != end(); ++it )
             delete[] it->second;
-        std::tr1::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t>::clear();
+        std::unordered_map<state_info_t, int*, cache_functions_t, cache_functions_t>::clear();
     }
 
     void print_stats(std::ostream &os) const {
@@ -454,10 +454,10 @@ struct next_cache_functions_t {
 };
 
 class next_cache_item_t
-  : public std::tr1::unordered_map<state_t,
-                                   std::vector<std::pair<state_t, float> >*,
-                                   next_cache_functions_t,
-                                   next_cache_functions_t> {
+  : public std::unordered_map<state_t,
+                              std::vector<std::pair<state_t, float> >*,
+                              next_cache_functions_t,
+                              next_cache_functions_t> {
   public:
     void print_stats(std::ostream &os) const {
         int maxsz = 0;
