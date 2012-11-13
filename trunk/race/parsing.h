@@ -21,11 +21,9 @@ const char Goal = 4;
 const char Invalid = 8;
 
 namespace std {
-    namespace tr1 {
-        template<> struct hash<std::pair<int, int> > {
-            public:
-                size_t operator()(const std::pair<int, int> &p) const { return p.first ^ p.second; }
-        };
+    template<> struct hash<std::pair<int, int> > {
+        public:
+            size_t operator()(const std::pair<int, int> &p) const { return p.first ^ p.second; }
     };
 };
 

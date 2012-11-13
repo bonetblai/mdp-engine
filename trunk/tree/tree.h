@@ -1,6 +1,6 @@
 #include <iostream>
 #include <iomanip>
-#include <tr1/unordered_set>
+#include <unordered_set>
 
 #define DISCOUNT   1
 
@@ -114,7 +114,7 @@ class problem_t : public Problem::problem_t<state_t> {
     float q_;
     float r_;
     state_t init_;
-    std::tr1::unordered_set<state_t, Hash::hash_function_t<state_t> > noisy_;
+    std::unordered_set<state_t, Hash::hash_function_t<state_t> > noisy_;
 
   public:
     problem_t(unsigned n, float p, float q = 0.0, float r = 0.0)

@@ -1,14 +1,15 @@
 CXX	=	g++
-CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine #-DNDEBUG
+CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
+EXTRA	=	-std=c++0x
 OBJS	=	main.o
 TARGET	=	wet
 
 $(TARGET):	$(OBJS)
-		$(CXX) $(CCFLAGS) -o $(TARGET) $(OBJS)
+		$(CXX) $(CCFLAGS) $(EXTRA) -o $(TARGET) $(OBJS)
 
 clean:
 		rm -f $(OBJS) $(TARGET) *~ core
 
 .cc.o:
-		$(CXX) $(CCFLAGS) -c $<
+		$(CXX) $(CCFLAGS) $(EXTRA) -c $<
 
