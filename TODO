@@ -1,4 +1,3 @@
 - Implement efficient backup prop using array indexed by depth
 - Check computation of deltas in aot?
 - Implement better revision strategy for aot* to increase convergence time
-- Unify parameter classes

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <unordered_map>
 
 #include "parsing.h"
 #include "algorithm.h"
@@ -68,7 +69,7 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     return os;
 }
 
-class ecache_t : public std::tr1::unordered_map<size_t, std::pair<state_t, state_t> > { };
+class ecache_t : public std::unordered_map<size_t, std::pair<state_t, state_t> > { };
 //class ecache_t : public map<size_t,pair<state_t,state_t> > { };
 
 class problem_t : public Problem::problem_t<state_t> {
