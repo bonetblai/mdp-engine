@@ -26,6 +26,7 @@
 #include <sstream>
 #include <cassert>
 #include <limits>
+#include <unordered_map>
 #include <vector>
 #include <queue>
 
@@ -186,15 +187,15 @@ template<typename T> struct map_functions_t {
 };
 
 template<typename T> class hash_t :
-  public std::tr1::unordered_map<std::pair<const T*, unsigned>,
-                                 state_node_t<T>*,
-                                 map_functions_t<T>,
-                                 map_functions_t<T> > {
+  public std::unordered_map<std::pair<const T*, unsigned>,
+                            state_node_t<T>*,
+                            map_functions_t<T>,
+                            map_functions_t<T> > {
   public:
-    typedef typename std::tr1::unordered_map<std::pair<const T*, unsigned>,
-                                             state_node_t<T>*,
-                                             map_functions_t<T>,
-                                             map_functions_t<T> >
+    typedef typename std::unordered_map<std::pair<const T*, unsigned>,
+                                        state_node_t<T>*,
+                                        map_functions_t<T>,
+                                        map_functions_t<T> >
             base_type;
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
