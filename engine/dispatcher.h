@@ -296,8 +296,12 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         } else if( g_plus_h ) {
             policy = Policy::make_aot_gh(*base_policy, par.weight_, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
         } else if( path ) {
+#ifdef EXPERIMENTAL
             extern const Policy::policy_t<T> *global_base_policy;
             policy = Policy::make_aot_path(*global_base_policy, par.width_, par.depth_, par.par1_, random_ties, false, par.par2_);
+#else
+            std::cout << "'path' option not supported (enable EXPERIMENTAL setup)" << std::endl;
+#endif
         } else {
             policy = Policy::make_aot(*base_policy, par.width_, par.depth_, par.par1_, random_ties, delayed, par.par2_);
         }
