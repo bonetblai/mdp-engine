@@ -25,7 +25,7 @@
 #include <cassert>
 #include <limits>
 #include <limits.h>
-#include <unordered_map>
+#include <tr1/unordered_map>
 #include <vector>
 
 //#define DEBUG
@@ -134,11 +134,11 @@ class hash_function_t {
 };
 
 template<typename T, typename D, typename F=Hash::hash_function_t<T> >
-class generic_hash_map_t : public std::unordered_map<T, D, F> {
+class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
 };
 
 template<typename T, typename F=Hash::hash_function_t<T> >
-class generic_hash_set_t : public std::unordered_map<T, F> {
+class generic_hash_set_t : public std::tr1::unordered_map<T, F> {
 };
 
 template<typename T, typename F=Hash::hash_function_t<T> >

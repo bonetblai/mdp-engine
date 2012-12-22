@@ -26,7 +26,7 @@
 #include <sstream>
 #include <cassert>
 #include <limits>
-#include <unordered_map>
+#include <tr1/unordered_map>
 #include <vector>
 #include <queue>
 
@@ -199,15 +199,15 @@ template<typename T> struct map_functions_t {
 };
 
 template<typename T> class hash_t :
-  public std::unordered_map<std::pair<const T*, unsigned>,
-                            state_node_t<T>*,
-                            map_functions_t<T>,
-                             map_functions_t<T> > {
+  public std::tr1::unordered_map<std::pair<const T*, unsigned>,
+                                 state_node_t<T>*,
+                                 map_functions_t<T>,
+                                 map_functions_t<T> > {
   public:
-    typedef typename std::unordered_map<std::pair<const T*, unsigned>,
-                                        state_node_t<T>*,
-                                        map_functions_t<T>,
-                                        map_functions_t<T> >
+    typedef typename std::tr1::unordered_map<std::pair<const T*, unsigned>,
+                                             state_node_t<T>*,
+                                             map_functions_t<T>,
+                                             map_functions_t<T> >
             base_type;
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
@@ -404,35 +404,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
         (this->*clear_internal_state_ptr_)();
 
-#if 0
-        std::cout << std::endl << root->state_;
-        std::cout << "root: children.sz=" << root->children_.size() << std::endl;
-        for( int i = 0, isz = root->children_.size(); i < isz; ++i ) {
-            extern const Heuristic::heuristic_t<T> *global_heuristic;
-            action_node_t<T> *a = root->children_[i];
-            std::cout << "  a=" << a->action_ << ", children=" << a->children_.size() << ", value=" << a->gh_value(1.0) << std::endl;
-            for( int j = 0, jsz = a->children_.size(); j < jsz; ++j ) {
-                float p = a->children_[j].first;
-                state_node_t<T> *s = a->children_[j].second;
-                std::cout << "    p=" << p << ", value=" << s->gh_value(1.0) << ", h=" << global_heuristic->gh_value(s->state_) << std::endl;
-                std::cout << s->state_;
-            }
-
-            //std::vector<std::pair<T, float> > outcomes;
-            //problem().next(root->state_, a->action_, outcomes);
-            //std::cout << "my-outcomes: sz=" << outcomes.size() << std::endl;
-            //for( int j = 0, jsz = outcomes.size(); j < jsz; ++j ) {
-            //    float p = outcomes[j].second;
-            //    T &s = outcomes[j].first;
-            //    std::cout << "    p=" << p << std::endl;
-            //    std::cout << s;
-            //}
-        }
-        assert(0);
-#endif
-
-        assert((width_ == 0) ||
-               ((root != 0) && problem().applicable(s, root->best_action(random_ties_))));
+        assert((width_ == 0) || ((root != 0) && problem().applicable(s, root->best_action(random_ties_))));
         assert(expanded <= width_);
 
         // select best action
