@@ -280,7 +280,18 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
         if( ss.str().length() > 0 ) return std::make_pair(policy, ss.str());
             
         // AOT family
-        ss << policy_type << "(" << base_name;
+        std::stringstream aot_name;
+        aot_name << "aot/";
+        if( heuristic ) aot_name << "heuristic,";
+        if( random_leaf ) aot_name << "random-leaf,";
+        if( g_plus_h ) aot_name << "g+h,";
+        if( path ) aot_name << "path,";
+        if( delayed ) aot_name << "delayed,";
+        if( random_ties ) aot_name << "random-ties,";
+        std::string tmp_name = aot_name.str();
+        tmp_name.erase(tmp_name.size() - 1, 1);
+        
+        ss << tmp_name << "(" << base_name;
         if( g_plus_h ) ss << ",w=" << par.weight_;
         ss << ",width=" << par.width_
            << ",depth=" << par.depth_
