@@ -42,9 +42,22 @@
 
 namespace Dispatcher {
 
-const char *algorithm_name[] = {
-    "vi", "slrtdp", "ulrtdp", "blrtdp", "ilao", "check", "hdp", "ldfs+", "ldfs", "hdp-i", "simple-a*"
-};
+const char *algorithm_name(int index) {
+    switch( index ) {
+        case  0: return "vi";
+        case  1: return "slrtdp";
+        case  2: return "ulrtdp";
+        case  3: return "blrtdp";
+        case  4: return "ilao";
+        case  5: return "check";
+        case  6: return "hdp";
+        case  7: return "ldfs+";
+        case  8: return "ldfs";
+        case  9: return "hdp-i";
+        case 10: return "simple-a*";
+    }
+    return 0;
+}
 
 template<typename T> struct algorithm_table_t {
     typedef size_t (*type)(const Problem::problem_t<T>&, const T&, Problem::hash_t<T>&, const Algorithm::parameters_t&);
@@ -93,7 +106,7 @@ inline void solve(const Problem::problem_t<T> &problem, const Heuristic::heurist
         if( algorithm != 0 ) {
             result_t<T> result;
             result.algorithm_ = index;
-            result.algorithm_name_ = algorithm_name[index];
+            result.algorithm_name_ = algorithm_name(index);
             result.seed_ = parameters.seed_;
             Random::set_seed(parameters.seed_);
 
