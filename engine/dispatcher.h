@@ -42,7 +42,7 @@
 
 namespace Dispatcher {
 
-const char *algorithm_name(int index) {
+inline const char *algorithm_name(int index) {
     switch( index ) {
         case  0: return "vi";
         case  1: return "slrtdp";
