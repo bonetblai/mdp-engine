@@ -26,9 +26,14 @@
 #include <sstream>
 #include <cassert>
 #include <limits>
-#include <tr1/unordered_map>
 #include <vector>
 #include <queue>
+
+#if __clang_major__ >= 5
+#include <unordered_map>
+#else
+#include <tr1/unordered_map>
+#endif
 
 //#define DEBUG
 #define USE_BDD_PQ
@@ -187,16 +192,31 @@ template<typename T> struct map_functions_t {
 };
 
 template<typename T> class hash_t :
+#if __clang_major__ >= 5
+  public std::unordered_map<std::pair<const T*, unsigned>,
+                            state_node_t<T>*,
+                            map_functions_t<T>,
+                            map_functions_t<T> > {
+#else
   public std::tr1::unordered_map<std::pair<const T*, unsigned>,
                                  state_node_t<T>*,
                                  map_functions_t<T>,
                                  map_functions_t<T> > {
+#endif
   public:
+#if __clang_major__ >= 5
+    typedef typename std::unordered_map<std::pair<const T*, unsigned>,
+                                        state_node_t<T>*,
+                                        map_functions_t<T>,
+                                        map_functions_t<T> >
+            base_type;
+#else
     typedef typename std::tr1::unordered_map<std::pair<const T*, unsigned>,
                                              state_node_t<T>*,
                                              map_functions_t<T>,
                                              map_functions_t<T> >
             base_type;
+#endif
     typedef typename base_type::const_iterator const_iterator;
     const_iterator begin() const { return base_type::begin(); }
     const_iterator end() const { return base_type::end(); }

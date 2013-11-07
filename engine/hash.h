@@ -25,8 +25,13 @@
 #include <cassert>
 #include <limits>
 #include <limits.h>
-#include <tr1/unordered_map>
 #include <vector>
+
+#if __clang_major__ >= 5
+#include <unordered_map>
+#else
+#include <tr1/unordered_map>
+#endif
 
 //#define DEBUG
 
@@ -133,6 +138,15 @@ class hash_function_t {
     size_t operator()(const T &s) const { return s.hash(); }
 };
 
+#if __clang_major__ >= 5
+template<typename T, typename D, typename F=Hash::hash_function_t<T> >
+class generic_hash_map_t : public std::unordered_map<T, D, F> {
+};
+
+template<typename T, typename F=Hash::hash_function_t<T> >
+class generic_hash_set_t : public std::unordered_map<T, F> {
+};
+#else
 template<typename T, typename D, typename F=Hash::hash_function_t<T> >
 class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
 };
@@ -140,6 +154,7 @@ class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
 template<typename T, typename F=Hash::hash_function_t<T> >
 class generic_hash_set_t : public std::tr1::unordered_map<T, F> {
 };
+#endif
 
 template<typename T, typename F=Hash::hash_function_t<T> >
 class hash_map_t : public generic_hash_map_t<T, Hash::data_t*, F> {
