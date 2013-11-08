@@ -406,6 +406,27 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
         (this->*clear_internal_state_ptr_)();
 
+#if 0
+        std::cout << "[1] value at root = " << root->value_ << std::endl;
+        for( Problem::action_t a = 0; a < problem().number_actions(root->state_); ++a ) {
+            if( problem().applicable(root->state_, a) ) {
+                double value = 0;
+                std::vector<std::pair<T, float> > outcomes;
+                problem().next(root->state_, a, outcomes, true);
+                for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
+                    const T &state = outcomes[i].first;
+                    float prob = outcomes[i].second;
+                    std::pair<state_node_t<T>*, bool> p = fetch_node(state, 1);
+                    value += prob * p.first->value_;
+                    std::cout << "    outcome " << i << ": prob = " << prob << ", value = " << p.first->value_ << std::endl;
+                    p.first->print(std::cout); std::cout << std::endl;
+                }
+                value = problem().cost(root->state_, a) + problem().discount() * value;
+                std::cout << "    ACTION " << a << ": value = " << value << std::endl;
+            }
+        }
+#endif
+
         assert((width_ == 0) || ((root != 0) && problem().applicable(s, root->best_action(random_ties_))));
         assert(expanded <= width_);
 
@@ -453,27 +474,31 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // lookup a node in hash table; if not found, create a new entry.
-    std::pair<state_node_t<T>*, bool> fetch_node(const T &state,
-                                                 unsigned depth) const {
+    std::pair<state_node_t<T>*, bool> fetch_node(const T &state, unsigned depth, bool debug = false) const {
         typename hash_t<T>::iterator it =
           table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
+            if( debug ) std::cout << "fetch_node: node was NOT-FOUND" << std::endl;
             ++num_nodes_;
             state_node_t<T> *node = new state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth),
                                          node));
             if( problem().terminal(state) ) {
+                if( debug ) std::cout << "fetch_node: node is TERMINAL" << std::endl;
                 node->value_ = 0;
                 node->is_goal_ = true;
             } else if( problem().dead_end(state) ) {
+                if( debug ) std::cout << "fetch_node: node is DEAD-END" << std::endl;
                 node->value_ = problem().dead_end_value();
                 node->is_dead_end_ = true;
             } else {
+                if( debug ) std::cout << "fetch_node: node is REGULAR" << std::endl;
                 node->value_ = evaluate(state, depth);
                 node->nsamples_ = leaf_nsamples_;
             }
             return std::make_pair(node, false);
         } else {
+            if( debug ) std::cout << "fetch_node: node was FOUND!" << std::endl;
             bool re_evaluated = false;
             if( it->second->is_leaf() && !it->second->is_dead_end_ && !it->second->is_goal_ && (heuristic_ == 0) ) {
                 // resample: throw other rollouts to get better estimation. Only done when heuristic_ == 0
