@@ -125,8 +125,17 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.tack(a) == state_t::Into ? false : s.apply(a).in_lake(rows_, cols_);
     }
+    virtual float max_absolute_cost() const {
+        return 4;
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : costs_[s.tack(a)];
+    }
+    virtual int max_action_branching() const {
+        return 8;
+    }
+    virtual int max_state_branching() const {
+        return 3;
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t,float> > &outcomes) const {
         ++expansions_;

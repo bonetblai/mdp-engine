@@ -270,7 +270,7 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
 
   public:
     bdd_priority_queue(unsigned capacity)
-      : capacity_(capacity), pool_(0), max_size_(0), min_size_(0) {
+      : capacity_(std::max<unsigned>(1, capacity)), pool_(0), max_size_(0), min_size_(0) {
         max_array_ = vector<container_t*>(1+capacity_, 0);
         min_array_ = vector<unsigned>(1+capacity_, 0);
         clear();

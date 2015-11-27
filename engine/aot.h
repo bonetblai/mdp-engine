@@ -339,15 +339,15 @@ template<typename T> class aot_t : public improvement_t<T> {
         probability_(probability),
         random_ties_(random_ties),
         delayed_evaluation_(delayed_evaluation),
-        expansions_per_iteration_(expansions_per_iteration),
+        expansions_per_iteration_(std::max<unsigned>(1, expansions_per_iteration)),
         leaf_nsamples_(leaf_nsamples),
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         leaf_selection_strategy_(leaf_selection_strategy),
         num_nodes_(0),
         heuristic_(0),
 #ifdef USE_BDD_PQ
-        inside_bdd_priority_queue_(expansions_per_iteration),
-        outside_bdd_priority_queue_(expansions_per_iteration),
+        inside_bdd_priority_queue_(expansions_per_iteration_),
+        outside_bdd_priority_queue_(expansions_per_iteration_),
 #endif
         from_inside_(0),
         from_outside_(0),

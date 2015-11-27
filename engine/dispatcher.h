@@ -28,6 +28,7 @@
 #include "aot_gh.h"
 #include "aot_path.h"
 #include "uct.h"
+#include "pac.h"
 #include "online_rtdp.h"
 #include "rollout.h"
 #include "parameters.h"
@@ -198,15 +199,28 @@ const Heuristic::heuristic_t<T>*
     return heuristic;
 }
 
-inline bool policy_requires_heuristic(const std::string &policy_type) {
+inline bool policy_requires_base_policy(const std::string &policy_type) {
     if( policy_type == "finite-horizon-lrtdp" ) {
+        return false;
+    } else if( !policy_type.compare(0, 3, "aot") ) {
+        return (policy_type.find("heuristic") == std::string::npos) &&
+               (policy_type.find("g+h") == std::string::npos) &&
+               (policy_type.find("path") == std::string::npos);
+    } else {
+        return true;
+    }
+}
+
+inline bool policy_requires_heuristic(const std::string &policy_type) {
+    if( (policy_type == "finite-horizon-lrtdp") || !policy_type.compare(0, 3, "pac") ) {
         return true;
     } else if( !policy_type.compare(0, 3, "aot") ) {
         return (policy_type.find("heuristic") != std::string::npos) ||
                (policy_type.find("g+h") != std::string::npos) ||
                (policy_type.find("path") != std::string::npos);
-    } else
+    } else {
         return false;
+    }
 }
 
 template<typename T>
@@ -222,17 +236,19 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
 
     // fetch base policy/heuristic
     const Policy::policy_t<T> *base_policy = 0;
+    if( policy_requires_base_policy(policy_type) ) {
+        base_policy = fetch_policy(base_name, base_policies);
+        if( base_policy == 0 ) {
+            ss << "error: inexistent base policy: " << base_name;
+            return std::make_pair(base_policy, ss.str());
+        }
+    }
+
     const Heuristic::heuristic_t<T> *heuristic = 0;
     if( policy_requires_heuristic(policy_type) ) {
         heuristic = fetch_heuristic(base_name, heuristics);
         if( heuristic == 0 ) {
             ss << "error: inexistent heuristic: " << base_name;
-            return std::make_pair(base_policy, ss.str());
-        }
-    } else {
-        base_policy = fetch_policy(base_name, base_policies);
-        if( base_policy == 0 ) {
-            ss << "error: inexistent base policy: " << base_name;
             return std::make_pair(base_policy, ss.str());
         }
     }
@@ -259,6 +275,38 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
         bool random_ties = policy_type == "uct/random-ties";
         policy = Policy::make_uct(*base_policy, par.width_, par.depth_, par.par1_, random_ties);
+    } else if( (policy_type.length() >= 3) && !policy_type.compare(0, 3, "pac") ) {
+        // Determine type and modifiers
+        bool random_ties = false;
+        bool pac_tree = false;
+        if( policy_type.length() > 3 ) {
+            random_ties = policy_type.find("random-ties") != std::string::npos;
+            pac_tree = policy_type.find("tree") != std::string::npos;
+        }
+
+        // PAC family
+        std::stringstream pac_name;
+        pac_name << "pac/";
+        if( pac_tree ) pac_name << "tree,";
+        if( random_ties ) pac_name << "random-ties,";
+        std::string tmp_name = pac_name.str();
+        tmp_name.erase(tmp_name.size() - 1, 1);
+
+        ss << tmp_name << "(" << base_name
+           << ",width=" << par.width_
+           << ",depth=" << par.depth_
+           << ",par=" << par.par1_
+           << ")";
+
+        // Make sure we have some base_policy to construct PAC
+std::cout << "HOLA: base policy=" << base_policy << std::endl;
+        if( base_policy == 0 ) base_policy = new Policy::random_t<T>(problem);
+std::cout << "HOLA: " << ss.str() << std::endl;
+
+        if( pac_tree ) {
+            policy = Policy::make_pac_tree(*base_policy, par.width_, par.depth_, par.par1_, random_ties);
+            dynamic_cast<const Online::Policy::PAC::pac_tree_t<T>*>(policy)->set_parameters(0.1, 0.1, 20, heuristic); // epsilon, delta, max-num-samples, heuristic
+        }
     } else if( (policy_type.length() >= 3) && !policy_type.compare(0, 3, "aot") ) {
         // Determine type and modifiers
         bool random_ties = false;

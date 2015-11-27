@@ -226,7 +226,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             float new_value = cost +
               problem().discount() * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
-            return old_value;
+            return new_value;
         }
     }
 

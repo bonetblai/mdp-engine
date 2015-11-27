@@ -107,12 +107,19 @@ int main(int argc, const char **argv) {
 
     if( argc >= 3 ) {
         dim = strtoul(argv[0], 0, 0);
+cout << "HOLA: dim=" << dim << endl;
         base_name = argv[1];
+cout << "HOLA: base_name=" << base_name << endl;
         policy_type = argv[2];
+cout << "HOLA: policy_type=" << policy_type << endl;
         if( argc >= 4 ) eval_pars.width_ = strtoul(argv[3], 0, 0);
         if( argc >= 5 ) eval_pars.depth_ = strtoul(argv[4], 0, 0);
         if( argc >= 6 ) eval_pars.par1_ = strtod(argv[5], 0);
         if( argc >= 7 ) eval_pars.par2_ = strtoul(argv[6], 0, 0);
+cout << "HOLA: eval_pars.width_=" << eval_pars.width_ << endl;
+cout << "HOLA: eval_pars.depth_=" << eval_pars.depth_ << endl;
+cout << "HOLA: eval_pars.par1_=" << eval_pars.par1_ << endl;
+cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
     } else {
         usage(cout);
         exit(-1);
@@ -127,6 +134,8 @@ int main(int argc, const char **argv) {
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     heuristics.push_back(make_pair(new zero_heuristic_t, "zero"));
     heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "min-min"));
+    heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "random"));
+    heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "greedy"));
     heuristics.push_back(make_pair(new scaled_heuristic_t(new Heuristic::min_min_heuristic_t<state_t>(problem), 0.5), "min-min-scaled"));
 
     Heuristic::heuristic_t<state_t> *heuristic = 0;
@@ -163,6 +172,7 @@ int main(int argc, const char **argv) {
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
+cout << "XXXXX: greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_pars, true).first.first << endl;
     }
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
@@ -170,8 +180,10 @@ int main(int argc, const char **argv) {
     }
     Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
+cout << "XXXXX: random=" << Online::Evaluation::evaluate_policy(random, eval_pars, true).first.first << endl;
 
     // evaluate
+cout << "BASE: " << base_name << " " << policy_type << endl;
     pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
       Online::Evaluation::select_policy(problem, base_name, policy_type, bases, heuristics, eval_pars);
     if( policy.first != 0 ) {
