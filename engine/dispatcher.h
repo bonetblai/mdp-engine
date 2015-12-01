@@ -299,9 +299,9 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
 
         // Make sure we have some base_policy to construct PAC
-std::cout << "HOLA: base policy=" << base_policy << std::endl;
+std::cout << "HOLA (dispatcher.h): base policy=" << base_policy << std::endl;
         if( base_policy == 0 ) base_policy = new Policy::random_t<T>(problem);
-std::cout << "HOLA: " << ss.str() << std::endl;
+std::cout << "HOLA (dispatcher.h): " << ss.str() << std::endl;
 
         if( pac_tree ) {
             policy = Policy::make_pac_tree(*base_policy, par.width_, par.depth_, par.par1_, random_ties);

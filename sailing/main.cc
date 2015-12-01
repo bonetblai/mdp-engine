@@ -172,7 +172,7 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
-cout << "XXXXX: greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_pars, true).first.first << endl;
+cout << "EVALUATE (in main.cc): greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_pars).first.first << endl;
     }
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
@@ -180,7 +180,7 @@ cout << "XXXXX: greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_par
     }
     Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
-cout << "XXXXX: random=" << Online::Evaluation::evaluate_policy(random, eval_pars, true).first.first << endl;
+cout << "EVALUATE (in main.cc): random=" << Online::Evaluation::evaluate_policy(random, eval_pars).first.first << endl;
 
     // evaluate
 cout << "BASE: " << base_name << " " << policy_type << endl;

@@ -161,6 +161,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     mutable std::vector<float> solved_threshold_;
     mutable std::vector<float> num_samples_;
 
+    // statistics
+    mutable int num_nodes_pruned_;
+    mutable int num_a_nodes_pruned_;
+
   public:
     pac_tree_t(const policy_t<T> &base_policy,
                unsigned width,
@@ -180,7 +184,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                     << ",random-ties=" << (random_ties_ ? "true" : "false")
                     << ")";
         policy_t<T>::set_name(name_stream.str());
-std::cout << "HOLA: " << name_stream.str() << std::endl;
+        num_nodes_pruned_ = 0;
+        num_a_nodes_pruned_ = 0;
     }
     virtual ~pac_tree_t() { }
 
@@ -195,18 +200,20 @@ std::cout << "HOLA: " << name_stream.str() << std::endl;
 
         gamma_ = problem().discount();
 
+std::cout << "PAC: epsilon=" << epsilon_ << ", delta=" << delta_ << ", gamma=" << gamma_ << ", max-samples=" << max_num_samples_ << std::endl;
+
         // threshold = epsilon / 2 * gamma^d
-//std::cout << "HOLA: thresholds:";
+//std::cout << "PAC: thresholds:";
         solved_threshold_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
             float threshold = epsilon_ / (2 * powf(gamma_, d));
             solved_threshold_[d] = threshold;
-//std::cout << " " << threshold;
+//std::cout << " " << std::setprecision(4) << threshold;
         }
 //std::cout << std::endl;
 
         // l(s,d) = 4 gamma^(2d) C_max (d ln b + d ln 2 - ln delta) / (1 - gamma) epsilon^2
-//std::cout << "HOLA: num-samples:";
+//std::cout << "PAC: num-samples:";
         num_samples_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
             float lsd = 4 * powf(gamma_ * gamma_, d) * problem().max_absolute_cost();
@@ -221,36 +228,27 @@ std::cout << "HOLA: " << name_stream.str() << std::endl;
     }
 
     virtual Problem::action_t operator()(const T &s) const {
-//std::cout << "HOLA: X0" << std::endl;
-        std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> > heap;
+        std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> > heap, heap_aux;
         std::list<state_node_t<T>*> leaf_nodes;
 
         ++policy_t<T>::decisions_;
 
-//std::cout << "HOLA: X1" << std::endl;
         state_node_t<T> *root = new state_node_t<T>(s, 0);
-//std::cout << "HOLA: X2" << std::endl;
         compute_bounds(*root);
-//std::cout << "HOLA: X3" << std::endl;
 
         Problem::action_t action = 0;
         if( solved(*root) ) {
-//std::cout << "HOLA: X4" << std::endl;
             delete root;
             action = improvement_t<T>::base_policy_(s);
-//std::cout << "HOLA: X5" << std::endl;
+            std::cout << "PAC: selection: action=" << action << ", method=base-policy" << std::endl;
         } else {
-//std::cout << "HOLA: X6" << std::endl;
             compute_merit(*root);
-//std::cout << "HOLA: X7" << std::endl;
             heap.push(root);
-//std::cout << "HOLA: X8: width=" << width_ << std::endl;
+            int last_heap_size = heap.size();
 
             for( int i = 0; !heap.empty() && (i < width_); ++i ) {
-//std::cout << "HOLA: heapsz=" << heap.size() << std::endl;
                 state_node_t<T> *node = heap.top();
                 heap.pop();
-//std::cout << "HOLA: X9: ptr=" << node << ", node=" << *node << ", lower=" << node->lower_bound_ << ", upper=" << node->upper_bound_ << std::endl;
 
                 // node must be active leaf
                 assert(!solved(*node));
@@ -258,39 +256,76 @@ std::cout << "HOLA: " << name_stream.str() << std::endl;
                 assert(node->children_.empty());
 
                 // expand leaf node
-//std::cout << "HOLA: X10" << std::endl;
                 expand(*node, leaf_nodes);
-//std::cout << "HOLA: X11" << std::endl;
                 propagate_values(*node);
-//std::cout << "HOLA: X12" << std::endl;
 
                 if( heap.empty() ) {
-                    std::cout << "size of list of leaf nodes = " << leaf_nodes.size() << std::endl;
+                    std::cout << "PAC: #leaves=" << leaf_nodes.size() << std::endl;
+                    int nsolved = 0, npruned = 0, nonleaf = 0;
+
+                    // compute merits for all leaves
                     typename std::list<state_node_t<T>*>::iterator it = leaf_nodes.begin();
                     while( it != leaf_nodes.end() ) {
-                        if( !solved(**it) && !(*it)->pruned_ ) {
-                            compute_merit(**it);
-//std::cout << "HOLA: X13: ptr=" << *it << ", node=" << **it << ", lower=" << (*it)->lower_bound_ << ", upper=" << (*it)->upper_bound_ << ", merit=" << (*it)->merit_ << std::endl;
-                            ++it;
+                        if( !solved(**it) && !(*it)->pruned_ && (*it)->children_.empty() ) {
+                            compute_merit(**it++);
                         } else {
-                            leaf_nodes.erase(it);
+                            if( (*it)->children_.empty() ) {
+                                if( (*it)-solved(**it) ) ++nsolved;
+                                if( (*it)->pruned_ ) ++npruned;
+                            } else {
+                                ++nonleaf:
+                            }
+                            leaf_nodes.erase(it++);
                         }
                     }
+
+                    // insert all leaves in auxiliary heap and select best ones for new heap
+                    heap_aux = std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> >(leaf_nodes.begin(), leaf_nodes.end());
+                    std::vector<state_node_t<T>*> selected;
+                    selected.reserve(2 * last_heap_size);
+                    while( (selected.size() < 2 * last_heap_size) && !heap_aux.empty() ) {
+                        selected.push_back(heap_aux.top());
+                        heap_aux.pop();
+                    }
+                    heap = std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> >(selected.begin(), selected.end());
+                    last_heap_size = heap.size();
+
+                    // XXXXXX: NEED TO REMOVE SELECTED LEAVES FROM LIST-OF-LEAVES
+
+                    std::cout << "PAC: #selected=" << selected.size()
+                              << ", #remaining=" << leaf_nodes.size()
+                              << ", #solved=" << nsolved
+                              << ", #pruned=" << npruned
+                              << ", #non-leaf=" << nonleaf
+                              << std::endl;
+
+
+#if 0
+                    typename std::list<state_node_t<T>*>::iterator it = leaf_nodes.begin();
+                    while( (selected.size() < 2 * last_heap_size) && (it != leaf_nodes.end()) ) {
+                        if( !solved(**it) && !(*it)->pruned_ ) {
+                            compute_merit(**it);
+                            selected.push_back(*it);
+                        } else {
+                            //std::cout << "PAC: LEAF TO BE ERASED: ptr=" << *it << ", node=" << **it << ", reason=" << solved(**it) << " " << (*it)->pruned_ << ", lb=" << (*it)->lower_bound_ << ", ub=" << (*it)->upper_bound_ << std::endl;
+                            if( solved(**it) ) ++nsolved;
+                            if( (*it)->pruned_ ) ++npruned;
+                        }
+                        leaf_nodes.erase(it++);
+                    }
           
-                    std::cout << "allocating heap of size = " << leaf_nodes.size() << std::endl;
-                    heap = std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> >(leaf_nodes.begin(), leaf_nodes.end());
-                    leaf_nodes.clear();
+                    heap = std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> >(selected.begin(), selected.end());
+                    last_heap_size = heap.size();
+#endif
                 }
             }
-std::cout << "HOLA: X100" << std::endl;
+            std::cout << "PAC: main loop ended: heap-sz=" << heap.size() << ", #leaves=" << leaf_nodes.size() << std::endl;
 
             action = root->select_action(random_ties_);
             delete_tree(root);
-//std::cout << "HOLA: X7" << std::endl;
+            std::cout << "PAC: selection: action=" << action << ", method=tree" << std::endl;
         }
-//std::cout << "HOLA: X8" << std::endl;
         assert(problem().applicable(s, action));
-//std::cout << "HOLA: X9" << std::endl;
         return action;
     }
     virtual const policy_t<T>* clone() const {
@@ -305,7 +340,6 @@ std::cout << "HOLA: X100" << std::endl;
     void compute_bounds(state_node_t<T> &node) const {
         node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: should use (s, depth)
         node.upper_bound_ = evaluate(node);
-//std::cout << "HOLA: ptr=" << &node << ", node=" << node << ", lower=" << node.lower_bound_ << ", upper=" << node.upper_bound_ << std::endl;
     }
 
     bool solved(state_node_t<T> &node) const {
@@ -362,8 +396,10 @@ std::cout << "HOLA: X100" << std::endl;
         // mark nodes (subtrees) as pruned
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
-            if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ )
+            if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ ) {
+                std::cout << "Pruning: a-node=" << a_node << std::endl;
                 mark_node_as_pruned(a_node);
+            }
         }
     }
     void update_bounds(action_node_t<T> &a_node) const {
@@ -382,20 +418,22 @@ std::cout << "HOLA: X100" << std::endl;
     }
 
     void mark_node_as_pruned(state_node_t<T> &node) const {
-        std::cout << "pruning node"; node.print(std::cout); std::cout << std::endl;
+        //std::cout << "  Marking node as pruned: node=" << node << std::endl;
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
             if( !a_node.pruned_ ) mark_node_as_pruned(a_node);
         }
         node.pruned_ = true;
+        ++num_nodes_pruned_;
     }
     void mark_node_as_pruned(action_node_t<T> &a_node) const {
-        std::cout << "pruning anode"; a_node.print(std::cout); std::cout << std::endl;
+        //std::cout << "  Marking node as pruned: a-node=" << a_node << std::endl;
         for( int i = 0; i < int(a_node.children_.size()); ++i ) {
             state_node_t<T> &node = *static_cast<state_node_t<T>*>(a_node.children_[i]);
             if( !node.pruned_ ) mark_node_as_pruned(node);
         }
         a_node.pruned_ = true;
+        ++num_a_nodes_pruned_;
     }
 
     void propagate_values(state_node_t<T> &node) const {
@@ -414,6 +452,7 @@ std::cout << "HOLA: X100" << std::endl;
     }
 
     float evaluate(const T &s, unsigned num_samples, unsigned depth) const {
+        //std::cout << "PAC: evaluate: nsamples=" << num_samples << std::endl;
         return Evaluation::evaluation(improvement_t<T>::base_policy_, s, num_samples, horizon_ - depth);
     }
     float evaluate(const state_node_t<T> &node) const {
