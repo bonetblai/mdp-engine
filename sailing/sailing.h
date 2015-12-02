@@ -85,6 +85,8 @@ class problem_t : public Problem::problem_t<state_t> {
     state_t init_;
     state_t goal_;
 
+    std::vector<std::vector<std::pair<int, float> > > sparse_wind_transition_;
+
     static const float default_wind_transition_[];
     static const float default_costs_[];
 
@@ -106,6 +108,17 @@ class problem_t : public Problem::problem_t<state_t> {
             bcopy(wind_transition, wind_transition_, 64 * sizeof(float));
         } else {
             bcopy(default_wind_transition_, wind_transition_, 64 * sizeof(float));
+        }
+
+        // fill in sparse wind transition
+        sparse_wind_transition_.reserve(8);
+        for( int wind = 0; wind < 8; ++wind ) {
+            std::vector<std::pair<int, float> > sparse_transition;
+            for( int nwind = 0; nwind < 8; ++nwind ) {
+                float p = wind_transition_[wind * 8 + nwind];
+                if( p > 0 ) sparse_transition.push_back(std::make_pair(nwind, p));
+            }
+            sparse_wind_transition_.push_back(sparse_transition);
         }
 
         if( costs != 0 ) {
@@ -140,15 +153,24 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t,float> > &outcomes) const {
         ++expansions_;
         outcomes.clear();
-        outcomes.reserve(8);
+        //outcomes.reserve(8);
         state_t next_s = s.apply(a);
         assert(next_s.in_lake(rows_, cols_));
+#if 0
         for( int nwind = 0; nwind < 8; ++nwind ) {
             float p = wind_transition_[s.wind_ * 8 + nwind];
             if( p > 0 ) {
                 next_s.wind_ = nwind;
                 outcomes.push_back(std::make_pair(next_s, p));
             }
+        }
+#endif
+        const std::vector<std::pair<int, float> > &sparse_transition = sparse_wind_transition_[s.wind_];
+        outcomes.reserve(sparse_transition.size());
+        for( int i = 0; i < int(sparse_transition.size()); ++i ) {
+            const std::pair<int, float> &p = sparse_transition[i];
+            next_s.wind_ = p.first;
+            outcomes.push_back(std::make_pair(next_s, p.second));
         }
     }
     virtual void print(std::ostream &os) const { }
