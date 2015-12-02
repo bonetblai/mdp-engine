@@ -1,6 +1,6 @@
 CXX	=	g++
 #CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I../engine -DNDEBUG
-CCFLAGS	=	-Wall -g -ffloat-store -ffast-math -msse -I../engine
+CCFLAGS	=	-Wall -O3 -g -ffloat-store -ffast-math -msse -I../engine
 EXTRA	=	-std=c++0x
 OBJS	=	main.o
 TARGET	=	sailing

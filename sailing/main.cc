@@ -129,14 +129,19 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
     cout << "seed=" << alg_pars.seed_ << endl;
     Random::set_seed(alg_pars.seed_);
     problem_t problem(dim, dim);
+    cout << "XXX.0" << endl;
 
     // create heuristic
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     heuristics.push_back(make_pair(new zero_heuristic_t, "zero"));
+    cout << "XXX.0.1" << endl;
     heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "min-min"));
-    heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "random"));
-    heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "greedy"));
+    heuristics.push_back(make_pair(heuristics.back().first, "random"));
+    heuristics.push_back(make_pair(heuristics.back().first, "greedy"));
+    heuristics.push_back(make_pair(heuristics.back().first, "optimal"));
+    cout << "XXX.0.4" << endl;
     heuristics.push_back(make_pair(new scaled_heuristic_t(new Heuristic::min_min_heuristic_t<state_t>(problem), 0.5), "min-min-scaled"));
+    cout << "XXX.1" << endl;
 
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 0 ) {
@@ -147,10 +152,12 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
         Heuristic::heuristic_t<state_t> *base = new Heuristic::min_min_heuristic_t<state_t>(problem);
         heuristic = new scaled_heuristic_t(base, 0.5);
     }
+    cout << "XXX.2" << endl;
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
     Dispatcher::solve(problem, heuristic, problem.init(), bitmap, alg_pars, results);
+    cout << "XXX.3" << endl;
 
     // print results
     if( !results.empty() ) {
@@ -159,21 +166,25 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
             Dispatcher::print_result(cout, &results[i]);
         }
     }
+    cout << "XXX.4" << endl;
 
     // evaluate policies
     vector<pair<const Online::Policy::policy_t<state_t>*, string> > bases;
 
     // fill base policies
+cout << "XXX.0" << endl;
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
         Online::Policy::hash_policy_t<state_t> optimal(*hash);
         bases.push_back(make_pair(optimal.clone(), "optimal"));
     }
+cout << "XXX.1" << endl;
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
 cout << "EVALUATE (in main.cc): greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_pars).first.first << endl;
     }
+cout << "XXX.2" << endl;
     if( heuristic != 0 ) {
         Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
         bases.push_back(make_pair(greedy.clone(), "greedy-scaled"));
@@ -181,6 +192,7 @@ cout << "EVALUATE (in main.cc): greedy=" << Online::Evaluation::evaluate_policy(
     Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 cout << "EVALUATE (in main.cc): random=" << Online::Evaluation::evaluate_policy(random, eval_pars).first.first << endl;
+cout << "XXX.3" << endl;
 
     // evaluate
 cout << "BASE: " << base_name << " " << policy_type << endl;

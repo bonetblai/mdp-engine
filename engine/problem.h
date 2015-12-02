@@ -253,7 +253,7 @@ inline float min_hash_t<T>::QValue(const T &s, action_t a) const {
     for( unsigned i = 0; i < osize; ++i ) {
         qv = Utils::min(qv, this->value(outcomes[i].first));
     }
-    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : hash_t<T>::problem_.cost(s, a) + qv;
+    return qv == std::numeric_limits<float>::max() ? std::numeric_limits<float>::max() : hash_t<T>::problem_.cost(s, a) + hash_t<T>::problem_.discount() * qv;
 }
 
 }; // namespace Problem

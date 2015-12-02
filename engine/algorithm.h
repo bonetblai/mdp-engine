@@ -285,7 +285,7 @@ void generate_space(const Problem::problem_t<T> &problem,
     dptr->mark();
 
 #ifdef DEBUG
-    std::cout << "marking " << s << std::endl;
+    std::cout << "generate_space: marking " << s << std::endl;
 #endif
 
     while( !open.empty() ) {
@@ -303,7 +303,7 @@ void generate_space(const Problem::problem_t<T> &problem,
                         open.push_back(std::make_pair(outcomes[i].first, ptr));
                         ptr->mark();
 #ifdef DEBUG
-                        std::cout << "marking " << outcomes[i].first << std::endl;
+                        std::cout << "generate_space: marking " << outcomes[i].first << std::endl;
 #endif
                     }
                 }
@@ -323,7 +323,7 @@ size_t value_iteration(const Problem::problem_t<T> &problem,
     generate_space(problem, s, hash);
 
 #ifdef DEBUG
-    std::cout << "state space = " << hash.size() << std::endl;
+    std::cout << "value_iteration: state space = " << hash.size() << std::endl;
 #endif
 
     size_t iters = 0;
@@ -341,7 +341,7 @@ size_t value_iteration(const Problem::problem_t<T> &problem,
 
 #ifdef DEBUG
             if( res > parameters.epsilon_ ) {
-                std::cout << "value for " << hi->first
+                std::cout << "value_iteration: value for " << hi->first
                           << " changed from " << hv << " to "
                           << p.second << std::endl;
             }
@@ -350,7 +350,7 @@ size_t value_iteration(const Problem::problem_t<T> &problem,
         ++iters;
 
 #ifdef DEBUG
-        std::cout << "residual=" << residual << std::endl;
+        std::cout << "value_iteration: residual=" << residual << std::endl;
 #endif
     }
     return iters;

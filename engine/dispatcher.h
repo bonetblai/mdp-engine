@@ -305,7 +305,7 @@ std::cout << "HOLA (dispatcher.h): " << ss.str() << std::endl;
 
         if( pac_tree ) {
             policy = Policy::make_pac_tree(*base_policy, par.width_, par.depth_, par.par1_, random_ties);
-            dynamic_cast<const Online::Policy::PAC::pac_tree_t<T>*>(policy)->set_parameters(0.1, 0.1, 20, heuristic); // epsilon, delta, max-num-samples, heuristic
+            dynamic_cast<const Online::Policy::PAC::pac_tree_t<T>*>(policy)->set_parameters(0.1, 0.1, 10, .8, heuristic); // epsilon, delta, max-num-samples, heuristic
         }
     } else if( (policy_type.length() >= 3) && !policy_type.compare(0, 3, "aot") ) {
         // Determine type and modifiers
