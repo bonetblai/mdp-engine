@@ -415,7 +415,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         return width_ == 0 ? base_policy_(s) : root->best_action(random_ties_);
     }
 
-    virtual const policy_t<T>* clone() const {
+    virtual policy_t<T>* clone() const {
         return new aot_t(base_policy_,
                          width_,
                          horizon_,

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Universidad Simon Bolivar
+ *  Copyright (C) 2015 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -47,10 +47,10 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
     mutable T removed_element_;
 
     unsigned max_size_;
-    vector<container_t*> max_array_;
+    std::vector<container_t*> max_array_;
 
     unsigned min_size_;
-    vector<unsigned> min_array_;
+    std::vector<unsigned> min_array_;
 
     container_t* allocate_container(const T &element) const {
         if( pool_ == 0 ) {
@@ -271,8 +271,8 @@ template<typename T, typename MAX_CMP_FN, typename MIN_CMP_FN> class bdd_priorit
   public:
     bdd_priority_queue(unsigned capacity)
       : capacity_(std::max<unsigned>(1, capacity)), pool_(0), max_size_(0), min_size_(0) {
-        max_array_ = vector<container_t*>(1+capacity_, 0);
-        min_array_ = vector<unsigned>(1+capacity_, 0);
+        max_array_ = std::vector<container_t*>(1+capacity_, 0);
+        min_array_ = std::vector<unsigned>(1+capacity_, 0);
         clear();
     }
     ~bdd_priority_queue() {

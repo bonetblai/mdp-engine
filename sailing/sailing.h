@@ -196,6 +196,8 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
     return os;
 }
 
+#if 0 // NOTE: REMOVE
+
 class scaled_heuristic_t : public Heuristic::heuristic_t<state_t> {
     const Heuristic::heuristic_t<state_t> *h_;
     float multiplier_;
@@ -227,4 +229,4 @@ class zero_heuristic_t: public Heuristic::heuristic_t<state_t> {
     float operator()(const state_t &s) const { return value(s); }
 };
 
-
+#endif

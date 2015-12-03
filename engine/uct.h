@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Universidad Simon Bolivar
+ *  Copyright (C) 2015 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -105,8 +105,8 @@ template<typename T> class hash_t :
 //
 
 template<typename T> class uct_t : public improvement_t<T> {
-  using policy_t<T>::problem;
-
+  using policy_t<T>::problem_;
+  using improvement_t<T>::base_policy_;
   protected:
     unsigned width_;
     unsigned horizon_;
@@ -114,27 +114,35 @@ template<typename T> class uct_t : public improvement_t<T> {
     bool random_ties_;
     mutable hash_t<T> table_;
 
-  public:
-    uct_t(const policy_t<T> &base_policy,
+    uct_t(const Problem::problem_t<T> &problem,
+          const policy_t<T> *base_policy,
           unsigned width,
           unsigned horizon,
           float parameter,
           bool random_ties)
-      : improvement_t<T>(base_policy),
+      : improvement_t<T>(problem, base_policy),
         width_(width),
         horizon_(horizon),
         parameter_(parameter),
         random_ties_(random_ties) {
-        std::stringstream name_stream;
-        name_stream << "uct("
-                    << "width=" << width_
-                    << ",horizon=" << horizon_
-                    << ",par=" << parameter_
-                    << ",random-ties=" << (random_ties_ ? "true" : "false")
-                    << ")";
-        policy_t<T>::set_name(name_stream.str());
+    }
+
+  public:
+    uct_t(const Problem::problem_t<T> &problem)
+      : improvement_t<T>(problem, 0),
+        width_(0), horizon_(0), parameter_(0), random_ties_(false) {
     }
     virtual ~uct_t() { }
+    virtual policy_t<T>* clone() const {
+        return new uct_t(problem_, base_policy_, width_, horizon_, parameter_, random_ties_);
+    }
+    virtual std::string name() const {
+        return std::string("uct(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+          std::string(",width=") + std::to_string(width_) +
+          std::string(",horizon=") + std::to_string(horizon_) +
+          std::string(",parameter=") + std::to_string(parameter_) +
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") + ")";
+    }
 
     virtual Problem::action_t operator()(const T &s) const {
         ++policy_t<T>::decisions_;
@@ -145,16 +153,30 @@ template<typename T> class uct_t : public improvement_t<T> {
         typename hash_t<T>::iterator it = table_.find(std::make_pair(0, s));
         assert(it != table_.end());
         Problem::action_t action = select_action(s, it->second, 0, false, random_ties_);
-        assert(problem().applicable(s, action));
+        assert(problem_.applicable(s, action));
         return action;
     }
-    virtual const policy_t<T>* clone() const {
-        return new uct_t(improvement_t<T>::base_policy_, width_, horizon_, parameter_, random_ties_);
-    }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << policy_t<T>::name() << std::endl;
+        os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        improvement_t<T>::base_policy_.print_stats(os);
+        base_policy_->print_stats(os);
+    }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
+        std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
+        if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("horizon");
+        if( it != parameters.end() ) horizon_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("parameter");
+        if( it != parameters.end() ) parameter_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("random-ties");
+        if( it != parameters.end() ) random_ties_ = it->second == "true";
+        it = parameters.find("policy");
+        if( it != parameters.end() ) {
+            delete base_policy_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            base_policy_ = dispatcher.fetch_policy(it->second);
+        }
+        std::cout << "UCT: params: width=" << width_ << ", horizon=" << horizon_ << ", parameter=" << parameter_ << ", random-ties=" << random_ties_ << ", policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name()) << std::endl;
     }
 
     float value(const T &s, Problem::action_t a) const {
@@ -177,25 +199,25 @@ template<typename T> class uct_t : public improvement_t<T> {
         std::cout << std::setw(2*depth) << "" << "search_tree(" << s << "):";
 #endif
 
-        if( (depth == horizon_) || problem().terminal(s) ) {
+        if( (depth == horizon_) || problem_.terminal(s) ) {
 #ifdef DEBUG
             std::cout << " end" << std::endl;
 #endif
             return 0;
         }
 
-        if( problem().dead_end(s) ) {
+        if( problem_.dead_end(s) ) {
 #ifdef DEBUG
             std::cout << " dead-end" << std::endl;
 #endif
-            return problem().dead_end_value();
+            return problem_.dead_end_value();
         }
 
         typename hash_t<T>::iterator it = table_.find(std::make_pair(depth, s));
 
         if( it == table_.end() ) {
-            std::vector<float> values(1 + problem().number_actions(s), 0);
-            std::vector<int> counts(1 + problem().number_actions(s), 0);
+            std::vector<float> values(1 + problem_.number_actions(s), 0);
+            std::vector<int> counts(1 + problem_.number_actions(s), 0);
             table_.insert(std::make_pair(std::make_pair(depth, s), data_t(values, counts)));
             float value = evaluate(s, depth);
 #ifdef DEBUG
@@ -209,8 +231,8 @@ template<typename T> class uct_t : public improvement_t<T> {
             ++it->second.counts_[1+a];
 
             // sample next state
-            std::pair<const T, bool> p = problem().sample(s, a);
-            float cost = problem().cost(s, a);
+            std::pair<const T, bool> p = problem_.sample(s, a);
+            float cost = problem_.cost(s, a);
 
 #ifdef DEBUG
             std::cout << " count=" << it->second.counts_[0]-1
@@ -223,8 +245,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             // do recursion and update value
             float &old_value = it->second.values_[1+a];
             float n = it->second.counts_[1+a];
-            float new_value = cost +
-              problem().discount() * search_tree(p.first, 1 + depth);
+            float new_value = cost + problem_.discount() * search_tree(p.first, 1 + depth);
             old_value += (new_value - old_value) / n;
             return new_value;
         }
@@ -237,12 +258,12 @@ template<typename T> class uct_t : public improvement_t<T> {
                                     bool random_ties) const {
         float log_ns = logf(data.counts_[0]);
         std::vector<Problem::action_t> best_actions;
-        int nactions = problem().number_actions(state);
+        int nactions = problem_.number_actions(state);
         float best_value = std::numeric_limits<float>::max();
 
         best_actions.reserve(random_ties ? nactions : 1);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
-            if( problem().applicable(state, a) ) {
+            if( problem_.applicable(state, a) ) {
                 // if this action has never been taken in this node, select it
                 if( data.counts_[1+a] == 0 ) {
                     return a;
@@ -270,13 +291,13 @@ template<typename T> class uct_t : public improvement_t<T> {
     }
 
     float evaluate(const T &s, unsigned depth) const {
-        return Evaluation::evaluation(improvement_t<T>::base_policy_,
-                                      s, 1, horizon_ - depth);
+        return Evaluation::evaluation(*base_policy_, s, 1, horizon_ - depth);
     }
 };
 
 }; // namespace UCT
 
+#if 0 // REMOVE
 template<typename T>
 inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
                                    unsigned width,
@@ -285,6 +306,7 @@ inline const policy_t<T>* make_uct(const policy_t<T> &base_policy,
                                    bool random_ties) {
     return new UCT::uct_t<T>(base_policy, width, horizon, parameter, random_ties);
 }
+#endif
 
 }; // namespace Policy
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Universidad Simon Bolivar
+ *  Copyright (C) 2015 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -19,8 +19,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <iostream>
 #include <cassert>
+#include <iostream>
+#include <map>
 
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -54,6 +55,44 @@ template<typename T> inline T max(const T a, const T b) {
 
 template<typename T> inline T abs(const T a) {
     return a < 0 ? -a : a;
+}
+
+void split_request(const std::string &request, std::string &name, std::string &parameter_str) {
+    size_t first = request.find_first_of("(");
+    size_t last = request.find_last_of(")");
+    assert(first != std::string::npos);
+    assert(last != std::string::npos);
+
+    name = request.substr(0, first);
+    parameter_str = request.substr(1 + first, last - first - 1);
+    //std::cout << "name=" << name << ", parameters=|" << parameter_str << "|" << std::endl;
+}
+
+void tokenize(const std::string &parameter_str, std::multimap<std::string, std::string> &parameters, char separator = ',') {
+    for( size_t i = 0; i < parameter_str.size(); ++i ) {
+        size_t first = i;
+        int nesting_level = 0;
+        while( i < parameter_str.size() ) {
+            if( (parameter_str[i] == separator) && (nesting_level == 0) ) {
+                break;
+            } else if( parameter_str[i] == ')' ) {
+                assert(nesting_level > 0);
+                --nesting_level;
+            } else if( parameter_str[i] == '(' ) {
+                ++nesting_level;
+            }
+            ++i;
+        }
+        assert(nesting_level == 0);
+        std::string par = parameter_str.substr(first, i - first);
+        //std::cout << "parameter=|" << par << "|" << std::endl;
+        size_t equal = par.find_first_of("=");
+        assert(equal != std::string::npos);
+        std::string key = par.substr(0, equal);
+        std::string value = par.substr(equal + 1);
+        //std::cout << "key=|" << key << "|, value=|" << value << "|" << std::endl;
+        parameters.insert(std::make_pair(key, value));
+    }
 }
 
 }; // end of namespace

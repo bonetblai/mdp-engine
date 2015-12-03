@@ -149,25 +149,23 @@ template<typename T> inline std::ostream& operator<<(std::ostream &os, const nod
 //
 
 template<typename T> class pac_tree_t : public improvement_t<T> {
-  using policy_t<T>::problem;
-
+  using policy_t<T>::problem_;
+  using improvement_t<T>::base_policy_;
   protected:
     unsigned width_;
     unsigned horizon_;
-    float parameter_;
     bool random_ties_;
+    float delta_;
+    float epsilon_;
+    float damping_;
+    unsigned max_num_samples_;
 
-    // parameters
-    mutable float delta_;
-    mutable float epsilon_;
-    mutable float damping_;
-    mutable unsigned max_num_samples_;
     mutable const Heuristic::heuristic_t<T> *heuristic_;
 
     // computed parameters
-    mutable float gamma_;
-    mutable std::vector<float> solved_threshold_;
-    mutable std::vector<float> num_samples_;
+    float gamma_;
+    std::vector<float> num_samples_;
+    std::vector<float> solved_threshold_;
 
     // leaf nodes
     mutable std::vector<state_node_t<T>*> leaf_nodes_;
@@ -177,69 +175,85 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     mutable int num_a_nodes_pruned_;
     mutable int num_evaluations_;
 
-  public:
-    pac_tree_t(const policy_t<T> &base_policy,
+    pac_tree_t(const Problem::problem_t<T> &problem,
+               const policy_t<T> *base_policy,
                unsigned width,
                unsigned horizon,
-               float parameter,
-               bool random_ties)
-      : improvement_t<T>(base_policy),
+               bool random_ties,
+               float delta,
+               float epsilon,
+               float damping,
+               unsigned max_num_samples,
+               const Heuristic::heuristic_t<T> *heuristic)
+      : improvement_t<T>(problem, base_policy),
         width_(width),
         horizon_(horizon),
-        parameter_(parameter),
-        random_ties_(random_ties) {
-        std::stringstream name_stream;
-        name_stream << "pac-tree("
-                    << "width=" << width_
-                    << ",horizon=" << horizon_
-                    << ",par=" << parameter_
-                    << ",random-ties=" << (random_ties_ ? "true" : "false")
-                    << ")";
-        policy_t<T>::set_name(name_stream.str());
+        random_ties_(random_ties),
+        delta_(delta),
+        epsilon_(epsilon),
+        damping_(damping),
+        max_num_samples_(max_num_samples),
+        heuristic_(heuristic) {
+        calculate_parameters();
+    }
+
+  public:
+    pac_tree_t(const Problem::problem_t<T> &problem)
+      : improvement_t<T>(problem, 0),
+        width_(0),
+        horizon_(0),
+        random_ties_(false),
+        delta_(.1),
+        epsilon_(.1),
+        damping_(.8),
+        max_num_samples_(10),
+        heuristic_(0) {
+        gamma_ = problem_.discount();
         num_nodes_pruned_ = 0;
         num_a_nodes_pruned_ = 0;
         num_evaluations_ = 0;
     }
     virtual ~pac_tree_t() { }
+    virtual policy_t<T>* clone() const {
+        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, heuristic_);
+    }
+    virtual std::string name() const {
+        return std::string("pac-tree(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+          std::string(",width=") + std::to_string(width_) +
+          std::string(",horizon=") + std::to_string(horizon_) +
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") + ")";
+    }
 
-    void set_parameters(float epsilon,
-                        float delta,
-                        unsigned max_num_samples,
-                        float damping,
-                        const Heuristic::heuristic_t<T> *heuristic) const {
-        epsilon_ = epsilon;
-        delta_ = delta;
-        max_num_samples_ = max_num_samples;
-        damping_ = damping;
-        heuristic_ = heuristic;
+    void calculate_parameters() {
+        num_nodes_pruned_ = 0;
+        num_a_nodes_pruned_ = 0;
+        num_evaluations_ = 0;
 
-        gamma_ = problem().discount();
-
-std::cout << "PAC: epsilon=" << epsilon_ << ", delta=" << delta_ << ", gamma=" << gamma_ << ", max-samples=" << max_num_samples_ << ", damping=" << damping_ << std::endl;
+        gamma_ = problem_.discount();
 
         // threshold = epsilon / 2 * gamma^d
-std::cout << "PAC: thresholds:";
+        std::cout << "PAC: thresholds:";
         solved_threshold_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
             float threshold = epsilon_ / (2 * powf(gamma_, d));
             solved_threshold_[d] = threshold;
-std::cout << " " << std::setprecision(4) << threshold;
+            std::cout << " " << std::setprecision(4) << threshold;
         }
-std::cout << std::endl;
+        std::cout << std::endl;
 
         // l(s,d) = 4 gamma^(2d) C_max (d ln b + d ln 2 - ln delta) / (1 - gamma) epsilon^2
-std::cout << "PAC: num-samples:";
+        std::cout << "PAC: num-samples:";
         num_samples_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
-            float lsd = 4 * powf(gamma_ * gamma_, d) * problem().max_absolute_cost();
-std::cout << " [" << lsd;
-            lsd *= d * log(2 * problem().max_combined_branching()) - log(delta_);
-std::cout << " " << lsd;
+            float lsd = 4 * powf(gamma_ * gamma_, d) * problem_.max_absolute_cost();
+            std::cout << " [" << lsd;
+            lsd *= d * log(2 * problem_.max_combined_branching()) - log(delta_);
+            std::cout << " " << lsd;
             lsd /= (1 - gamma_) * epsilon_ * epsilon_;
-std::cout << " " << lsd << "]";
+            std::cout << " " << lsd << "]";
             num_samples_[d] = std::min<float>(lsd, max_num_samples_);
         }
-std::cout << std::endl;
+        std::cout << std::endl;
     }
 
     virtual Problem::action_t operator()(const T &s) const {
@@ -254,7 +268,7 @@ std::cout << std::endl;
         if( solved(*root) ) {
             std::cout << "PAC: root=" << *root << ", lb=" << root->lower_bound_ << ", ub=" << root->upper_bound_ << ", gap=" << root->gap() << ", threshold=" << solved_threshold_[root->depth_] << std::endl;
             delete root;
-            action = improvement_t<T>::base_policy_(s);
+            action = (*base_policy_)(s);
             std::cout << "PAC: selection: action=" << action << ", method=base-policy" << std::endl;
         } else {
             compute_score(*root);
@@ -339,19 +353,48 @@ std::cout << std::endl;
             delete_tree(root);
             std::cout << "PAC: selection: action=" << action << ", method=tree" << std::endl;
         }
-        assert(problem().applicable(s, action));
+        assert(problem_.applicable(s, action));
         return action;
     }
-    virtual const policy_t<T>* clone() const {
-        return new pac_tree_t(improvement_t<T>::base_policy_, width_, horizon_, parameter_, random_ties_);
-    }
     virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << policy_t<T>::name() << std::endl;
+        os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
         os << "stats: num-nodes-pruned=" << num_nodes_pruned_ << std::endl;
         os << "stats: num-a-nodes-pruned=" << num_a_nodes_pruned_ << std::endl;
         os << "stats: num-evaluations=" << num_evaluations_ << std::endl;
-        improvement_t<T>::base_policy_.print_stats(os);
+        base_policy_->print_stats(os);
+    }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
+        std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
+        if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("horizon");
+        if( it != parameters.end() ) horizon_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("random-ties");
+        if( it != parameters.end() ) random_ties_ = it->second == "true";
+        it = parameters.find("delta");
+        if( it != parameters.end() ) delta_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("epsilon");
+        if( it != parameters.end() ) epsilon_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("damping");
+        if( it != parameters.end() ) damping_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("max-num-samples");
+        if( it != parameters.end() ) max_num_samples_ = strtol(it->second.c_str(), 0, 0);
+
+        it = parameters.find("policy");
+        if( it != parameters.end() ) {
+            delete base_policy_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            base_policy_ = dispatcher.fetch_policy(it->second);
+        }
+        it = parameters.find("heuristic");
+        if( it != parameters.end() ) {
+            delete heuristic_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            heuristic_ = dispatcher.fetch_heuristic(it->second);
+        }
+
+        calculate_parameters();
+        std::cout << "PAC: params: width=" << width_ << ", horizon=" << horizon_ << ", random-ties=" << random_ties_ << ", delta=" << delta_ << ", epsilon=" << epsilon_ << ", damping=" << damping_ << ", max-num-samples=" << max_num_samples_ << ", policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name()) << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << std::endl;
     }
 
     void compute_bounds(state_node_t<T> &node) const {
@@ -395,14 +438,14 @@ std::cout << std::endl;
 
     void expand(state_node_t<T> &node, std::vector<state_node_t<T>*> &leaf_nodes) const {
         assert(node.children_.empty());
-        int nactions = problem().number_actions(*node.state_);
+        int nactions = problem_.number_actions(*node.state_);
         std::vector<node_t<T>*> children;
         children.reserve(nactions);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
-            if( problem().applicable(*node.state_, a) ) {
+            if( problem_.applicable(*node.state_, a) ) {
                 action_node_t<T> *a_node = new action_node_t<T>(*node.state_, node.depth_, a, &node);
                 std::vector<std::pair<T, float> > outcomes;
-                problem().next(*node.state_, a, outcomes);
+                problem_.next(*node.state_, a, outcomes);
 
                 a_node->prob_ = std::vector<float>(outcomes.size(), 0);
                 a_node->children_ = std::vector<node_t<T>*>(outcomes.size(), 0);
@@ -457,8 +500,8 @@ std::cout << std::endl;
             a_node.lower_bound_ += prob * node.lower_bound_;
             a_node.upper_bound_ += prob * node.upper_bound_;
         }
-        a_node.lower_bound_ = problem().cost(*a_node.state_, a_node.action_) + gamma_ * a_node.lower_bound_;
-        a_node.upper_bound_ = problem().cost(*a_node.state_, a_node.action_) + gamma_ * a_node.upper_bound_;
+        a_node.lower_bound_ = problem_.cost(*a_node.state_, a_node.action_) + gamma_ * a_node.lower_bound_;
+        a_node.upper_bound_ = problem_.cost(*a_node.state_, a_node.action_) + gamma_ * a_node.upper_bound_;
     }
 
     void update_bounds_est(const state_node_t<T> *node, const action_node_t<T> *child) const {
@@ -489,8 +532,8 @@ std::cout << std::endl;
             a_node->lower_bound_est_ += prob * (node == child ? node->lower_bound_est_ : node->lower_bound_);
             a_node->upper_bound_est_ += prob * (node == child ? node->upper_bound_est_ : node->upper_bound_);
         }
-        a_node->lower_bound_est_ = problem().cost(*a_node->state_, a_node->action_) + gamma_ * a_node->lower_bound_est_;
-        a_node->upper_bound_est_ = problem().cost(*a_node->state_, a_node->action_) + gamma_ * a_node->upper_bound_est_;
+        a_node->lower_bound_est_ = problem_.cost(*a_node->state_, a_node->action_) + gamma_ * a_node->lower_bound_est_;
+        a_node->upper_bound_est_ = problem_.cost(*a_node->state_, a_node->action_) + gamma_ * a_node->upper_bound_est_;
 
         assert(a_node->parent_ != 0);
         assert(dynamic_cast<const state_node_t<T>*>(a_node->parent_) != 0);
@@ -533,7 +576,7 @@ std::cout << std::endl;
 
     float evaluate(const T &s, unsigned num_samples, unsigned depth) const {
         ++num_evaluations_;
-        return Evaluation::evaluation(improvement_t<T>::base_policy_, s, num_samples, horizon_ - depth);
+        return Evaluation::evaluation(*base_policy_, s, num_samples, horizon_ - depth);
     }
     float evaluate(const state_node_t<T> &node) const {
         return evaluate(*node.state_, num_samples_[node.depth_], node.depth_);
@@ -589,6 +632,7 @@ std::cout << std::endl;
 
 }; // namespace PAC
 
+#if 0 // REMOVE
 template<typename T>
 inline const policy_t<T>* make_pac_tree(const policy_t<T> &base_policy,
                                         unsigned width,
@@ -597,6 +641,7 @@ inline const policy_t<T>* make_pac_tree(const policy_t<T> &base_policy,
                                         bool random_ties) {
     return new PAC::pac_tree_t<T>(base_policy, width, horizon, parameter, random_ties);
 }
+#endif
 
 }; // namespace Policy
 

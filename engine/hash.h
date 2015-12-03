@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Universidad Simon Bolivar
+ *  Copyright (C) 2015 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -197,6 +197,9 @@ class hash_map_t : public generic_hash_map_t<T, Hash::data_t*, F> {
             delete (*hi).second;
     }
 
+    void set_eval_function(const eval_function_t *eval_function) {
+        eval_function_ = eval_function;
+    }
     float default_value(const T &s) const { return eval_function_ == 0 ? 0 : (*eval_function_)(s); }
 
     Hash::data_t* data_ptr(const T &s) {

@@ -5,6 +5,14 @@
 #include <dispatcher.h>
 #include "sailing.h"
 
+namespace Algorithm {
+  unsigned g_seed = 0;
+};
+
+namespace Online {
+  unsigned g_seed = 0;
+};
+
 using namespace std;
 
 void usage(ostream &os) {
@@ -32,116 +40,125 @@ void usage(ostream &os) {
        << endl
        << "  <dim>     Dimension for rows ans cols <= 2^16."
        << endl << endl;
+
+    os << "usage: sailing [-r <request>]* [-f | --formatted] [{-s | --seed} <seed>] [{-t | --trials} <ntrials>]  <x-dim> <y-dim>" << endl;
 }
 
+/*
+NEED to pass: heuristic, base policie, constructed policy
+e.g.    pac(tree=tree,heuristic=min-min,base=greedy(heuristic=min-min),other-parameters)
+e.g.    aot(...)
+e.g.    value-iteration()
+e.g.    slrtdp()
+*/
+
+
 int main(int argc, const char **argv) {
-    unsigned dim = 0;
-
-    unsigned bitmap = 0;
-    int h = 0;
+    unsigned xdim = 0;
+    unsigned ydim = 0;
     bool formatted = false;
+    unsigned ntrials = 1;
 
-    string base_name;
-    string policy_type;
-    Online::Evaluation::parameters_t eval_pars;
+    vector<string> requests;
+
+    //string base_name;
+    //string policy_type;
+    //Online::Evaluation::parameters_t eval_pars;
 
     cout << fixed;
-    Algorithm::parameters_t alg_pars;
+    //Algorithm::parameters_t alg_pars;
 
     // parse arguments
-    ++argv;
-    --argc;
-    while( argc > 1 ) {
-        if( **argv != '-' ) break;
-        switch( (*argv)[1] ) {
-            case 'a':
-                bitmap = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'b':
-                alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'D':
-                eval_pars.evaluation_depth_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'e':
-                alg_pars.epsilon_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'f':
-                formatted = true;
-                ++argv;
-                --argc;
-                break;
-            case 'g':
-                alg_pars.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'h':
-                h = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 's':
-                alg_pars.seed_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 't':
-                eval_pars.evaluation_trials_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            default:
-                usage(cout);
-                exit(-1);
+    for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
+        if( (*argv)[1] == 'r' ) {
+            requests.push_back(argv[1]);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 'f') || (string(*argv) == "--formatted") ) {
+            formatted = true;
+        } else if( ((*argv)[1] == 's') || (string(*argv) == "--seed") ) {
+            Algorithm::g_seed = strtoul(argv[1], 0, 0);
+            Online::g_seed = Algorithm::g_seed;
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 't') || (string(*argv) == "--trials") ) {
+            ntrials = strtoul(argv[1], 0, 0);
+            ++argv;
+            --argc;
+        } else {
+            usage(cout);
+            exit(-1);
         }
     }
 
-    if( argc >= 3 ) {
-        dim = strtoul(argv[0], 0, 0);
-cout << "HOLA: dim=" << dim << endl;
-        base_name = argv[1];
-cout << "HOLA: base_name=" << base_name << endl;
-        policy_type = argv[2];
-cout << "HOLA: policy_type=" << policy_type << endl;
-        if( argc >= 4 ) eval_pars.width_ = strtoul(argv[3], 0, 0);
-        if( argc >= 5 ) eval_pars.depth_ = strtoul(argv[4], 0, 0);
-        if( argc >= 6 ) eval_pars.par1_ = strtod(argv[5], 0);
-        if( argc >= 7 ) eval_pars.par2_ = strtoul(argv[6], 0, 0);
-cout << "HOLA: eval_pars.width_=" << eval_pars.width_ << endl;
-cout << "HOLA: eval_pars.depth_=" << eval_pars.depth_ << endl;
-cout << "HOLA: eval_pars.par1_=" << eval_pars.par1_ << endl;
-cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
+    // read dimensions
+    if( argc == 2 ) {
+        xdim = strtoul(argv[0], 0, 0);
+        ydim = strtoul(argv[1], 0, 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
-    cout << "seed=" << alg_pars.seed_ << endl;
-    Random::set_seed(alg_pars.seed_);
-    problem_t problem(dim, dim);
-    cout << "XXX.0" << endl;
+    cout << "seed=" << Algorithm::g_seed << endl;
+    Random::set_seed(Algorithm::g_seed);
+    problem_t problem(xdim, ydim);
 
-    // create heuristic
+    // build requests
+    vector<pair<string, Online::Policy::policy_t<state_t>*> > policies;
+    vector<pair<string, Algorithm::algorithm_t<state_t>*> > algorithms;
+    Dispatcher::dispatcher_t<state_t> dispatcher;
+    for( int i = 0; i < int(requests.size()); ++i ) {
+        const string &request_str = requests[i];
+        std::multimap<std::string, std::string> request;
+        Utils::tokenize(request_str, request);
+        for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
+            dispatcher.create_request(problem, it->first, it->second);
+            if( it->first == "algorithm" ) {
+                Algorithm::algorithm_t<state_t> *algorithm = dispatcher.fetch_algorithm(it->second);
+                if( algorithm != 0 ) algorithms.push_back(make_pair(it->second, algorithm));
+            } else if( it->first == "policy" ) {
+                Online::Policy::policy_t<state_t> *policy = dispatcher.fetch_policy(it->second);
+                if( policy != 0 ) policies.push_back(make_pair(it->second, policy));
+            }
+        }
+    }
+
+    // solve problems with requested algorithms
+    vector<Dispatcher::dispatcher_t<state_t>::solve_result_t> solve_results;
+    for( int i = 0; i < int(algorithms.size()); ++i ) {
+        const string &request = algorithms[i].first;
+        Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
+        Dispatcher::dispatcher_t<state_t>::solve_result_t result;
+        dispatcher.solve(request, *algorithm, problem.init(), result);
+        solve_results.push_back(result);
+    }
+
+    if( !solve_results.empty() ) {
+        //if( formatted ) dispatcher.print_result(cout, 0);
+        for( int i = 0; i < int(solve_results.size()); ++i )
+            dispatcher.print(cout, solve_results[i]);
+    }
+
+    // evaluate requested policies
+    vector<Dispatcher::dispatcher_t<state_t>::evaluate_result_t> evaluate_results;
+    for( int i = 0; i < int(policies.size()); ++i ) {
+        const string &request = policies[i].first;
+        Online::Policy::policy_t<state_t> *policy = policies[i].second;
+        Dispatcher::dispatcher_t<state_t>::evaluate_result_t result;
+        dispatcher.evaluate(request, *policy, problem.init(), result);
+        evaluate_results.push_back(result);
+    }
+
+#if 0
     vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
     heuristics.push_back(make_pair(new zero_heuristic_t, "zero"));
-    cout << "XXX.0.1" << endl;
     heuristics.push_back(make_pair(new Heuristic::min_min_heuristic_t<state_t>(problem), "min-min"));
     heuristics.push_back(make_pair(heuristics.back().first, "random"));
     heuristics.push_back(make_pair(heuristics.back().first, "greedy"));
     heuristics.push_back(make_pair(heuristics.back().first, "optimal"));
-    cout << "XXX.0.4" << endl;
     heuristics.push_back(make_pair(new scaled_heuristic_t(new Heuristic::min_min_heuristic_t<state_t>(problem), 0.5), "min-min-scaled"));
-    cout << "XXX.1" << endl;
 
     Heuristic::heuristic_t<state_t> *heuristic = 0;
     if( h == 0 ) {
@@ -152,12 +169,10 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
         Heuristic::heuristic_t<state_t> *base = new Heuristic::min_min_heuristic_t<state_t>(problem);
         heuristic = new scaled_heuristic_t(base, 0.5);
     }
-    cout << "XXX.2" << endl;
 
     // solve problem with algorithms
     vector<Dispatcher::result_t<state_t> > results;
     Dispatcher::solve(problem, heuristic, problem.init(), bitmap, alg_pars, results);
-    cout << "XXX.3" << endl;
 
     // print results
     if( !results.empty() ) {
@@ -166,33 +181,29 @@ cout << "HOLA: eval_pars.par2_=" << eval_pars.par2_ << endl;
             Dispatcher::print_result(cout, &results[i]);
         }
     }
-    cout << "XXX.4" << endl;
+
 
     // evaluate policies
     vector<pair<const Online::Policy::policy_t<state_t>*, string> > bases;
 
     // fill base policies
-cout << "XXX.0" << endl;
     const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
     if( hash != 0 ) {
         Online::Policy::hash_policy_t<state_t> optimal(*hash);
         bases.push_back(make_pair(optimal.clone(), "optimal"));
     }
-cout << "XXX.1" << endl;
     if( heuristic != 0 ) {
-        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic, false);
         bases.push_back(make_pair(greedy.clone(), "greedy"));
 cout << "EVALUATE (in main.cc): greedy=" << Online::Evaluation::evaluate_policy(greedy, eval_pars).first.first << endl;
     }
-cout << "XXX.2" << endl;
     if( heuristic != 0 ) {
-        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
+        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic, false);
         bases.push_back(make_pair(greedy.clone(), "greedy-scaled"));
     }
     Online::Policy::random_t<state_t> random(problem);
     bases.push_back(make_pair(&random, "random"));
 cout << "EVALUATE (in main.cc): random=" << Online::Evaluation::evaluate_policy(random, eval_pars).first.first << endl;
-cout << "XXX.3" << endl;
 
     // evaluate
 cout << "BASE: " << base_name << " " << policy_type << endl;
@@ -215,6 +226,7 @@ cout << "BASE: " << base_name << " " << policy_type << endl;
         delete results[i].hash_;
     }
     delete heuristic;
+#endif
 
     exit(0);
 }
