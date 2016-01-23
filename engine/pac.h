@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2015-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -232,28 +232,44 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         gamma_ = problem_.discount();
 
         // threshold = epsilon / 2 * gamma^d
-        std::cout << "PAC: thresholds:";
+#ifdef DEBUG
+        std::cout << "debug: pac(): thresholds:";
+#endif
         solved_threshold_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
             float threshold = epsilon_ / (2 * powf(gamma_, d));
             solved_threshold_[d] = threshold;
+#ifdef DEBUG
             std::cout << " " << std::setprecision(4) << threshold;
+#endif
         }
+#ifdef DEBUG
         std::cout << std::endl;
+#endif
 
         // l(s,d) = 4 gamma^(2d) C_max (d ln b + d ln 2 - ln delta) / (1 - gamma) epsilon^2
-        std::cout << "PAC: num-samples:";
+#ifdef DEBUG
+        std::cout << "debug: pac(): num-samples:";
+#endif
         num_samples_ = std::vector<float>(1 + horizon_, 0);
         for( int d = 0; d <= horizon_; ++d ) {
             float lsd = 4 * powf(gamma_ * gamma_, d) * problem_.max_absolute_cost();
+#ifdef DEBUG
             std::cout << " [" << lsd;
+#endif
             lsd *= d * log(2 * problem_.max_combined_branching()) - log(delta_);
+#ifdef DEBUG
             std::cout << " " << lsd;
+#endif
             lsd /= (1 - gamma_) * epsilon_ * epsilon_;
+#ifdef DEBUG
             std::cout << " " << lsd << "]";
+#endif
             num_samples_[d] = std::min<float>(lsd, max_num_samples_);
         }
+#ifdef DEBUG
         std::cout << std::endl;
+#endif
     }
 
     virtual Problem::action_t operator()(const T &s) const {
@@ -266,10 +282,23 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
         Problem::action_t action = 0;
         if( solved(*root) ) {
-            std::cout << "PAC: root=" << *root << ", lb=" << root->lower_bound_ << ", ub=" << root->upper_bound_ << ", gap=" << root->gap() << ", threshold=" << solved_threshold_[root->depth_] << std::endl;
+#ifdef DEBUG
+            std::cout << "debug: pac():"
+                      << " root= " << *root
+                      << " lb= " << root->lower_bound_
+                      << " ub= " << root->upper_bound_
+                      << " gap= " << root->gap()
+                      << " threshold= " << solved_threshold_[root->depth_]
+                      << std::endl;
+#endif
             delete root;
             action = (*base_policy_)(s);
-            std::cout << "PAC: selection: action=" << action << ", method=base-policy" << std::endl;
+#ifdef DEBUG
+            std::cout << "debug: pac(): selection:"
+                      << " action= " << action
+                      << " method= base-policy"
+                      << std::endl;
+#endif
         } else {
             compute_score(*root);
             heap.push(root);
@@ -279,7 +308,14 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             for( int i = 0; !heap.empty() && (i < width_); ++i ) {
                 state_node_t<T> &node = *heap.top();
                 heap.pop();
-                //std::cout << "PAC: pop=" << node << ", gap=" << node.gap() << ", score=" << node.score_ << ", gap-at-root=" << root->gap() << std::endl;
+#ifdef DEBUG
+                std::cout << "debug: pac():"
+                          << " pop= " << node
+                          << " gap= " << node.gap()
+                          << " score= " << node.score_
+                          << " gap-at-root= " << root->gap()
+                          << std::endl;
+#endif
 
                 // node must be active leaf
                 if( node.pruned_ ) continue; // node can become pruned after it is inserted in heap
@@ -291,7 +327,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                 propagate_values(node);
 
                 if( heap.empty() ) {
-                    //std::cout << "PAC: #leaves=" << leaf_nodes_.size() << std::endl;
+#ifdef DEBUG
+                    std::cout << "debug: pac(): #leaves= " << leaf_nodes_.size() << std::endl;
+#endif
                     int nsolved = 0, npruned = 0, nonleaf = 0;
 
                     // compute scores for all leaves
@@ -337,21 +375,42 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                         }
                     }
 
-                    std::cout << "PAC: #selected=" << heap.size()
-                              << ", #remaining=" << leaf_nodes_.size()
-                              << ", #solved=" << nsolved
-                              << ", #pruned=" << npruned
-                              << ", #non-leaf=" << nonleaf
+#ifdef DEBUG
+                    std::cout << "debug: pac():"
+                              << " #selected= " << heap.size()
+                              << " #remaining= " << leaf_nodes_.size()
+                              << " #solved= " << nsolved
+                              << " #pruned= " << npruned
+                              << " #non-leaf= " << nonleaf
                               << std::endl;
+#endif
                     assert(n_leaf_nodes == heap.size() + leaf_nodes_.size() + nsolved + npruned + nonleaf);
                 }
             }
-            //std::cout << "PAC: main loop ended: heap-sz=" << heap.size() << ", #leaves=" << leaf_nodes_.size() << std::endl;
+#ifdef DEBUG
+            std::cout << "debug: pac(): main loop ended:"
+                      << " heap-sz= " << heap.size()
+                      << " #leaves= " << leaf_nodes_.size()
+                      << std::endl;
+#endif
 
-            std::cout << "PAC: root=" << *root << ", lb=" << root->lower_bound_ << ", ub=" << root->upper_bound_ << ", gap=" << root->gap() << ", threshold=" << solved_threshold_[root->depth_] << std::endl;
+#ifdef DEBUG
+            std::cout << "debug: pac():"
+                      << " root= " << *root
+                      << " lb= " << root->lower_bound_
+                      << " ub= " << root->upper_bound_
+                      << " gap= " << root->gap()
+                      << " threshold= " << solved_threshold_[root->depth_]
+                      << std::endl;
+#endif
             action = root->select_action(random_ties_);
             delete_tree(root);
-            std::cout << "PAC: selection: action=" << action << ", method=tree" << std::endl;
+#ifdef DEBUG
+            std::cout << "debug: pac(): selection:"
+                      << " action= " << action
+                      << " method= tree"
+                      << std::endl;
+#endif
         }
         assert(problem_.applicable(s, action));
         return action;
@@ -394,7 +453,19 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         }
 
         calculate_parameters();
-        std::cout << "PAC: params: width=" << width_ << ", horizon=" << horizon_ << ", random-ties=" << random_ties_ << ", delta=" << delta_ << ", epsilon=" << epsilon_ << ", damping=" << damping_ << ", max-num-samples=" << max_num_samples_ << ", policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name()) << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: pac(): params:"
+                  << " width= " << width_
+                  << " horizon= " << horizon_
+                  << " random-ties= " << random_ties_
+                  << " delta= " << delta_
+                  << " epsilon= " << epsilon_
+                  << " damping= " << damping_
+                  << " max-num-samples= " << max_num_samples_
+                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << std::endl;
+#endif
     }
 
     void compute_bounds(state_node_t<T> &node) const {
@@ -414,7 +485,6 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         if( node.parent_ != 0 ) {
             node.lower_bound_est_ = (node.lower_bound_ + (node.lower_bound_ + node.upper_bound_) / 2) / 2;
             node.upper_bound_est_ = ((node.lower_bound_ + node.upper_bound_) / 2 + node.upper_bound_) / 2;
-            //std::cout << "XXX.0: node=" << node << ", lb=" << node.lower_bound_est_ << ", ub=" << node.upper_bound_est_ << std::endl;
 
             update_bounds_est(static_cast<const action_node_t<T>*>(node.parent_), &node);
 
@@ -423,7 +493,6 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             for( const node_t<T> *n = node.parent_; n != 0; n = n->parent_ ) {
                n = n->parent_;
                assert(dynamic_cast<const state_node_t<T>*>(n) != 0);
-               //std::cout << "score=" << score << ", damping=" << damping << ", depth=" << int(n->depth_) << ", gap=" << n->gap_est() << ", dgap=" << n->gap_est() * damping << std::endl;
                float gap_reduction = n->gap() - n->gap_est();
                //assert(gap_reduction >= 0);
                //score = std::max(score, gap_reduction * damping);
@@ -433,7 +502,6 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             }
             node.score_ = score;
         }
-        //std::cout << "XXX.1: node=" << node << ", score=" << node.score_ << std::endl;
     }
 
     void expand(state_node_t<T> &node, std::vector<state_node_t<T>*> &leaf_nodes) const {
@@ -484,7 +552,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
             if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ ) {
-                //std::cout << "Pruning: a-node=" << a_node << std::endl;
+#ifdef DEBUG
+                std::cout << "debug: pac(): pruning: a-node= " << a_node << std::endl;
+#endif
                 mark_node_as_pruned(a_node);
             }
         }
@@ -541,7 +611,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
 
     void mark_node_as_pruned(state_node_t<T> &node) const {
-        //std::cout << "  Marking node as pruned: node=" << node << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: pac(): marking node as pruned: node= " << node << std::endl;
+#endif
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
             if( !a_node.pruned_ ) mark_node_as_pruned(a_node);
@@ -550,7 +622,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         ++num_nodes_pruned_;
     }
     void mark_node_as_pruned(action_node_t<T> &a_node) const {
-        //std::cout << "  Marking node as pruned: a-node=" << a_node << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: pac(): marking node as pruned: a-node= " << a_node << std::endl;
+#endif
         for( int i = 0; i < int(a_node.children_.size()); ++i ) {
             state_node_t<T> &node = *static_cast<state_node_t<T>*>(a_node.children_[i]);
             if( !node.pruned_ ) mark_node_as_pruned(node);
@@ -631,17 +705,6 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 };
 
 }; // namespace PAC
-
-#if 0 // REMOVE
-template<typename T>
-inline const policy_t<T>* make_pac_tree(const policy_t<T> &base_policy,
-                                        unsigned width,
-                                        unsigned horizon,
-                                        float parameter,
-                                        bool random_ties) {
-    return new PAC::pac_tree_t<T>(base_policy, width, horizon, parameter, random_ties);
-}
-#endif
 
 }; // namespace Policy
 
