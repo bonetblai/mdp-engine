@@ -1,0 +1,60 @@
+Implementation of different algorithms and policies for solving MDPs.
+MDPs are specified directly in C++ using the supplied template libraries.
+
+Algorithms, policies and heuristics are specified as string requests
+passed to the dispatcher.  See examples, like sailing, on how to implement
+this.
+
+Typical requests:
+
+Algorithms for solving the MDP form the initial state
+(all parameters get default values, specify if you want to change):
+
+algorithm=value-iteration(epsilon=<float>,max-number-iterations=<integer>,heuristic=<request>,seed=<integer>)
+algorithm=improved-lao(epsilon=<float>,heuristic=<request>,seed=<integer)
+algorithm=hdp(epsilon=<float>,heuristic=<request>,seed=<integer)
+algorithm=ldfs(epsilon=<float>,heuristic=<request>,seed=<integer)
+algorithm=ldfs-plus(epsilon=<float>,heuristic=<request>,seed=<integer)
+algorithm=plain-check(epsilon=<float>,heuristic=<request>,seed=<integer)
+algorithm=lrtdp(epsilon=<float>,heuristic=<request>,epsilon_greedy=<float>,seed=<integer)
+algorithm=standard-lrtdp(epsilon=<float>,heuristic=<request>,epsilon_greedy=<float>,seed=<integer)
+algorithm=uniform-lrtdp(epsilon=<float>,heuristic=<request>,epsilon_greedy=<float>,seed=<integer)
+algorithm=bounded-lrtdp(epsilon=<float>,heuristic=<request>,bound=<integer>,epsilon_greedy=<float>,seed=<integer)
+algorithm=simple-a*(heuristic=<request>,seed=<integer)
+
+// lrtdp is alias for standard-lrtdp
+// for bounded-lrtdp(), it is not a good idea to use default value for bound
+// simple-a* is only good for deterministic MDPs (i.e. OR graphs)
+// Don't assign values to bound and epsilon-greedy unless you know what you are doing.
+
+// Default values:
+
+seed = 0
+epsilon = 0.0 // not a good idea to use this default value
+heuristic = null // translates into zero estimates
+max-number-iterations = max
+bound = max
+epsilon-greedy = 0.0
+
+
+// Heuristics (used in algorithms and policies):
+
+zero()
+min-min(algorithm=<request>)
+optimal(algorithm=<request>)
+scaled(heuristic=<request>,weight=<float>))
+
+// Parameters for heuristics are mandatory
+
+
+// Policies for online-planning from initial state:
+
+policy=random()
+policy=greedy(optimistic=<boolean>,random-ties=<boolean>,caching=<boolean>,heuristic=<request>)
+policy=optimal(algorithm=<request>)
+policy=rollout(width=<integer>,depth=<integer>,nesting=<integer>,policy=<request>)
+policy=uct(width=<integer>,horizon=<integer>,parameter=<float>,random-ties=<boolean>,policy=<request>)
+policy=aot(width=<integer>,horizon=<integer>,probability=<float>,expansions-per-iteration=<integer>,random-ties=<boolean>,policy=<request>,heuristic=<request>)
+policy=finite-horizon-lrtdp(horizon=<integer>,max-trials=<integer>,labeling=<boolean>,random-ties=<boolean>,heuristic=<request>)
+
+
