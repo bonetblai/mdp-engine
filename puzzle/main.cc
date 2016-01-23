@@ -1,195 +1,125 @@
 #include <iostream>
+#include <strings.h>
 #include <vector>
 #include <string>
 
+#include <dispatcher.h>
 #include "puzzle.h"
+
+namespace Algorithm {
+  unsigned g_seed = 0;
+};
+
+namespace Online {
+  unsigned g_seed = 0;
+};
 
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: puzzle [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-p <f>] [-s <n>] <rows> <cols>"
-       << endl << endl
-       << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
-       << endl
-       << "  -b <n>    Visits bound for blrtdp. Default: inf."
-       << endl
-       << "  -e <f>    Epsilon. Default: 0."
-       << endl
-       << "  -f        Formatted output."
-       << endl
-       << "  -g <f>    Parameter for epsilon-greedy. Default: 0."
-       << endl
-       << "  -h <n>    Heuristics: 0=zero, 1=minmin. Default: 0."
-       << endl
-#if 0
-       << "  -k <n>    Kappa consistency level. Default: 0."
-       << endl
-       << "  -K <f>    Used to define kappa measures. Default: 2."
-       << endl
-#endif
-       << "  -p <f>    Parameter p in [0,1]. Default: 1."
-       << endl
-       << "  -s <n>    Random seed. Default: 0."
-       << endl
-       << "  <rows>    Rows <= ?."
-       << endl
-       << "  <cols>    Cols <= ?."
-       << endl << endl;
+    os << "usage: puzzle [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <rows> <cols> [<p>]" << endl;
 }
 
 int main(int argc, const char **argv) {
     unsigned rows = 0;
     unsigned cols = 0;
-
     float p = 1.0;
-    unsigned bitmap = 0;
-    int h = 0;
-    bool formatted = false;
+    unsigned num_trials = 1;
 
-    string base_name;
-    string policy_type;
-    Online::Evaluation::parameters_t par;
+    vector<string> requests;
 
+    float start_time = Utils::read_time_in_seconds();
     cout << fixed;
-    Algorithm::parameters_t parameters;
 
     // parse arguments
-    ++argv;
-    --argc;
-    while( argc > 1 ) {
-        if( **argv != '-' ) break;
-        switch( (*argv)[1] ) {
-            case 'a':
-                bitmap = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'b':
-                parameters.rtdp.bound_ = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'e':
-                parameters.epsilon_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'f':
-                formatted = true;
-                ++argv;
-                --argc;
-                break;
-            case 'g':
-                parameters.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'h':
-                h = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'p':
-                p = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 's':
-                parameters.seed_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            default:
-                usage(cout);
-                exit(-1);
+    for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
+        if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
+            requests.push_back(argv[1]);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 's') || (string(*argv) == "--seed") ) {
+            Algorithm::g_seed = strtoul(argv[1], 0, 0);
+            Online::g_seed = Algorithm::g_seed;
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 't') || (string(*argv) == "--trials") ) {
+            num_trials = strtoul(argv[1], 0, 0);
+            ++argv;
+            --argc;
+        } else {
+            usage(cout);
+            exit(-1);
         }
     }
 
-    if( argc >= 4 ) {
+    // read problem parameters
+    if( argc >= 3 ) {
         rows = strtoul(argv[0], 0, 0);
         cols = strtoul(argv[1], 0, 0);
-        base_name = argv[2];
-        policy_type = argv[3];
-        if( argc >= 5 ) par.width_ = strtoul(argv[4], 0, 0);
-        if( argc >= 6 ) par.depth_ = strtoul(argv[5], 0, 0);
-        if( argc >= 7 ) par.par1_ = strtod(argv[6], 0);
-        if( argc >= 8 ) par.par2_ = strtoul(argv[7], 0, 0);
+        p = strtod(argv[2], 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
-    cout << "seed=" << parameters.seed_ << endl;
-    Random::set_seed(parameters.seed_);
+    cout << "main: seed= " << Algorithm::g_seed << endl;
+    Random::set_seed(Algorithm::g_seed);
     state_t init;
     init.set_goal(rows, cols);
     init.random_moves(rows, cols, 500);
     problem_t problem(rows, cols, init, p);
 
-    // create heuristic
-    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
-    Heuristic::heuristic_t<state_t> *heuristic = 0;
-    if( h == 1 ) {
-        heuristic = new Heuristic::min_min_heuristic_t<state_t>(problem);
-    } else if( h == 2 ) {
-        //heuristic = new Heuristic::hdp_heuristic_t<state_t>(problem, eps, 0);
-    } else if( h == 3 ) {
-        heuristic = new manhattan_t;
-    } 
-
-    // solve problem with algorithms
-    vector<Dispatcher::result_t<state_t> > results;
-    Dispatcher::solve(problem,
-                      heuristic,
-                      problem.init(),
-                      bitmap,
-                      parameters,
-                      results);
-
-    // print results
-    if( !results.empty() ) {
-        if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
-        for( unsigned i = 0; i < results.size(); ++i ) {
-            Dispatcher::print_result(cout, &results[i]);
+    // build requests
+    vector<pair<string, Online::Policy::policy_t<state_t>*> > policies;
+    vector<pair<string, Algorithm::algorithm_t<state_t>*> > algorithms;
+    Dispatcher::dispatcher_t<state_t> dispatcher;
+    dispatcher.insert_heuristic("manhattan()", new manhattan_t(problem));
+    for( int i = 0; i < int(requests.size()); ++i ) {
+        const string &request_str = requests[i];
+        std::multimap<std::string, std::string> request;
+        Utils::tokenize(request_str, request);
+        for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
+            dispatcher.create_request(problem, it->first, it->second);
+            if( it->first == "algorithm" ) {
+                Algorithm::algorithm_t<state_t> *algorithm = dispatcher.fetch_algorithm(it->second);
+                if( algorithm != 0 ) algorithms.push_back(make_pair(it->second, algorithm));
+            } else if( it->first == "policy" ) {
+                Online::Policy::policy_t<state_t> *policy = dispatcher.fetch_policy(it->second);
+                if( policy != 0 ) policies.push_back(make_pair(it->second, policy));
+            }
         }
     }
 
-    // evaluate policies
-    vector<pair<const Online::Policy::policy_t<state_t>*, string> > bases;
-
-    // fill base policies
-    const Problem::hash_t<state_t> *hash =
-      results.empty() ? 0 : results[0].hash_;
-    if( hash != 0 ) {
-        Online::Policy::hash_policy_t<state_t> optimal(*hash);
-        bases.push_back(make_pair(optimal.clone(), "optimal"));
+    // solve problems with requested algorithms
+    vector<Dispatcher::dispatcher_t<state_t>::solve_result_t> solve_results;
+    for( int i = 0; i < int(algorithms.size()); ++i ) {
+        const string &request = algorithms[i].first;
+        Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
+        Dispatcher::dispatcher_t<state_t>::solve_result_t result;
+        dispatcher.solve(request, *algorithm, problem.init(), result);
+        solve_results.push_back(result);
     }
-    if( heuristic != 0 ) {
-        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        bases.push_back(make_pair(greedy.clone(), "greedy"));
+    if( !solve_results.empty() ) {
+        for( int i = 0; i < int(solve_results.size()); ++i )
+            dispatcher.print(cout, solve_results[i]);
     }
-    Online::Policy::random_t<state_t> random(problem);
-    bases.push_back(make_pair(&random, "random"));
 
-    // evaluate
-    pair<const Online::Policy::policy_t<state_t>*, std::string> policy =
-      Online::Evaluation::select_policy(problem, base_name, policy_type, bases, heuristics, par);
-    pair<pair<float, float>, float> eval =
-      Online::Evaluation::evaluate_policy(*policy.first, par, true);
-    cout << "result: " << policy.second
-         << "= " << setprecision(5) << eval.first.first
-         << " " << eval.first.second << setprecision(2)
-         << " ( " << eval.second << " secs)" << endl;
-    policy.first->print_stats(cout);
-
-    // free resources
-    delete policy.first;
-    for( unsigned i = 0; i < results.size(); ++i ) {
-        delete results[i].hash_;
+    // evaluate requested policies
+    vector<Dispatcher::dispatcher_t<state_t>::evaluate_result_t> evaluate_results;
+    for( int i = 0; i < int(policies.size()); ++i ) {
+        const string &request = policies[i].first;
+        Online::Policy::policy_t<state_t> *policy = policies[i].second;
+        Dispatcher::dispatcher_t<state_t>::evaluate_result_t result;
+        dispatcher.evaluate(request, *policy, problem.init(), result, num_trials, 100, true);
+        evaluate_results.push_back(result);
     }
-    delete heuristic;
+    if( !evaluate_results.empty() ) {
+        for( int i = 0; i < int(evaluate_results.size()); ++i )
+            dispatcher.print(cout, evaluate_results[i]);
+    }
 
-    exit(0);
+    cout << "main: total-time= " << Utils::read_time_in_seconds() - start_time << endl;
+    return 0;
 }
 

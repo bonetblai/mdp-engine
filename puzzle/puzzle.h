@@ -187,9 +187,18 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.applicable(rows_, cols_, a);
     }
+    virtual float max_absolute_cost() const {
+        return 1;
+    }
     virtual bool dead_end(const state_t &s) const { return false; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
+    }
+    virtual int max_action_branching() const {
+        return 4;
+    }
+    virtual int max_state_branching() const {
+        return 2;
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
         ++expansions_;
@@ -221,14 +230,22 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
 
 class manhattan_t : public Heuristic::heuristic_t<state_t> {
   public:
-    manhattan_t() { }
+    manhattan_t(const Problem::problem_t<state_t> &problem)
+      : Heuristic::heuristic_t<state_t>(problem) { }
     virtual ~manhattan_t() { }
+    virtual heuristic_t<state_t>* clone() const {
+        return new manhattan_t(problem_);
+    }
+    virtual std::string name() const {
+        return std::string("manhattan()");
+    }
     virtual float value(const state_t &s) const { return (float)s.manhattan(); }
     virtual void reset_stats() const { }
     virtual float setup_time() const { return 0; }
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return 0; }
     virtual void dump(std::ostream &os) const { }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<state_t> &dispatcher) { }
     float operator()(const state_t &s) const { return value(s); }
 };
 
