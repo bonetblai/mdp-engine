@@ -18,7 +18,7 @@ namespace Online {
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: sailing [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>]  <x-dim> <y-dim>" << endl;
+    os << "usage: sailing [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <x-dim> <y-dim>" << endl;
 }
 
 int main(int argc, const char **argv) {
