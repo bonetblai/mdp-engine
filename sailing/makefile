@@ -14,6 +14,7 @@ clean:
 .cc.o:
 		$(CXX) $(CCFLAGS) $(EXTRA) -c $<
 
+$(OBJS):	sailing.h
 $(OBJS):	../engine/algorithm.h
 $(OBJS):	../engine/aot.h
 $(OBJS):	../engine/aot_gh.h
