@@ -70,9 +70,18 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return true;
     }
+    virtual float max_absolute_cost() const {
+        return 1;
+    }
     virtual bool dead_end(const state_t &s) const { return false; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
+    }
+    virtual int max_action_branching() const {
+        return 3;
+    }
+    virtual int max_state_branching() const {
+        return 3;
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
         ++expansions_;
