@@ -8,7 +8,6 @@
 
 #include "graph.h"
 #include "algorithm.h"
-#include "parameters.h"
 #include "heuristic.h"
 
 #include "policy.h"
@@ -24,7 +23,6 @@
 inline unsigned rotation(unsigned x) {
     return (x << 16) | (x >> 16);
 }
-
 
 template<typename T> struct print_bits_t {
     T field_;
@@ -46,8 +44,6 @@ template<typename T> inline std::ostream& operator<<(std::ostream &os, const pri
     bits.print(os);
     return os;
 }
-
-
 
 struct state_info_t {
     unsigned known_[WORDS_FOR_EDGES];
@@ -443,7 +439,6 @@ inline std::ostream& operator<<(std::ostream &os, const state_t &s) {
     return os;
 }
 
-
 struct next_cache_functions_t {
     bool operator()(const state_t &s1, const state_t &s2) const {
         return s1 == s2;
@@ -539,7 +534,6 @@ class next_cache_t {
     }
 };
 
-
 class problem_t : public Problem::problem_t<state_t> {
   public:
     const CTP::graph_t &graph_;
@@ -566,6 +560,9 @@ class problem_t : public Problem::problem_t<state_t> {
         return ((s.current_ == -1) && (a == 0)) ||
                ((s.current_ != -1) && s.perimeter(a));
     }
+    virtual float max_absolute_cost() const {
+        return 100; // guess? (TODO)
+    }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
         return s.current_ == goal_;
@@ -575,6 +572,12 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return s.current_ == -1 ? 0 : s.distance_to(a);
+    }
+    virtual int max_action_branching() const {
+        return graph_.num_nodes_;
+    }
+    virtual int max_state_branching() const {
+        return 32; // guess? (TODO)
     }
     virtual void next(const state_t &s,
                       Problem::action_t a,
@@ -660,7 +663,6 @@ inline std::ostream& operator<<(std::ostream &os, const problem_t &p) {
     return os;
 }
 
-
 class problem_with_hidden_state_t : public problem_t {
     mutable state_t hidden_;
 
@@ -710,11 +712,18 @@ class problem_with_hidden_state_t : public problem_t {
     }
 };
 
-
-class min_min_t : public Heuristic::heuristic_t<state_t> {
+class ctp_min_min_t : public Heuristic::heuristic_t<state_t> {
   public:
-    min_min_t() { }
-    virtual ~min_min_t() { }
+    ctp_min_min_t(const Problem::problem_t<state_t> &problem)
+      : Heuristic::heuristic_t<state_t>(problem) {
+    }
+    virtual ~ctp_min_min_t() { }
+    virtual heuristic_t<state_t>* clone() const {
+        return new ctp_min_min_t(problem_);
+    }
+    virtual std::string name() const {
+        return std::string("ctp-min-min()");
+    }
     virtual float value(const state_t &s) const {
         s.compute_heuristic();
         return (float)s.heuristic_;
@@ -724,29 +733,17 @@ class min_min_t : public Heuristic::heuristic_t<state_t> {
     virtual float eval_time() const { return 0; }
     virtual size_t size() const { return 0; }
     virtual void dump(std::ostream &os) const { }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<state_t> &dispatcher) { }
     float operator()(const state_t &s) const { return value(s); }
 };
 
-class zero_heuristic_t: public Heuristic::heuristic_t<state_t> {
-  public:
-    zero_heuristic_t() { }
-    virtual ~zero_heuristic_t() { }
-    virtual float value(const state_t &s) const { return 0; }
-    virtual void reset_stats() const { }
-    virtual float setup_time() const { return 0; }
-    virtual float eval_time() const { return 0; }
-    virtual size_t size() const { return 0; }
-    virtual void dump(std::ostream &os) const { }
-    float operator()(const state_t &s) const { return value(s); }
-};
-
-class optimistic_policy_t : public Online::Policy::policy_t<state_t> {
+class ctp_optimistic_policy_t : public Online::Policy::policy_t<state_t> {
     const CTP::graph_t &graph_;
     float multiplier_;
   public:
-    optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph, float multiplier = 1.0)
+    ctp_optimistic_policy_t(const Problem::problem_t<state_t> &problem, const CTP::graph_t &graph, float multiplier = 1.0)
       : Online::Policy::policy_t<state_t>(problem), graph_(graph), multiplier_(multiplier) { }
-    virtual ~optimistic_policy_t() { }
+    virtual ~ctp_optimistic_policy_t() { }
     virtual Problem::action_t operator()(const state_t &s) const {
         float best_cost = FLT_MAX;
         Problem::action_t best_action = Problem::noop;
@@ -762,15 +759,17 @@ class optimistic_policy_t : public Online::Policy::policy_t<state_t> {
         }
         return best_action;
     }
-    virtual const Online::Policy::policy_t<state_t>* clone() const {
-        return new optimistic_policy_t(problem(), graph_);
+    virtual Online::Policy::policy_t<state_t>* clone() const {
+        return new ctp_optimistic_policy_t(problem(), graph_);
+    }
+    virtual std::string name() const {
+        return std::string("ctp-optimistic-policy()");
     }
     virtual void print_stats(std::ostream &os) const { }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<state_t> &dispatcher) { }
 };
 
-
-inline
-void sample_weather(const CTP::graph_t &graph, state_t &state) {
+inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
     state.clear();
     int num_edges = graph.with_shortcut_ ? graph.num_edges_ - 1 : graph.num_edges_;
     for( int e = 0; e < num_edges; ++e ) {
@@ -784,8 +783,7 @@ void sample_weather(const CTP::graph_t &graph, state_t &state) {
     if( graph.with_shortcut_ ) state.info_.set_edge_status(graph.num_edges_ - 1, true);
 }
 
-inline
-float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
+inline float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
     float prob = 0;
     state_t weather(0);
     for( unsigned i = 0; i < nsamples; ++i ) {
@@ -796,8 +794,7 @@ float probability_bad_weather(const CTP::graph_t &graph, unsigned nsamples) {
     return prob / nsamples;
 }
 
-inline
-std::pair<float, float> branching_factor(const problem_t &problem, unsigned nsamples) {
+inline std::pair<float, float> branching_factor(const problem_t &problem, unsigned nsamples) {
   Online::Policy::random_t<state_t> random_policy(problem);
     for( unsigned i = 0; i < nsamples; ++i ) {
         state_t s = problem.init();

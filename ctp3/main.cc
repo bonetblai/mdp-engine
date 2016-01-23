@@ -1,328 +1,150 @@
 #include <iostream>
 #include <fstream>
+#include <strings.h>
 #include <vector>
+#include <string>
 
-#include "ctp3.h"
 #include <dispatcher.h>
+#include "ctp3.h"
+
+namespace Algorithm {
+  unsigned g_seed = 0;
+};
+
+namespace Online {
+  unsigned g_seed = 0;
+};
 
 using namespace std;
 
-#ifdef EXPERIMENTAL
-namespace Online {
-    namespace Evaluation {
-        const Online::Policy::policy_t<state_t> *global_base_policy = 0;
-    }
-}
-#endif
-
 void usage(ostream &os) {
-    os << "usage: ctp3 [-a <n>] [-b <n>] [-e <f>] [-f] [-g <f>] [-h <n>] [-s <n>] <file>"
-       << endl << endl
-       << "  -a <n>    Algorithm bitmask: 1=vi, 2=slrtdp, 4=ulrtdp, 8=blrtdp, 16=ilao, 32=plain-check, 64=elrtdp, 128=hdp-i, 256=hdp, 512=ldfs+, 1024=ldfs."
-       << endl
-       << "  -b <n>    Visits bound for blrtdp. Default: inf."
-       << endl
-       << "  -e <f>    Epsilon. Default: 0."
-       << endl
-       << "  -f        Formatted output."
-       << endl
-       << "  -g <f>    Parameter for epsilon-greedy. Default: 0."
-       << endl
-       << "  -h <n>    Heuristics: 0=zero, 1=minmin. Default: 0."
-       << endl
-#if 0
-       << "  -k <n>    Kappa consistency level. Default: 0."
-       << endl
-       << "  -K <f>    Used to define kappa measures. Default: 2."
-       << endl
-#endif
-       << "  -s <n>    Random seed. Default: 0."
-       << endl
-       << "  <file>    Racetrack file."
-       << endl << endl;
+    os << "usage: sailing [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] [{-c | --shortcut-cost} <cost>] [{-d | --dead-end-value} <value>] [{-f | --calculate-features} <nsamples>] <file>" << endl;
 }
 
 int main(int argc, const char **argv) {
-    unsigned bitmap = 0;
-    int h = 0;
-    bool formatted = false;
+    int cache_capacity = (int)5e5;
     int shortcut_cost = (int)5e3;
-    float dead_end_value = 1e3;
-    float heuristic_weight = 1.0;
+    float dead_end_value = 0;
+    unsigned num_trials = 1;
 
-    int calculate_feature = 0;
+    int calculate_features = 0;
     int calculate_nsamples = 0;
 
-    string base_name;
-    string policy_type;
-    Online::Evaluation::parameters_t eval_pars;
+    vector<string> requests;
 
+    float start_time = Utils::read_time_in_seconds();
     cout << fixed;
-    Algorithm::parameters_t alg_pars;
-
-    cout << "Arguments:";
-    for( int i = 0; i < argc; ++i ) {
-        cout << " " << argv[i];
-    }
-    cout << endl;
 
     // parse arguments
-    ++argv;
-    --argc;
-    while( argc > 1 ) {
-        if( **argv != '-' ) break;
-        switch( (*argv)[1] ) {
-            case 'a':
-                bitmap = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'b':
-                alg_pars.rtdp.bound_ = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'c':
-                shortcut_cost = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'C':
-                calculate_feature = strtol(argv[1], 0, 0);
-                calculate_nsamples = strtol(argv[2], 0, 0);
-                argv += 3;
-                argc -= 3;
-                break;
-            case 'd':
-                dead_end_value = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'e':
-                alg_pars.epsilon_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'f':
-                formatted = true;
-                ++argv;
-                --argc;
-                break;
-            case 'g':
-                alg_pars.rtdp.epsilon_greedy_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'h':
-                h = strtol(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'l':
-                eval_pars.labeling_ = true;
-                ++argv;
-                --argc;
-                break;
-            case 's':
-                alg_pars.seed_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 't':
-                eval_pars.evaluation_trials_ = strtoul(argv[1], 0, 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'w':
-                eval_pars.weight_ = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            case 'W':
-                heuristic_weight = strtod(argv[1], 0);
-                argv += 2;
-                argc -= 2;
-                break;
-            default:
-                usage(cout);
-                exit(-1);
+    for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
+        if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
+            requests.push_back(argv[1]);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 's') || (string(*argv) == "--seed") ) {
+            Algorithm::g_seed = strtoul(argv[1], 0, 0);
+            Online::g_seed = Algorithm::g_seed;
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 't') || (string(*argv) == "--trials") ) {
+            num_trials = strtoul(argv[1], 0, 0);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 'c') || (string(*argv) == "--shortcut-cost") ) {
+            shortcut_cost = strtoul(argv[1], 0, 0);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 'd') || (string(*argv) == "--dead-end-value") ) {
+            dead_end_value = strtod(argv[1], 0);
+            ++argv;
+            --argc;
+        } else if( ((*argv)[1] == 'f') || (string(*argv) == "--calculate-features") ) {
+            calculate_nsamples = strtoul(argv[1], 0, 0);
+            calculate_features = true;
+            ++argv;
+            --argc;
+        } else {
+            usage(cout);
+            exit(-1);
         }
     }
 
+    // read problem parameters
     CTP::graph_t graph(false, shortcut_cost);
-    if( argc >= 3 ) {
+    if( argc >= 1 ) {
         ifstream is(argv[0], ifstream::in);
         if( !graph.parse(is) ) exit(-1);
         is.close();
-        base_name = argv[1];
-        policy_type = argv[2];
-        if( argc >= 4 ) eval_pars.width_ = strtoul(argv[3], 0, 0);
-        if( argc >= 5 ) eval_pars.depth_ = strtoul(argv[4], 0, 0);
-        if( argc >= 6 ) eval_pars.par1_ = strtod(argv[5], 0);
-        if( argc >= 7 ) eval_pars.par2_ = strtoul(argv[6], 0, 0);
     } else {
         usage(cout);
         exit(-1);
     }
 
     // build problem instances
-    cout << "seed=" << alg_pars.seed_ << endl;
-    Random::set_seed(alg_pars.seed_);
-    state_t::initialize(graph, false, (int)5e5);
-    problem_t problem(graph, dead_end_value, false, (int)5e5);
+    cout << "main: seed= " << Algorithm::g_seed << endl;
+    Random::set_seed(Algorithm::g_seed);
+    state_t::initialize(graph, false, cache_capacity);
+    problem_t problem(graph, dead_end_value, false, cache_capacity);
 
-    if( (calculate_feature & 0x1) == 1 ) {
+    if( calculate_features ) {
         float probability = probability_bad_weather(graph, calculate_nsamples);
         cout << "P(bad weather)=" << probability << endl;
-    }
-    if( (calculate_feature & 0x2) == 2 ) {
         pair<float, float> p = branching_factor(problem, calculate_nsamples);
         cout << "avg-branching=" << p.first << endl;
         cout << "max-branching=" << p.second << endl;
     }
 
-    // create heuristics
-    vector<pair<const Heuristic::heuristic_t<state_t>*, string> > heuristics;
-    heuristics.push_back(make_pair(new Heuristic::zero_heuristic_t<state_t>, "zero"));
-    Heuristic::heuristic_t<state_t> *heuristic = new min_min_t;
-    if( heuristic_weight != 1.0 ) {
-        heuristic = new Heuristic::weighted_heuristic_t<state_t>(*heuristic, heuristic_weight);
-    }
-    heuristics.push_back(make_pair(heuristic, "min-min"));
-
-    heuristic = 0;
-    if( h == 0 ) {
-        heuristic = new Heuristic::zero_heuristic_t<state_t>;
-    } else if( h == 1) {
-        heuristic = new min_min_t;
-        if( heuristic_weight != 1.0 )
-            heuristic = new Heuristic::weighted_heuristic_t<state_t>(*heuristic, heuristic_weight);
-    }
-
-    // solve problem with algorithms
-    vector<Dispatcher::result_t<state_t> > results;
-    Dispatcher::solve(problem, heuristic, problem.init(), bitmap, alg_pars, results);
-
-    // print results
-    if( !results.empty() ) {
-        if( formatted ) Dispatcher::print_result<state_t>(cout, 0);
-        for( unsigned i = 0; i < results.size(); ++i ) {
-            Dispatcher::print_result(cout, &results[i]);
-        }
-    }
-
-    // evaluate policies
-    vector<pair<const Online::Policy::policy_t<state_t>*, string> > base_policies;
-
-    // fill base policies
-    const Problem::hash_t<state_t> *hash = results.empty() ? 0 : results[0].hash_;
-    if( hash != 0 ) {
-        Online::Policy::hash_policy_t<state_t> optimal(*hash);
-        base_policies.push_back(make_pair(optimal.clone(), "optimal"));
-    }
-    if( heuristic != 0 ) {
-        Online::Policy::greedy_t<state_t> greedy(problem, *heuristic);
-        base_policies.push_back(make_pair(greedy.clone(), "greedy"));
-    }
-    Online::Policy::random_t<state_t> random(problem);
-    base_policies.push_back(make_pair(&random, "random"));
-    optimistic_policy_t optimistic(problem, graph);
-    base_policies.push_back(make_pair(&optimistic, "optimistic"));
-    optimistic_policy_t optimistic_half_scaled(problem, graph, 0.5);
-    base_policies.push_back(make_pair(&optimistic_half_scaled, "optimistic_half_scaled"));
-
-#ifdef EXPERIMENTAL
-    Online::Evaluation::global_base_policy = &optimistic;
-#endif
-
-    // evaluate
-    pair<const Online::Policy::policy_t<state_t>*, string> policy =
-      Online::Evaluation::select_policy(problem, base_name, policy_type, base_policies, heuristics, eval_pars);
-    if( policy.first != 0 ) {
-        problem_with_hidden_state_t pwhs(graph, dead_end_value);
-        vector<int> distances;
-        vector<float> values;
-        values.reserve(eval_pars.evaluation_trials_);
-        float start_time = Utils::read_time_in_seconds();
-        float sum = 0;
-        cout << "#trials=" << eval_pars.evaluation_trials_ << ":";
-        for( unsigned trial = 0; trial < eval_pars.evaluation_trials_; ++trial ) {
-            cout << " " << trial << flush;
-            // sample a good weather
-            state_t hidden(0);
-            sample_weather(graph, hidden);
-            //hidden.preprocess();
-            while( hidden.is_dead_end() ) {
-                sample_weather(graph, hidden);
-                //hidden.preprocess();
+    // build requests
+    vector<pair<string, Online::Policy::policy_t<state_t>*> > policies;
+    vector<pair<string, Algorithm::algorithm_t<state_t>*> > algorithms;
+    Dispatcher::dispatcher_t<state_t> dispatcher;
+    dispatcher.insert_heuristic("ctp-min-min()", new ctp_min_min_t(problem));
+    dispatcher.insert_policy("ctp-optimistic()", new ctp_optimistic_policy_t(problem, graph, 1.0));
+    for( int i = 0; i < int(requests.size()); ++i ) {
+        const string &request_str = requests[i];
+        std::multimap<std::string, std::string> request;
+        Utils::tokenize(request_str, request);
+        for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
+            dispatcher.create_request(problem, it->first, it->second);
+            if( it->first == "algorithm" ) {
+                Algorithm::algorithm_t<state_t> *algorithm = dispatcher.fetch_algorithm(it->second);
+                if( algorithm != 0 ) algorithms.push_back(make_pair(it->second, algorithm));
+            } else if( it->first == "policy" ) {
+                Online::Policy::policy_t<state_t> *policy = dispatcher.fetch_policy(it->second);
+                if( policy != 0 ) policies.push_back(make_pair(it->second, policy));
             }
-            if( graph.with_shortcut_ ) hidden.set_edge_status(graph.num_edges_ - 1, false);
-            pwhs.set_hidden(hidden);
-            //cout << "hidden=" << hidden << endl;
-
-            // do evaluation from start node
-            size_t steps = 0;
-            float cost = 0;
-            state_t state = pwhs.init();
-            while( (steps < eval_pars.evaluation_depth_) && !pwhs.terminal(state) ) {
-                assert(!state.is_dead_end());
-                //cout << "state=" << state << " " << (state.is_dead_end() ? 1 : 0) << endl;
-                //cout << "dist=" << state.distances_ << endl;
-                Problem::action_t action = (*policy.first)(state);
-                //cout << "act=" << action << endl;
-                assert(action != Problem::noop);
-                assert(problem.applicable(state, action));
-                pair<state_t, bool> p = pwhs.sample(state, action);
-#if 1
-                if( pwhs.cost(state, action) == shortcut_cost ) {
-                    cout << "large cost" << endl;
-                }
-#endif
-                cost += pwhs.cost(state, action);
-                state = p.first;
-                ++steps;
-            }
-            values.push_back(cost);
-            sum += cost;
-            cout << "(" << setprecision(1) << sum/(1+trial) << ")" << flush;
         }
-        cout << endl;
-        cout << "max-branching=" << problem.max_branching_ << endl;
-        cout << "avg-branching=" << problem.avg_branching_ << endl;
-        state_t::print_stats(cout);
-        problem.print_stats(cout);
-
-        // compute avg
-        float avg = 0;
-        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
-            avg += values[i];
-        }
-        avg /= eval_pars.evaluation_trials_;
-
-        // compute stdev
-        float stdev = 0;
-        for( unsigned i = 0; i < eval_pars.evaluation_trials_; ++i ) {
-            stdev += (avg - values[i]) * (avg - values[i]);
-        }
-        stdev = sqrt(stdev) / (eval_pars.evaluation_trials_ - 1);
-
-        cout << policy.second
-             << "= " << setprecision(5) << avg
-             << " " << stdev << setprecision(2)
-             << " ( " << Utils::read_time_in_seconds() - start_time << " secs "
-             << policy.first->decisions() << " decisions)" << endl;
-        policy.first->print_stats(cout);
-    } else {
-        cout << "error: " << policy.second << endl;
     }
 
-    // free resources
-    delete policy.first;
-    for( unsigned i = 0; i < results.size(); ++i ) {
-        delete results[i].hash_;
+    // solve problems with requested algorithms
+    vector<Dispatcher::dispatcher_t<state_t>::solve_result_t> solve_results;
+    for( int i = 0; i < int(algorithms.size()); ++i ) {
+        const string &request = algorithms[i].first;
+        Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
+        Dispatcher::dispatcher_t<state_t>::solve_result_t result;
+        dispatcher.solve(request, *algorithm, problem.init(), result);
+        solve_results.push_back(result);
     }
-    delete heuristic;
+    if( !solve_results.empty() ) {
+        for( int i = 0; i < int(solve_results.size()); ++i )
+            dispatcher.print(cout, solve_results[i]);
+    }
 
-    exit(0);
+    // evaluate requested policies
+    vector<Dispatcher::dispatcher_t<state_t>::evaluate_result_t> evaluate_results;
+    for( int i = 0; i < int(policies.size()); ++i ) {
+        const string &request = policies[i].first;
+        Online::Policy::policy_t<state_t> *policy = policies[i].second;
+        Dispatcher::dispatcher_t<state_t>::evaluate_result_t result;
+        dispatcher.evaluate(request, *policy, problem.init(), result, num_trials, 100, true);
+        evaluate_results.push_back(result);
+    }
+    if( !evaluate_results.empty() ) {
+        for( int i = 0; i < int(evaluate_results.size()); ++i )
+            dispatcher.print(cout, evaluate_results[i]);
+    }
+
+    cout << "main: total-time= " << Utils::read_time_in_seconds() - start_time << endl;
+    return 0;
 }
 
