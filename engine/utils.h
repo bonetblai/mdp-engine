@@ -60,7 +60,7 @@ template<typename T> inline T abs(const T a) {
     return a < 0 ? -a : a;
 }
 
-void split_request(const std::string &request, std::string &name, std::string &parameter_str) {
+inline void split_request(const std::string &request, std::string &name, std::string &parameter_str) {
     size_t first = request.find_first_of("(");
     size_t last = request.find_last_of(")");
     if( (first != std::string::npos) && (last != std::string::npos) ) {
@@ -72,7 +72,7 @@ void split_request(const std::string &request, std::string &name, std::string &p
     //std::cout << "name=" << name << ", parameters=|" << parameter_str << "|" << std::endl;
 }
 
-void tokenize(const std::string &parameter_str, std::multimap<std::string, std::string> &parameters, char separator = ',') {
+inline void tokenize(const std::string &parameter_str, std::multimap<std::string, std::string> &parameters, char separator = ',') {
     for( size_t i = 0; i < parameter_str.size(); ++i ) {
         size_t first = i;
         int nesting_level = 0;
