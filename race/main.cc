@@ -18,7 +18,7 @@ namespace Online {
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: race [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <file> [<p>]" << endl;
+    os << "usage: race [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] [{-d | --dead-end-value} <value>] <file> [<p>]" << endl;
 }
 
 int main(int argc, const char **argv) {
