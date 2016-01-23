@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -20,13 +20,6 @@
 #define POLICY_H
 
 #include "problem.h"
-//#include "dispatcher.h"
-#if 0
-#include "hash.h"
-#include "heuristic.h"
-#include "random.h"
-#endif
-
 #include <iostream>
 #include <iomanip>
 #include <sstream>

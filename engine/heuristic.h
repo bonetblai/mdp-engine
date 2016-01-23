@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -37,32 +37,47 @@ namespace Heuristic {
 template<typename T> class heuristic_t {
   protected:
     const Problem::problem_t<T> &problem_;
+    mutable float eval_time_;
+    mutable float setup_time_;
+    mutable unsigned evaluations_;
 
   public:
-    heuristic_t(const Problem::problem_t<T> &problem) : problem_(problem) { }
+    heuristic_t(const Problem::problem_t<T> &problem)
+      : problem_(problem),
+        eval_time_(0), setup_time_(0), evaluations_(0) {
+    }
     virtual ~heuristic_t() { }
     virtual heuristic_t<T>* clone() const = 0;
     virtual std::string name() const = 0;
     virtual float value(const T &s) const = 0;
-    virtual void reset_stats() const = 0;
-    virtual float setup_time() const = 0;
-    virtual float eval_time() const = 0;
     virtual size_t size() const = 0;
     virtual void dump(std::ostream &os) const = 0;
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) = 0;
-    float total_time() const { return setup_time() + eval_time(); }
+
+    void reset_stats() const {
+        eval_time_ = 0;
+        setup_time_ = 0;
+        evaluations_ = 0;
+    }
+    float setup_time() const { return setup_time_; }
+    float eval_time() const { return eval_time_; }
+    float total_time() const {
+        return setup_time() + eval_time();
+    }
+    unsigned evaluations() const { return evaluations_; }
 };
 
 template<typename T> class zero_heuristic_t : public heuristic_t<T> {
+  using heuristic_t<T>::evaluations_;
   public:
     zero_heuristic_t(const Problem::problem_t<T> &problem) : heuristic_t<T>(problem) { }
     virtual ~zero_heuristic_t() { }
     virtual heuristic_t<T>* clone() const { return new zero_heuristic_t<T>(heuristic_t<T>::problem_); }
     virtual std::string name() const { return std::string("zero()"); }
-    virtual float value(const T &s) const { return 0; }
-    virtual void reset_stats() const { }
-    virtual float setup_time() const { return 0; }
-    virtual float eval_time() const { return 0; }
+    virtual float value(const T &s) const {
+        ++evaluations_;
+        return 0;
+    }
     virtual size_t size() const { return 0; }
     virtual void dump(std::ostream &os) const { }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) { }
@@ -70,23 +85,25 @@ template<typename T> class zero_heuristic_t : public heuristic_t<T> {
 
 template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
   using heuristic_t<T>::problem_;
+  using heuristic_t<T>::eval_time_;
+  using heuristic_t<T>::setup_time_;
+  using heuristic_t<T>::evaluations_;
   protected:
     Problem::min_hash_t<T> *hash_;
     const Algorithm::algorithm_t<T> *algorithm_;
-    float setup_time_;
 
     min_min_heuristic_t(const Problem::problem_t<T> &problem,
                         const Problem::min_hash_t<T> *hash,
                         const Algorithm::algorithm_t<T> *algorithm,
                         float setup_time)
-      : heuristic_t<T>(problem), hash_(0), algorithm_(0), setup_time_(setup_time) {
+      : heuristic_t<T>(problem), hash_(0), algorithm_(0) {
         if( hash != 0 ) hash_ = new Problem::min_hash_t<T>(*hash);
         if( algorithm != 0 ) algorithm_ = algorithm->clone();
     }
 
   public:
     min_min_heuristic_t(const Problem::problem_t<T> &problem)
-      : heuristic_t<T>(problem), hash_(0), algorithm_(0), setup_time_(0) {
+      : heuristic_t<T>(problem), hash_(0), algorithm_(0) {
         hash_ = new Problem::min_hash_t<T>(problem);
     } 
     virtual ~min_min_heuristic_t() { delete hash_; }
@@ -96,10 +113,13 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
     virtual std::string name() const {
         return std::string("min-min(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
     }
-    virtual float value(const T &s) const { return hash_->value(s); }
-    virtual void reset_stats() const { }
-    virtual float setup_time() const { return setup_time_; }
-    virtual float eval_time() const { return 0; }
+    virtual float value(const T &s) const {
+        float start_time = Utils::read_time_in_seconds();
+        ++evaluations_;
+        float hvalue = hash_ == 0 ? 0 : hash_->value(s);
+        eval_time_ += Utils::read_time_in_seconds() - start_time;
+        return hvalue;
+    }
     virtual size_t size() const { return hash_->size(); }
     virtual void dump(std::ostream &os) const { hash_->dump(os); }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
@@ -109,7 +129,11 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             algorithm_ = dispatcher.fetch_algorithm(it->second);
         }
-        std::cout << "MIN-MIN: params: algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: min-min(): params:"
+                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << std::endl;
+#endif
         solve_problem();
     }
 
@@ -118,16 +142,19 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
             std::cout << "error: algorithm must be specified for min-min() heuristic!" << std::endl;
             exit(1);
         }
-        std::cout << "solving for min-min() with algorithm=" << algorithm_->name() << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: min-min(): solving with algorithm=" << algorithm_->name() << std::endl;
+#endif
         float start_time = Utils::read_time_in_seconds();
         algorithm_->solve(problem_.init(), *hash_);
-        float end_time = Utils::read_time_in_seconds();
-        setup_time_ = end_time - start_time;
+        setup_time_ = Utils::read_time_in_seconds() - start_time;
     }
 };
 
 template<typename T> class hash_heuristic_t : public heuristic_t<T> {
   using heuristic_t<T>::problem_;
+  using heuristic_t<T>::eval_time_;
+  using heuristic_t<T>::evaluations_;
   protected:
     Problem::hash_t<T> *hash_;
 
@@ -141,21 +168,27 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
       : heuristic_t<T>(problem), hash_(0) { }
     virtual ~hash_heuristic_t() { }
     virtual heuristic_t<T>* clone() const { return new hash_heuristic_t<T>(problem_, hash_); }
-    virtual std::string name() const { return std::string("hash(hash-ptr=") + std::to_string(size_t(hash_)) + ")"; }
-    virtual float value(const T &s) const { return hash_ == 0 ? 0 : hash_->value(s); }
-    virtual void reset_stats() const { }
-    virtual float setup_time() const { return 0; }
-    virtual float eval_time() const { return 0; }
+    virtual std::string name() const {
+        return std::string("hash(hash-ptr=") + std::to_string(size_t(hash_)) + ")";
+    }
+    virtual float value(const T &s) const {
+        float start_time = Utils::read_time_in_seconds();
+        ++evaluations_;
+        float hvalue = hash_ == 0 ? 0 : hash_->value(s);
+        eval_time_ += Utils::read_time_in_seconds() - start_time;
+        return hvalue;
+    }
     virtual size_t size() const { return hash_->size(); }
     virtual void dump(std::ostream &os) const { hash_->dump(os); }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
-        assert(0);
+        std::cout << "error: hash_heuristic_t: set_parameters not supported" << std::endl;
     }
 };
 
 template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
   using heuristic_t<T>::problem_;
   using hash_heuristic_t<T>::hash_;
+  using heuristic_t<T>::setup_time_;
   protected:
     const Algorithm::algorithm_t<T> *algorithm_;
 
@@ -173,7 +206,7 @@ template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
     virtual ~optimal_heuristic_t() { delete hash_; }
     virtual heuristic_t<T>* clone() const { return new optimal_heuristic_t(problem_, hash_, algorithm_); }
     virtual std::string name() const {
-        return std::string("optimal-heuristic(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
+        return std::string("optimal(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
     }
 
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
@@ -183,18 +216,34 @@ template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             algorithm_ = dispatcher.fetch_algorithm(it->second);
         }
-        std::cout << "OPTIMAL-HEURISTIC: params: algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: optimal(): params:"
+                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << std::endl;
+#endif
         solve_problem();
     }
 
     void solve_problem() {
+        if( algorithm_ == 0 ) {
+            std::cout << "error: algorithm must be specified for optimal() heuristic!" << std::endl;
+            exit(1);
+        }
+#ifdef DEBUG
+        std::cout << "debug: optimal(): solving with algorithm=" << algorithm_->name() << std::endl;
+#endif
+        float start_time = Utils::read_time_in_seconds();
         assert(algorithm_ != 0);
         algorithm_->solve(problem_.init(), *hash_);
+        setup_time_ = Utils::read_time_in_seconds() - start_time;
     }
 };
 
 template<typename T> class scaled_heuristic_t : public heuristic_t<T> {
   using heuristic_t<T>::problem_;
+  using heuristic_t<T>::eval_time_;
+  using heuristic_t<T>::setup_time_;
+  using heuristic_t<T>::evaluations_;
   protected:
     const heuristic_t<T> *heuristic_;
     float weight_;
@@ -212,11 +261,13 @@ template<typename T> class scaled_heuristic_t : public heuristic_t<T> {
     virtual std::string name() const {
         return std::string("scaled(") + (heuristic_ == 0 ? std::string("null") : heuristic_->name()) + ",weight=" + std::to_string(weight_) + ")";
     }
-    virtual float value(const T &s) const { return heuristic_ == 0 ? 0 : weight_ * heuristic_->value(s); }
-    virtual void reset_stats() const { heuristic_->reset_stats(); }
-    virtual float setup_time() const { return heuristic_->setup_time(); }
-    virtual float eval_time() const { return heuristic_->eval_time(); }
-    virtual size_t size() const { return heuristic_->size(); }
+    virtual float value(const T &s) const {
+        ++evaluations_;
+        float hvalue = heuristic_ == 0 ? 0 : weight_ * heuristic_->value(s);
+        eval_time_ = heuristic_ == 0 ? 0 : heuristic_->eval_time();
+        return hvalue;
+    }
+    virtual size_t size() const { return heuristic_ == 0 ? 0 : heuristic_->size(); }
     virtual void dump(std::ostream &os) const { heuristic_->dump(os); }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("heuristic");
@@ -228,7 +279,12 @@ template<typename T> class scaled_heuristic_t : public heuristic_t<T> {
         it = parameters.find("weight");
         if( it != parameters.end() ) weight_ = strtof(it->second.c_str(), 0);
         it = parameters.find("heuristic");
-        std::cout << "SCALED: params: heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << ", weight=" << weight_ << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: scaled(): params:"
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " weight= " << weight_
+                  << std::endl;
+#endif
     }
 };
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -75,7 +75,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
   public:
     virtual ~hash_policy_t() { }
     virtual policy_t<T>* clone() const { return new hash_policy_t<T>(problem_, hash_); }
-    virtual std::string name() const { return std::string("hash-policy(hash-ptr=") + std::to_string(size_t(hash_)) + ")"; }
+    virtual std::string name() const { return std::string("hash(hash-ptr=") + std::to_string(size_t(hash_)) + ")"; }
 
     virtual Problem::action_t operator()(const T &s) const {
         assert(hash_ != 0);
@@ -112,7 +112,7 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
     virtual ~optimal_policy_t() { delete hash_; }
     virtual policy_t<T>* clone() const { return new optimal_policy_t(problem_, hash_, algorithm_); }
     virtual std::string name() const {
-        return std::string("optimal-policy(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
+        return std::string("optimal(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("algorithm");
@@ -121,12 +121,22 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             algorithm_ = dispatcher.fetch_algorithm(it->second);
         }
-        std::cout << "OPTIMAL-POLICY: params: algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name()) << std::endl;
         solve_problem();
+#ifdef DEBUG
+        std::cout << "debug: optimal(): params:"
+                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << std::endl;
+#endif
     }
 
     void solve_problem() {
-        assert(algorithm_ != 0);
+        if( algorithm_ == 0 ) {
+            std::cout << "error: algorithm must be specified for optimal() policy!" << std::endl;
+            exit(1);
+        }
+#ifdef DEBUG
+        std::cout << "debug: optimal(): solving with algorithm=" << algorithm_->name() << std::endl;
+#endif
         algorithm_->solve(problem_.init(), *hash_);
     }
 };
@@ -155,7 +165,9 @@ template<typename T> class base_greedy_t : public policy_t<T> {
     }
 
   public:
-    base_greedy_t(const Problem::problem_t<T> &problem) : policy_t<T>(problem) { }
+    base_greedy_t(const Problem::problem_t<T> &problem)
+      : policy_t<T>(problem), heuristic_(0), optimistic_(false), random_ties_(false), caching_(false) {
+    }
     virtual ~base_greedy_t() { }
     virtual policy_t<T>* clone() const {
         return new base_greedy_t(problem_, heuristic_, optimistic_, random_ties_, caching_);
@@ -228,7 +240,14 @@ template<typename T> class base_greedy_t : public policy_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
-        std::cout << "GREEDY: params: optimistic=" << optimistic_ << ", random-ties=" << random_ties_ << ", caching=" << caching_ << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: greedy(): params:"
+                  << " optimistic= " << optimistic_
+                  << " random-ties= " << random_ties_
+                  << " caching= " << caching_
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << std::endl;
+#endif
     }
 };
 
@@ -236,7 +255,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
 template<typename T> class greedy_t : public base_greedy_t<T> {
   public:
     greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic, bool caching = false)
-      : base_greedy_t<T>(problem, heuristic, false, false, caching) { }
+      : base_greedy_t<T>(problem, &heuristic, false, false, caching) { }
     virtual ~greedy_t() { }
 };
 
@@ -244,7 +263,7 @@ template<typename T> class greedy_t : public base_greedy_t<T> {
 template<typename T> class random_greedy_t : public base_greedy_t<T> {
   public:
     random_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic, bool caching = false)
-      : base_greedy_t<T>(problem, heuristic, false, true, caching) { }
+      : base_greedy_t<T>(problem, &heuristic, false, true, caching) { }
     virtual ~random_greedy_t() { }
 };
 
@@ -252,7 +271,7 @@ template<typename T> class random_greedy_t : public base_greedy_t<T> {
 template<typename T> class optimistic_greedy_t : public base_greedy_t<T> {
   public:
     optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic, bool caching = false)
-      : base_greedy_t<T>(problem, heuristic, true, false, caching) { }
+      : base_greedy_t<T>(problem, &heuristic, true, false, caching) { }
     virtual ~optimistic_greedy_t() { }
 };
 
@@ -260,7 +279,7 @@ template<typename T> class optimistic_greedy_t : public base_greedy_t<T> {
 template<typename T> class random_optimistic_greedy_t : public base_greedy_t<T> {
   public:
     random_optimistic_greedy_t(const Problem::problem_t<T> &problem, const Heuristic::heuristic_t<T> &heuristic, bool caching = false)
-      : base_greedy_t<T>(problem, heuristic, true, true, caching) { }
+      : base_greedy_t<T>(problem, &heuristic, true, true, caching) { }
     virtual ~random_optimistic_greedy_t() { }
 };
 

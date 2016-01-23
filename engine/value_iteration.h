@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -79,7 +79,14 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         }
         it = parameters.find("seed");
         if( it != parameters.end() ) seed_ = strtol(it->second.c_str(), 0, 0);
-        std::cout << "VI: params: epsilon=" << epsilon_ << ", max=" << max_number_iterations_ << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << ", seed=" << seed_ << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: value-iteraton(): params:"
+                  << " epsilon= " << epsilon_
+                  << " max= " << max_number_iterations_
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " seed= " << seed_
+                  << std::endl;
+#endif
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
@@ -91,7 +98,7 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         generate_space(s, hash);
 
 #ifdef DEBUG
-        std::cout << "value_iteration: state-space-size = " << hash.size() << std::endl;
+        std::cout << "debug: value-iteration(): state-space-size = " << hash.size() << std::endl;
 #endif
 
         size_t iters = 0;
@@ -109,16 +116,17 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
 
 #ifdef DEBUG
                 if( res > epsilon_ ) {
-                    std::cout << "value_iteration: value for " << hi->first
-                              << " changed from " << hv << " to "
-                              << p.second << std::endl;
+                    std::cout << "debug: value-iteration(): value for " << hi->first
+                              << " changed from " << hv
+                              << " to " << p.second
+                              << std::endl;
                 }
 #endif
             }
             ++iters;
 
 #ifdef DEBUG
-            std::cout << "value_iteration: residual=" << residual << std::endl;
+            std::cout << "debug: value-iteration(): residual=" << residual << std::endl;
 #endif
         }
         hash.set_eval_function(0);
@@ -133,7 +141,7 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         dptr->mark();
 
 #ifdef DEBUG
-        std::cout << "generate_space: marking " << s << std::endl;
+        std::cout << "debug: generate-space(): marking " << s << std::endl;
 #endif
 
         while( !open.empty() ) {
@@ -151,7 +159,7 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
                             open.push_back(std::make_pair(outcomes[i].first, ptr));
                             ptr->mark();
 #ifdef DEBUG
-                            std::cout << "generate_space: marking " << outcomes[i].first << std::endl;
+                            std::cout << "debug: generate-space(): marking " << outcomes[i].first << std::endl;
 #endif
                         }
                     }

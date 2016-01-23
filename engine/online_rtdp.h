@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -194,7 +194,15 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
-        std::cout << "ONLINE-RTDP: params: horizon=" << horizon_ << ", max-trials=" << max_trials_ << ", labeling=" << labeling_ << ", random-ties=" << random_ties_ << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: finite-horizon-lrtdp(): params:"
+                  << " horizon= " << horizon_
+                  << " max-trials= " << max_trials_
+                  << " labeling= " << (labeling_ ? "true" : "false")
+                  << " random-ties= " << (random_ties_ ? "true" : "false")
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << std::endl;
+#endif
     }
 
     void clear_table() const {
@@ -391,23 +399,6 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
 };
 
 }; // namespace RTDP
-
-#if 0 // REMOVE
-template<typename T>
-inline const policy_t<T>* make_finite_horizon_lrtdp(const Problem::problem_t<T> &problem,
-                                                    const Heuristic::heuristic_t<T> &heuristic,
-                                                    unsigned horizon,
-                                                    unsigned max_trials,
-                                                    bool labeling,
-                                                    bool random_ties) {
-    return new RTDP::finite_horizon_lrtdp_t<T>(problem,
-                                               heuristic,
-                                               horizon,
-                                               max_trials,
-                                               labeling,
-                                               random_ties);
-}
-#endif
 
 }; // namespace Policy
 

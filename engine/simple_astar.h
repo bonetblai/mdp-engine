@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -70,7 +70,12 @@ template<typename T> class simple_astar_t : public algorithm_t<T> {
         }
         it = parameters.find("seed");
         if( it != parameters.end() ) seed_ = strtol(it->second.c_str(), 0, 0);
-        std::cout << "SIMPLE-A*: params: heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << ", seed=" << seed_ << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: simple-a*(): params:"
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " seed= " << seed_
+                  << std::endl;
+#endif
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {

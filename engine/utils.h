@@ -1,17 +1,17 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
- * 
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
+ *
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
  *  notice is included with any such distribution.
- *  
+ *
  *  THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
  *  EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  *  PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
  *  SOFTWARE IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU
  *  ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
- *  
+ *
  *  Blai Bonet, bonet@ldc.usb.ve
  *
  */
@@ -22,6 +22,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <math.h>
 
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -30,7 +31,7 @@
 
 namespace Utils {
 
-#if 0
+#if 0 // kappa stuff
 extern float kappa_log;
 
 inline size_t kappa_value(float p, float kl = kappa_log) {
@@ -41,8 +42,10 @@ inline size_t kappa_value(float p, float kl = kappa_log) {
 inline float read_time_in_seconds() {
     struct rusage r_usage;
     getrusage(RUSAGE_SELF, &r_usage);
-    return (float)r_usage.ru_utime.tv_sec +
-           (float)r_usage.ru_utime.tv_usec / (float)1000000;
+    float time = (float)r_usage.ru_utime.tv_sec + (float)r_usage.ru_utime.tv_usec / (float)1000000;
+    getrusage(RUSAGE_CHILDREN, &r_usage);
+    time += (float)r_usage.ru_utime.tv_sec + (float)r_usage.ru_utime.tv_usec / (float)1000000;
+    return time;
 }
 
 template<typename T> inline T min(const T a, const T b) {
@@ -60,11 +63,12 @@ template<typename T> inline T abs(const T a) {
 void split_request(const std::string &request, std::string &name, std::string &parameter_str) {
     size_t first = request.find_first_of("(");
     size_t last = request.find_last_of(")");
-    assert(first != std::string::npos);
-    assert(last != std::string::npos);
-
-    name = request.substr(0, first);
-    parameter_str = request.substr(1 + first, last - first - 1);
+    if( (first != std::string::npos) && (last != std::string::npos) ) {
+        name = request.substr(0, first);
+        parameter_str = request.substr(1 + first, last - first - 1);
+    } else {
+        name = request;
+    }
     //std::cout << "name=" << name << ", parameters=|" << parameter_str << "|" << std::endl;
 }
 
@@ -93,6 +97,72 @@ void tokenize(const std::string &parameter_str, std::multimap<std::string, std::
         //std::cout << "key=|" << key << "|, value=|" << value << "|" << std::endl;
         parameters.insert(std::make_pair(key, value));
     }
+}
+
+inline int sample_from_distribution(int n, const float *cdf) {
+#if 1 // do sampling in log(n) time
+    assert(n > 0);
+    if( n == 1 ) return 0;
+
+    float p = drand48();
+    if( p == 1 ) { // border condition (it can only happens when converting drand48() to float)
+        for( int i = n - 1; i > 0; --i ) {
+            if( cdf[i - 1] < cdf[i] )
+                return i;
+        }
+        assert(cdf[0] > 0);
+        return 0;
+    }
+    assert(p < 1);
+
+    int lower = 0;
+    int upper = n;
+    int mid = (lower + upper) >> 1;
+    float lcdf = mid == 0 ? 0 : cdf[mid - 1];
+
+    while( !(lcdf <= p) || !(p < cdf[mid]) ) {
+        assert(lower < upper);
+        assert((lower <= mid) && (mid < upper));
+        if( lcdf > p ) {
+            upper = mid;
+        } else {
+            assert(p >= cdf[mid]);
+            lower = 1 + mid;
+        }
+        mid = (lower + upper) >> 1;
+        lcdf = mid == 0 ? 0 : cdf[mid - 1];
+    }
+    assert((lcdf <= p) && (p < cdf[mid]));
+    //std::cout << "    return: mid=" << mid << std::endl;
+    return mid;
+#else
+    float p = drand48();
+    for( int i = 0; i < n; ++i )
+        if( p < cdf[i] ) return i;
+    return n - 1;
+#endif
+}
+
+inline void stochastic_sampling(int n, const float *cdf, int k, std::vector<int> &indices) {
+    indices.clear();
+    indices.reserve(k);
+    for( int i = 0; i < k; ++i ) {
+        int index = Utils::sample_from_distribution(n, cdf);
+        indices.push_back(index);
+    }
+    assert(k == int(indices.size()));
+}
+
+inline void stochastic_universal_sampling(int n, const float *cdf, int k, std::vector<int> &indices) {
+    indices.clear();
+    indices.reserve(k);
+    float u = drand48() / float(k);
+    for( int i = 0, j = 0; j < k; ++j ) {
+        while( (i < n) && (u > cdf[i]) ) ++i;
+        indices.push_back(i == n ? n - 1 : i);
+        u += 1.0 / float(k);
+    }
+    assert(k == int(indices.size()));
 }
 
 }; // end of namespace

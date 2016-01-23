@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -399,15 +399,15 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
     virtual std::string name() const {
         return std::string("aot(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
-          std::string("width=") + std::to_string(width_) +
-          std::string("horizon=") + std::to_string(horizon_) +
-          std::string("probability=") + std::to_string(probability_) +
-          std::string("random-ties=") + (random_ties_ ? "true" : "false") +
-          std::string("delayed-eval=") + (delayed_evaluation_ ? "true" : "false") +
-          std::string("expansions-per-iter=") + std::to_string(expansions_per_iteration_) +
-          std::string("leaf-nsamples=") + std::to_string(leaf_nsamples_) +
-          std::string("delayed-eval-nsamples=") + std::to_string(delayed_evaluation_nsamples_) +
-          std::string("leaf-selection=") + std::to_string(leaf_selection_strategy_) + ")";
+          std::string(",width=") + std::to_string(width_) +
+          std::string(",horizon=") + std::to_string(horizon_) +
+          std::string(",probability=") + std::to_string(probability_) +
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") +
+          std::string(",delayed-eval=") + (delayed_evaluation_ ? "true" : "false") +
+          std::string(",expansions-per-iter=") + std::to_string(expansions_per_iteration_) +
+          std::string(",leaf-nsamples=") + std::to_string(leaf_nsamples_) +
+          std::string(",delayed-eval-nsamples=") + std::to_string(delayed_evaluation_nsamples_) +
+          std::string(",leaf-selection=") + std::to_string(leaf_selection_strategy_) + ")";
     }
 
     // this is "const" because make_aot() returns a const policy*
@@ -416,6 +416,11 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     virtual Problem::action_t operator()(const T &s) const {
+        if( base_policy_ == 0 ) {
+            std::cout << "error: (base) policy must be specified for aot() policy!" << std::endl;
+            exit(1);
+        }
+
         // initialize tree and setup expansion loop for selection strategy
         ++policy_t<T>::decisions_;
         clear();
@@ -482,7 +487,39 @@ template<typename T> class aot_t : public improvement_t<T> {
         base_policy_->print_stats(os);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
-        assert(0);
+        std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
+        if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("horizon");
+        if( it != parameters.end() ) horizon_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("probability");
+        if( it != parameters.end() ) probability_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("expansions-per-iteration");
+        if( it != parameters.end() ) expansions_per_iteration_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("random-ties");
+        if( it != parameters.end() ) random_ties_ = it->second == "true";
+        it = parameters.find("policy");
+        if( it != parameters.end() ) {
+            delete base_policy_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            base_policy_ = dispatcher.fetch_policy(it->second);
+        }
+        it = parameters.find("heuristic");
+        if( it != parameters.end() ) {
+            delete heuristic_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            heuristic_ = dispatcher.fetch_heuristic(it->second);
+        }
+#ifdef DEBUG
+        std::cout << "debug: aot(): params:"
+                  << " width= " << width_
+                  << " horizon= " << horizon_
+                  << " probability= " << probability_
+                  << " expansions-per-iteration= " << expansions_per_iteration_
+                  << " random-ties= " << (random_ties_ ? "true" : "false")
+                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << std::endl;
+#endif
     }
 
     void print_tree(std::ostream &os) const {
@@ -1040,31 +1077,6 @@ template<typename T> class aot_t : public improvement_t<T> {
 };
 
 }; // namespace AOT
-
-#if 0 // REMOVE
-template<typename T>
-inline const policy_t<T>* make_aot(const policy_t<T> &base_policy,
-                                   unsigned width,
-                                   unsigned horizon,
-                                   float probability,
-                                   bool random_ties,
-                                   bool delayed_evaluation = true,
-                                   unsigned expansions_per_iteration = 100,
-                                   unsigned leaf_nsamples = 1,
-                                   unsigned delayed_evaluation_nsamples = 1,
-                                   int leaf_selection_strategy = 0) {
-    return new AOT::aot_t<T>(base_policy,
-                             width,
-                             horizon,
-                             probability,
-                             random_ties,
-                             delayed_evaluation,
-                             expansions_per_iteration,
-                             leaf_nsamples,
-                             delayed_evaluation_nsamples,
-                             leaf_selection_strategy);
-}
-#endif
 
 }; // namespace Policy
 

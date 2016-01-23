@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -64,8 +64,8 @@ template<typename T> class hash_t : public Hash::hash_map_t<T> {
     unsigned updates() const { return updates_; }
     void inc_updates() { ++updates_; }
     void update(const T &s, float value) {
+        ++updates_;
         Hash::hash_map_t<T>::update(s, value);
-        inc_updates();
     }
 
     virtual float QValue(const T &s, action_t a) const;

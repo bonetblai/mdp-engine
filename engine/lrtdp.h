@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -65,7 +65,7 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
           std::string(",epsilon=") + std::to_string(epsilon_) +
           std::string(",type=") + (type_ == 0 ? "standard" : (type_ == 1 ? "uniform" : "bounded")) +
           std::string(",bound=") + std::to_string(bound_) +
-          std::string(",epsilon_greedy=") + std::to_string(epsilon_greedy_) +
+          std::string(",epsilon-greedy=") + std::to_string(epsilon_greedy_) +
           std::string(",seed=") + std::to_string(seed_) + ")";
     }
 
@@ -84,7 +84,15 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
         }
         it = parameters.find("seed");
         if( it != parameters.end() ) seed_ = strtol(it->second.c_str(), 0, 0);
-        std::cout << "LRTDP: params: epsilon=" << epsilon_ << ", bound=" << bound_ << ", epsilon-greedy=" << epsilon_greedy_ << ", heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name()) << ", seed=" << seed_ << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: lrtdp-base(): params:"
+                  << " epsilon= " << epsilon_
+                  << " bound= " << bound_
+                  << " epsilon-greedy= " << epsilon_greedy_
+                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " seed= " << seed_
+                  << std::endl;
+#endif
     }
 
     size_t lrtdp_trial(const T &s, Problem::hash_t<T> &hash) const {
@@ -97,14 +105,14 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
         T t = s;
 
 #ifdef DEBUG
-        std::cout << "trial: begin" << std::endl;
+        std::cout << "debug: lrtdp-base(): trial: begin" << std::endl;
 #endif
 
         size_t steps = 1;
         while( !problem_.terminal(t) && !dptr->solved() && (dptr->count() <= bound_) ) {
 
 #ifdef DEBUG
-            std::cout << "  " << t << " = " << dptr->value() << std::endl;
+            std::cout << "debug: lrtdp-base():   " << t << " = " << dptr->value() << std::endl;
 #endif
 
             std::pair<Problem::action_t, float> p = hash.bestQValue(t);
@@ -132,7 +140,7 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
         }
 
 #ifdef DEBUG
-        std::cout << "trial: end" << std::endl;
+        std::cout << "debug: lrtdp-base(): trial: end" << std::endl;
 #endif
 
         while( !states.empty() ) {

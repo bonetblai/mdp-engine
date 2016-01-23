@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -109,10 +109,21 @@ template<typename T> class rollout_t : public improvement_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
-        std::cout << "ROLLOUT: params: width=" << width_ << ", depth=" << depth_ << ", nesting=" << nesting_ << ", policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: rollout(): params:"
+                  << " width= " << width_
+                  << " depth= " << depth_
+                  << " nesting= " << nesting_
+                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << std::endl;
+#endif
     }
 
     float evaluate(const T &s) const {
+        if( base_policy_ == 0 ) {
+            std::cout << "error: (base) policy must be specified for rollout() policy!" << std::endl;
+            exit(1);
+        }
         return Evaluation::evaluation(*base_policy_, s, 1, depth_);
     }
 
@@ -170,14 +181,21 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
         it = parameters.find("depth");
         if( it != parameters.end() ) depth_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("nesting");
-        if( it != parameters.end() ) depth_ = strtol(it->second.c_str(), 0, 0);
+        if( it != parameters.end() ) nesting_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("policy");
         if( it != parameters.end() ) {
             delete base_policy_;
             dispatcher.create_request(problem_, it->first, it->second);
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
-        std::cout << "NESTED-ROLLOUT: params: width=" << width_ << ", depth=" << depth_ << ", nesting=" << nesting_ << ", policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name()) << std::endl;
+#ifdef DEBUG
+        std::cout << "debug: nested-rollout(): params:"
+                  << " width= " << width_
+                  << " depth= " << depth_
+                  << " nesting= " << nesting_
+                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << std::endl;
+#endif
         make_nested_policies();
     }
 
@@ -187,6 +205,10 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
     }
 
     void make_nested_policies() {
+        if( base_policy_ == 0 ) {
+            std::cout << "error: (base) policy must be specified for nested-rollout() policy!" << std::endl;
+            exit(1);
+        }
         nested_policies_.reserve(1 + nesting_);
         nested_policies_.push_back(base_policy_->clone());
         for( unsigned level = 0; level < nesting_; ++level ) {
@@ -198,25 +220,6 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
 };
 
 }; // namespace Rollout
-
-#if 0 // REMOVE
-template<typename T>
-inline const policy_t<T>* make_nested_rollout(const policy_t<T> &base_policy,
-                                              unsigned width,
-                                              unsigned depth,
-                                              unsigned nesting = 1) {
-    std::vector<const policy_t<T>*> nested_policies;
-    nested_policies.reserve(1 + nesting);
-    nested_policies.push_back(&base_policy);
-    for( unsigned level = 0; level < nesting; ++level ) {
-        const policy_t<T> *policy = nested_policies.back();
-        policy_t<T> *rollout =
-          new Rollout::rollout_t<T>(*policy, width, depth, 1+level);
-        nested_policies.push_back(rollout);
-    }
-    return nested_policies.back();
-}
-#endif
 
 }; // namespace Policy
 
