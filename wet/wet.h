@@ -106,6 +106,15 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return true;
     }
+    virtual float max_absolute_cost() const {
+        return 1;
+    }
+    virtual int max_action_branching() const {
+        return 5;
+    }
+    virtual int max_state_branching() const {
+        return YVER ? 4 : (ZVER ? 3 : 6);
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
     }
