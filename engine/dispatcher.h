@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2015 Universidad Simon Bolivar
+ *  Copyright (c) 2011-2016 Universidad Simon Bolivar
  * 
  *  Permission is hereby granted to distribute this software for
  *  non-commercial research purposes, provided that this copyright
@@ -58,19 +58,22 @@ template<typename T> class dispatcher_t {
         const Algorithm::algorithm_t<T> *algorithm_;
         unsigned seed_;
 
+        unsigned problem_expansions_;
+
+        const Problem::hash_t<T> *hash_;
+        float hash_value_;
+        unsigned hash_updates_;
+        unsigned hash_policy_size_;
+
+        const Heuristic::heuristic_t<T> *heuristic_;
+        float heuristic_eval_time_;
+        float heuristic_setup_time_;
+        unsigned heuristic_evaluations_;
+        unsigned heuristic_size_;
+
         float time_raw_;
         float time_heuristic_;
         float time_algorithm_;
-
-#if 0
-        float value_;
-        unsigned trials_;
-        unsigned updates_;
-        unsigned expansions_;
-#endif
-
-        const Problem::hash_t<T> *hash_;
-        unsigned policy_size_;
     };
 
     struct evaluate_result_t {
@@ -78,6 +81,15 @@ template<typename T> class dispatcher_t {
         const Online::Policy::policy_t<T> *policy_;
         unsigned seed_;
 
+        unsigned problem_expansions_;
+
+        float eval_value_;
+        float eval_stdev_;
+
+        float time_raw_;
+        float time_policy_;
+        float time_heuristic_;
+        float time_algorithm_;
     };
 
     dispatcher_t() { }
@@ -90,13 +102,24 @@ template<typename T> class dispatcher_t {
             delete it->second;
     }
 
+    void insert_algorithm(const std::string &request, Algorithm::algorithm_t<T> *algorithm) {
+        algorithms_.insert(std::make_pair(request, algorithm));
+    }
     Algorithm::algorithm_t<T>* fetch_algorithm(const std::string &request) {
         typename std::map<std::string, Algorithm::algorithm_t<T>*>::const_iterator it = algorithms_.find(request);
         return it == algorithms_.end() ? 0 : it->second;
     }
+
+    void insert_heuristic(const std::string &request, Heuristic::heuristic_t<T> *heuristic) {
+        heuristics_.insert(std::make_pair(request, heuristic));
+    }
     Heuristic::heuristic_t<T>* fetch_heuristic(const std::string &request) {
         typename std::map<std::string, Heuristic::heuristic_t<T>*>::const_iterator it = heuristics_.find(request);
         return it == heuristics_.end() ? 0 : it->second;
+    }
+
+    void insert_policy(const std::string &request, Online::Policy::policy_t<T> *policy) {
+        policies_.insert(std::make_pair(request, policy));
     }
     Online::Policy::policy_t<T>* fetch_policy(const std::string &request) {
         typename std::map<std::string, Online::Policy::policy_t<T>*>::const_iterator it = policies_.find(request);
@@ -107,8 +130,7 @@ template<typename T> class dispatcher_t {
     void create_request(const Problem::problem_t<T> &problem, const std::string &type, const std::string &request);
     void solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, const T &s, solve_result_t &result) const;
     void print(std::ostream &os, const solve_result_t &result) const;
-    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result) const;
-    void evaluate(const Problem::problem_t<T> &problem, const T &s, const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result) const;
+    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const;
     void print(std::ostream &os, const evaluate_result_t &result) const;
 };
 
@@ -134,7 +156,7 @@ template<typename T> class dispatcher_t {
 
 #if 1
 //#include "hash.h"
-#include "parameters.h"
+//#include "parameters.h"
 #include "aot_gh.h"
 #include "aot_path.h"
 #endif
@@ -152,7 +174,7 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
 
 template<typename T> void dispatcher_t<T>::create_request(const Problem::problem_t<T> &problem, const std::string &type, const std::string &request) {
     if( (type != "algorithm") && (type != "heuristic") && (type != "policy") ) {
-        std::cout << "error: dispatcher: create_request: invalid '" << type << "=" << request << "'" << std::endl;
+        std::cout << "error: dispatcher: create-request: invalid '" << type << "=" << request << "'" << std::endl;
         return;
     }
 
@@ -166,10 +188,12 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
     // algorithms
     if( type == "algorithm" ) {
         if( fetch_algorithm(request) != 0 ) {
-            std::cout << "dispatcher: create_request: found '" << request << "'" << std::endl;
+#ifdef DEBUG
+            std::cout << "dispatcher: create-request: found algorithm '" << request << "'" << std::endl;
+#endif
             return;
         }
-        std::cout << "dispatcher: create_request: creating '" << request << "'" << std::endl;
+        std::cout << "dispatcher: create-request: creating: type=" << type << ", request=" << request << std::endl;
 
         Algorithm::algorithm_t<T> *algorithm = 0;
         if( name == "hdp" )
@@ -180,7 +204,7 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
             algorithm = new Algorithm::ldfs_t<T>(problem);
         else if( name == "ldfs-plus" )
             algorithm = new Algorithm::ldfs_plus_t<T>(problem);
-        else if( name == "standard-lrtdp" )
+        else if( (name == "standard-lrtdp") || (name == "lrtdp") )
             algorithm = new Algorithm::standard_lrtdp_t<T>(problem);
         else if( name == "uniform-lrtdp" )
             algorithm = new Algorithm::uniform_lrtdp_t<T>(problem);
@@ -203,10 +227,12 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
     // heuristics
     if( type == "heuristic" ) {
         if( fetch_heuristic(request) != 0 ) {
-            std::cout << "dispatcher: create_request: found '" << request << "'" << std::endl;
+#ifdef DEBUG
+            std::cout << "dispatcher: create-request: found heuristic '" << request << "'" << std::endl;
+#endif
             return;
         }
-        std::cout << "dispatcher: create_request: creating '" << request << "'" << std::endl;
+        std::cout << "dispatcher: create-request: creating: type=" << type << ", request=" << request << std::endl;
 
         Heuristic::heuristic_t<T> *heuristic = 0;
         if( name == "zero" )
@@ -227,11 +253,13 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
 
     // policies
     if( type == "policy" ) {
-        if( fetch_heuristic(request) != 0 ) {
-            std::cout << "dispatcher: create_request: found '" << request << "'" << std::endl;
+        if( fetch_policy(request) != 0 ) {
+#ifdef DEBUG
+            std::cout << "dispatcher: create-request: found policy '" << request << "'" << std::endl;
+#endif
             return;
         }
-        std::cout << "dispatcher: create_request: creating '" << request << "'" << std::endl;
+        std::cout << "dispatcher: create-request: creating: type=" << type << ", request=" << request << std::endl;
 
         Online::Policy::policy_t<T> *policy = 0;
         if( name == "optimal" )
@@ -263,11 +291,11 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
     }
 
     // if this far, request is not recognized
-    std::cout << "error: dispatcher: create_request: unrecognized '" << type << "=" << request << "'" << std::endl;
+    std::cout << "error: dispatcher: create-request: unrecognized: type=" << type << ", request=" << request << std::endl;
 }
 
 template<typename T> void dispatcher_t<T>::solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, const T &s, solve_result_t &result) const {
-    std::cout << "solving " << name << std::endl;
+    std::cout << "dispatcher: solve: " << name << std::endl;
     const Problem::problem_t<T> &problem = algorithm.problem();
 
     result.name_ = name;
@@ -280,35 +308,50 @@ template<typename T> void dispatcher_t<T>::solve(const std::string &name, const 
     algorithm.solve(s, *hash);
     float end_time = Utils::read_time_in_seconds();
 
+    // extract states from problem
+    result.problem_expansions_ = problem.expansions();
+
+    // extract stats from hash
     result.hash_ = hash;
-    result.policy_size_ = std::numeric_limits<unsigned>::max();
+    result.hash_value_ = hash->value(s);
+    result.hash_updates_ = hash->updates();
+    result.hash_policy_size_ = std::numeric_limits<unsigned>::max();
     if( (name.substr(0, 12) != "simple_astar") && (name.substr(0, 9) == "simple_a*") )
-        result.policy_size_ = problem.policy_size(*hash, s);
+        result.hash_policy_size_ = problem.policy_size(*hash, s);
 
-#if 0
-    result.hash_ = new Problem::hash_t<T>(problem, new Heuristic::wrapper_t<T>(heuristic));
-    problem.clear_expansions();
-    if( heuristic != 0 ) heuristic->reset_stats();
-    //result.value_ = result.hash_->value(s);
-    //result.updates_ = result.hash_->updates();
-    //result.expansions_ = problem.expansions();
-    //result.policy_size_ = std::numeric_limits<unsigned>::max();
-    if( (name.substr(0, 12) != "simple_astar") && (name.substr(0, 9) == "simple_a*") )
-        ;//result.policy_size = problem.policy_size(*result.hash_, s);
-#endif
+    // extract stats from heuristic (stats must be extract here because heuristic mabe shared)
+    const Heuristic::heuristic_t<T> *heuristic = algorithm.heuristic();
+    result.heuristic_ = heuristic;
+    result.heuristic_eval_time_ = heuristic == 0 ? -1 : heuristic->eval_time();
+    result.heuristic_setup_time_ = heuristic == 0 ? -1 : heuristic->setup_time();
+    result.heuristic_evaluations_ = heuristic == 0 ? -1 : heuristic->evaluations();
+    result.heuristic_size_ = heuristic == 0 ? -1 : heuristic->size();
 
+    // time stats
     result.time_raw_ = end_time - start_time;
     result.time_heuristic_ = algorithm.heuristic() == 0 ? 0 : algorithm.heuristic()->eval_time();
     result.time_algorithm_ = result.time_raw_ - result.time_heuristic_;
 }
 
 template<typename T> void dispatcher_t<T>::print(std::ostream &os, const solve_result_t &result) const {
-    std::cout << "HOLA: " << result.name_ << std::endl;
-    std::cout << "updates=" << result.hash_->updates() << std::endl;
+    std::cout << "solve-stats: name= " << result.name_
+              << " seed= " << result.seed_
+              << " problem.expansions= " << result.problem_expansions_
+              << " hash.value= " << result.hash_value_
+              << " hash.updates= " << result.hash_updates_
+              << " hash.policy-size= " << result.hash_policy_size_
+              << " heuristic.eval-time= " << result.heuristic_eval_time_
+              << " heuristic.setup-time= " << result.heuristic_setup_time_
+              << " heuristic.evaluations= " << result.heuristic_evaluations_
+              << " heuristic.size= " << result.heuristic_size_
+              << " time.raw= " << result.time_raw_
+              << " time.heuristic= " << result.time_heuristic_
+              << " time.algorithm= " << result.time_algorithm_
+              << std::endl;
 }
 
-template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result) const {
-    std::cout << "evaluating " << name << std::endl;
+template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const {
+    std::cout << "dispatcher: evaluate: " << name << std::endl;
     const Problem::problem_t<T> &problem = policy.problem();
 
     result.name_ = name;
@@ -317,11 +360,38 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
     Random::set_seed(result.seed_);
 
     float start_time = Utils::read_time_in_seconds();
-    //Problem::hash_t<T> *hash = new Problem::hash_t<T>(problem);
-    //algorithm.solve(s, *hash);
+    std::pair<float, float> p = Online::Evaluation::evaluation_with_stdev(policy, problem.init(), num_trials, max_evaluation_depth, verbose);
+    result.eval_value_ = p.first;
+    result.eval_stdev_ = p.second;
     float end_time = Utils::read_time_in_seconds();
+
+    result.time_raw_ = end_time - start_time;
+    result.time_policy_ = 0; //XXXX time for policy
+    result.time_heuristic_ = 0; //XXXX time for heuristic
+    result.time_algorithm_ = result.time_raw_ - result.time_policy_ - result.time_heuristic_;
 }
 
+template<typename T> void dispatcher_t<T>::print(std::ostream &os, const evaluate_result_t &result) const {
+    std::cout << "BLAI: evaluate-stats: name= " << result.name_
+              << " seed= " << result.seed_
+              << " problem.expansions= " << result.problem_expansions_
+#if 0
+              << " hash.value= " << result.hash_value_
+              << " hash.updates= " << result.hash_updates_
+              << " hash.policy-size= " << result.hash_policy_size_
+              << " heuristic.eval-time= " << result.heuristic_eval_time_
+              << " heuristic.setup-time= " << result.heuristic_setup_time_
+              << " heuristic.evaluations= " << result.heuristic_evaluations_
+              << " heuristic.size= " << result.heuristic_size_
+#endif
+              << " time.raw= " << result.time_raw_
+              << " time.policy= " << result.time_policy_
+              << " time.heuristic= " << result.time_heuristic_
+              << " time.algorithm= " << result.time_algorithm_
+              << std::endl;
+}
+
+#if 0
 template<typename T> void dispatcher_t<T>::evaluate(const Problem::problem_t<T> &problem, const T &s, const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result) const {
     const Heuristic::heuristic_t<T> *heuristic = 0;//policy.heuristic_;
 
@@ -343,10 +413,8 @@ template<typename T> void dispatcher_t<T>::evaluate(const Problem::problem_t<T> 
     //float end_time = Utils::read_time_in_seconds();
     //result.total_time_ = end_time - start_time;
 }
-
-template<typename T> void dispatcher_t<T>::print(std::ostream &os, const evaluate_result_t &result) const {
-}
-
+#endif
+#if 0
 template<typename T> struct result_t {
     int algorithm_;
     const char *algorithm_name_;
@@ -390,6 +458,7 @@ inline void print_result(std::ostream &os, const result_t<T> *result) {
             << std::endl;
     }
 }
+#endif
 
 }; // namespace Dispatcher
 
@@ -398,6 +467,7 @@ namespace Online {
 
 namespace Evaluation {
 
+#if 0
 template<typename T>
 const Policy::policy_t<T>*
   fetch_policy(const std::string &name,
@@ -526,9 +596,7 @@ inline std::pair<const Policy::policy_t<T>*, std::string>
            << ")";
 
         // Make sure we have some base_policy to construct PAC
-std::cout << "HOLA (dispatcher.h): base policy=" << base_policy << std::endl;
         if( base_policy == 0 ) base_policy = new Policy::random_t<T>(problem);
-std::cout << "HOLA (dispatcher.h): " << ss.str() << std::endl;
 
         if( pac_tree ) {
             //policy = Policy::make_pac_tree(*base_policy, par.width_, par.depth_, par.par1_, random_ties);
@@ -631,7 +699,7 @@ template<typename T>
 inline std::pair<std::pair<float, float>, float>
   evaluate_policy(const Policy::policy_t<T> &policy,
                   const parameters_t &par,
-                  bool verbose = false) {
+                  bool verbose) {
     float start_time = Utils::read_time_in_seconds();
     std::pair<float, float> value =
       Evaluation::evaluation_with_stdev(policy,
@@ -642,6 +710,7 @@ inline std::pair<std::pair<float, float>, float>
     float time = Utils::read_time_in_seconds() - start_time;
     return std::make_pair(value, time);
 }
+#endif
 
 }; // namespace Evaluation
 
