@@ -1,6 +1,8 @@
+#include <cassert>
 #include <iostream>
 #include <strings.h>
 #include <vector>
+#include <string>
 
 #include <dispatcher.h>
 #include "sailing.h"
@@ -50,7 +52,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    // read dimensions
+    // read problem parameters
     if( argc == 2 ) {
         xdim = strtoul(argv[0], 0, 0);
         ydim = strtoul(argv[1], 0, 0);
@@ -93,7 +95,6 @@ int main(int argc, const char **argv) {
         dispatcher.solve(request, *algorithm, problem.init(), result);
         solve_results.push_back(result);
     }
-
     if( !solve_results.empty() ) {
         for( int i = 0; i < int(solve_results.size()); ++i )
             dispatcher.print(cout, solve_results[i]);
@@ -108,12 +109,10 @@ int main(int argc, const char **argv) {
         dispatcher.evaluate(request, *policy, problem.init(), result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
-
     if( !evaluate_results.empty() ) {
         for( int i = 0; i < int(evaluate_results.size()); ++i )
             dispatcher.print(cout, evaluate_results[i]);
     }
-
 
     cout << "main: total-time= " << Utils::read_time_in_seconds() - start_time << endl;
     return 0;
