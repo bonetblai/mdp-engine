@@ -18,8 +18,7 @@ namespace Online {
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: sailing [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>]  <x-dim> <y-dim>" << endl;
-    os << "usage: wet [-a <n>] [-b <n>] [-e <f>] [-g <f>] [-h <n>] [-p <f>] [-s <n>] [-X] [-Y|-Z] <size>" << endl;
+    os << "usage: wet [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] [{-x | --version-x}] [{-y | --version-y}] [{-z | --version-z}] <dim> <p>" << endl;
 }
 
 int main(int argc, const char **argv) {
