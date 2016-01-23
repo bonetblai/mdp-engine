@@ -126,7 +126,8 @@ class problem_t : public Problem::problem_t<state_t> {
     void fill_noisy_states() {
         if( r_ > 0.0 ) {
             Problem::hash_t<state_t> hash(*this);
-            Algorithm::generate_space(*this, init_, hash);
+            Algorithm::state_space_t<state_t> state_space(*this);
+            state_space.generate_space(init_, hash);
             for( Problem::hash_t<state_t>::const_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
                 if( Random::real() < r_ ) noisy_.insert((*hi).first);
             }
@@ -144,9 +145,18 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return true;
     }
+    virtual float max_absolute_cost() const {
+        return 1;
+    }
     virtual bool dead_end(const state_t &s) const { return false; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
+    }
+    virtual int max_action_branching() const {
+        return 2;
+    }
+    virtual int max_state_branching() const {
+        return 3;
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
         ++expansions_;
