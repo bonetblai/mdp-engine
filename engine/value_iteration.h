@@ -29,6 +29,50 @@
 
 namespace Algorithm {
 
+template<typename T> struct state_space_t {
+    const Problem::problem_t<T> &problem_;
+
+    state_space_t(const Problem::problem_t<T> &problem) : problem_(problem) {
+    }
+
+    void generate_space(const T &s, Problem::hash_t<T> &hash) {
+        std::list<std::pair<T, Hash::data_t*> > open;
+
+        std::vector<std::pair<T, float> > outcomes;
+        Hash::data_t *dptr = hash.data_ptr(s);
+        open.push_back(std::make_pair(s, dptr));
+        dptr->mark();
+
+#ifdef DEBUG
+        std::cout << "debug: generate-space(): marking " << s << std::endl;
+#endif
+
+        while( !open.empty() ) {
+            std::pair<T, Hash::data_t*> n = open.front();
+            open.pop_front();
+            if( problem_.terminal(n.first) ) continue;
+
+            for( Problem::action_t a = 0; a < problem_.number_actions(n.first); ++a ) {
+                if( problem_.applicable(n.first, a) ) {
+                    problem_.next(n.first, a, outcomes);
+                    unsigned osize = outcomes.size();
+                    for( unsigned i = 0; i < osize; ++i ) {
+                        Hash::data_t *ptr = hash.data_ptr(outcomes[i].first);
+                        if( !ptr->marked() ) {
+                            open.push_back(std::make_pair(outcomes[i].first, ptr));
+                            ptr->mark();
+#ifdef DEBUG
+                            std::cout << "debug: generate-space(): marking " << outcomes[i].first << std::endl;
+#endif
+                        }
+                    }
+                }
+            }
+        }
+        hash.unmark_all();
+    }
+};
+
 template<typename T> class value_iteration_t : public algorithm_t<T> {
   using algorithm_t<T>::problem_;
   using algorithm_t<T>::heuristic_;
@@ -95,7 +139,8 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         hash.set_eval_function(&eval_function);
         hash.clear();
 
-        generate_space(s, hash);
+        state_space_t<T> state_space(problem_);
+        state_space.generate_space(s, hash);
 
 #ifdef DEBUG
         std::cout << "debug: value-iteration(): state-space-size = " << hash.size() << std::endl;
@@ -132,7 +177,8 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         hash.set_eval_function(0);
     }
 
-    void generate_space(const T &s, Problem::hash_t<T> &hash) const {
+#if 0 // REMOVE
+    static void generate_space(const T &s, Problem::hash_t<T> &hash) {
         std::list<std::pair<T, Hash::data_t*> > open;
 
         std::vector<std::pair<T, float> > outcomes;
@@ -168,6 +214,7 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
         }
         hash.unmark_all();
     }
+#endif
 };
 
 }; // namespace Algorithm
