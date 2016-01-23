@@ -6,7 +6,6 @@
 
 #include "parsing.h"
 #include "algorithm.h"
-#include "parameters.h"
 #include "heuristic.h"
 
 #include "policy.h"
@@ -83,8 +82,8 @@ class problem_t : public Problem::problem_t<state_t> {
     mutable ecache_t *ecache_[9];
 
   public:
-    problem_t(grid_t &grid, float p = 1.0)
-      : Problem::problem_t<state_t>(DISCOUNT),
+    problem_t(grid_t &grid, float p = 1.0, float dead_end_value = 1e3)
+      : Problem::problem_t<state_t>(DISCOUNT, dead_end_value),
         grid_(grid), p_(p), rows_(grid.rows()), cols_(grid.cols()),
         init_(std::numeric_limits<short>::max(), std::numeric_limits<short>::max(),
               std::numeric_limits<short>::max(), std::numeric_limits<short>::max()) {
@@ -113,8 +112,17 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return (a == 0) || (s != init_);
     }
+    virtual float max_absolute_cost() const {
+        return 1;
+    }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : 1;
+    }
+    virtual int max_action_branching() const {
+        return 9;
+    }
+    virtual int max_state_branching() const {
+        return 2;
     }
     virtual void next(const state_t &s, Problem::action_t a, std::vector<std::pair<state_t, float> > &outcomes) const {
         ++expansions_;
