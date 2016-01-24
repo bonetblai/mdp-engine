@@ -47,6 +47,7 @@ template<typename T> class algorithm_t {
     virtual std::string name() const = 0;
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) = 0;
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const = 0;
+    virtual void reset_stats(Problem::hash_t<T> &hash) const = 0;
     unsigned seed() const { return seed_; }
     const Problem::problem_t<T>& problem() const { return problem_; }
     const Heuristic::heuristic_t<T>* heuristic() const { return heuristic_; }

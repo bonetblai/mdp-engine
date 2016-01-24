@@ -475,6 +475,12 @@ template<typename T> class aot_t : public improvement_t<T> {
         return width_ == 0 ? (*base_policy_)(s) : root->best_action(random_ties_);
     }
 
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        if( base_policy_ != 0 ) base_policy_->reset_stats();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+    }
+
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;

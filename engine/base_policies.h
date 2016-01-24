@@ -54,6 +54,9 @@ template<typename T> class random_t : public policy_t<T> {
         }
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+    }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
@@ -84,6 +87,9 @@ template<typename T> class hash_policy_t : public policy_t<T> {
         assert(problem_.applicable(s, p.first));
         return p.first;
     }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+    }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
@@ -109,8 +115,11 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
       : hash_policy_t<T>(problem), algorithm_(0) {
       hash_ = new Problem::hash_t<T>(problem_);
     }
-    virtual ~optimal_policy_t() { delete hash_; }
-    virtual policy_t<T>* clone() const { return new optimal_policy_t(problem_, hash_, algorithm_); }
+    virtual ~optimal_policy_t() {
+        delete hash_; }
+    virtual policy_t<T>* clone() const {
+        return new optimal_policy_t(problem_, hash_, algorithm_);
+    }
     virtual std::string name() const {
         return std::string("optimal(algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) + ")";
     }
@@ -222,6 +231,10 @@ template<typename T> class base_greedy_t : public policy_t<T> {
             //std::cout << "BASE: cached result: state=" << s << ", action=" << it->second << std::endl;
             return it->second;
         }
+    }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;

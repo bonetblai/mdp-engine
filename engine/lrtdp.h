@@ -30,9 +30,11 @@
 namespace Algorithm {
 
 template<typename T> class lrtdp_base_t : public algorithm_t<T> {
+  protected:
   using algorithm_t<T>::problem_;
   using algorithm_t<T>::heuristic_;
   using algorithm_t<T>::seed_;
+
   protected:
     int type_;
     float epsilon_;
@@ -159,9 +161,7 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
 
     size_t lrtdp(const T &s, Problem::hash_t<T> &hash) const {
         Heuristic::wrapper_t<T> eval_function(heuristic_);
-        if( heuristic_ != 0 ) heuristic_->reset_stats();
         hash.set_eval_function(&eval_function);
-        hash.clear();
 
         size_t trials = 0, max_steps = 0;
         while( !hash.solved(s) ) {
@@ -176,6 +176,9 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
 };
 
 template<typename T> class standard_lrtdp_t : public lrtdp_base_t<T> {
+  protected:
+  using lrtdp_base_t<T>::heuristic_;
+
   protected:
     standard_lrtdp_t(const Problem::problem_t<T> &problem,
                      float epsilon,
@@ -197,11 +200,21 @@ template<typename T> class standard_lrtdp_t : public lrtdp_base_t<T> {
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
+        reset_stats(hash);
         lrtdp_base_t<T>::lrtdp(s, hash);
+    }
+
+    virtual void reset_stats(Problem::hash_t<T> &hash) const {
+        algorithm_t<T>::problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+        hash.clear();
     }
 };
 
 template<typename T> class uniform_lrtdp_t : public lrtdp_base_t<T> {
+  protected:
+  using lrtdp_base_t<T>::heuristic_;
+
   protected:
     uniform_lrtdp_t(const Problem::problem_t<T> &problem,
                     float epsilon,
@@ -223,11 +236,21 @@ template<typename T> class uniform_lrtdp_t : public lrtdp_base_t<T> {
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
+        reset_stats(hash);
         lrtdp_base_t<T>::lrtdp(s, hash);
+    }
+
+    virtual void reset_stats(Problem::hash_t<T> &hash) const {
+        algorithm_t<T>::problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+        hash.clear();
     }
 };
 
 template<typename T> class bounded_lrtdp_t : public lrtdp_base_t<T> {
+  protected:
+  using lrtdp_base_t<T>::heuristic_;
+
   protected:
     bounded_lrtdp_t(const Problem::problem_t<T> &problem,
                     float epsilon,
@@ -249,7 +272,14 @@ template<typename T> class bounded_lrtdp_t : public lrtdp_base_t<T> {
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
+        reset_stats(hash);
         lrtdp_base_t<T>::lrtdp(s, hash);
+    }
+
+    virtual void reset_stats(Problem::hash_t<T> &hash) const {
+        algorithm_t<T>::problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+        hash.clear();
     }
 };
 

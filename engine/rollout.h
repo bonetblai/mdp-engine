@@ -91,6 +91,10 @@ template<typename T> class rollout_t : public improvement_t<T> {
         assert(best_action != Problem::noop);
         return best_action;
     }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        if( base_policy_ != 0 ) base_policy_->reset_stats();
+    }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
@@ -169,6 +173,10 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         assert(!nested_policies_.empty());
         return (*nested_policies_.back())(s);
+    }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        nested_policies_.back()->reset_stats();
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;

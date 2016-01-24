@@ -415,6 +415,11 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         assert(problem_.applicable(s, action));
         return action;
     }
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        if( base_policy_ != 0 ) base_policy_->reset_stats();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+    }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;

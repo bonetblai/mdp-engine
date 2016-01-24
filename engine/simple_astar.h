@@ -79,10 +79,9 @@ template<typename T> class simple_astar_t : public algorithm_t<T> {
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
+        reset_stats(hash);
         Heuristic::wrapper_t<T> eval_function(heuristic_);
-        if( heuristic_ != 0 ) heuristic_->reset_stats();
         hash.set_eval_function(&eval_function);
-        hash.clear();
 
         priority_queue_t open;
         std::vector<std::pair<T, float> > outcomes;
@@ -172,6 +171,12 @@ template<typename T> class simple_astar_t : public algorithm_t<T> {
         }
         //return std::numeric_limits<size_t>::max(); // NEED FIX
         hash.set_eval_function(0);
+    }
+
+    virtual void reset_stats(Problem::hash_t<T> &hash) const {
+        algorithm_t<T>::problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+        hash.clear();
     }
 };
 

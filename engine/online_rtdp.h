@@ -174,6 +174,11 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         return best_action(root, random_ties_);
     }
 
+    virtual void reset_stats() const {
+        problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+    }
+
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
         os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;

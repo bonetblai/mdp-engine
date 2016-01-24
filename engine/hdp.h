@@ -80,10 +80,9 @@ template<typename T> class hdp_t : public algorithm_t<T> {
     }
 
     virtual void solve(const T &s, Problem::hash_t<T> &hash) const {
+        reset_stats(hash);
         Heuristic::wrapper_t<T> eval_function(heuristic_);
-        if( heuristic_ != 0 ) heuristic_->reset_stats();
         hash.set_eval_function(&eval_function);
-        hash.clear();
 
         std::list<Hash::data_t*> stack, visited;
         Hash::data_t *dptr = hash.data_ptr(s);
@@ -101,6 +100,12 @@ template<typename T> class hdp_t : public algorithm_t<T> {
             ++trials;
         }
         hash.set_eval_function(0);
+    }
+
+    virtual void reset_stats(Problem::hash_t<T> &hash) const {
+        algorithm_t<T>::problem_.clear_expansions();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
+        hash.clear();
     }
 
     bool hdp(const T &s,

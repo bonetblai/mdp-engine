@@ -52,6 +52,7 @@ template<typename T> class policy_t {
     virtual policy_t<T>* clone() const = 0;
     virtual std::string name() const = 0;
     virtual Problem::action_t operator()(const T &s) const = 0;
+    virtual void reset_stats() const = 0;
     virtual void print_stats(std::ostream &os) const = 0;
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) = 0;
     unsigned seed() const { return seed_; }
