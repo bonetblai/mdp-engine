@@ -88,11 +88,11 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
         if( it != parameters.end() ) seed_ = strtol(it->second.c_str(), 0, 0);
 #ifdef DEBUG
         std::cout << "debug: lrtdp-base(): params:"
-                  << " epsilon= " << epsilon_
-                  << " bound= " << bound_
-                  << " epsilon-greedy= " << epsilon_greedy_
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
-                  << " seed= " << seed_
+                  << " epsilon=" << epsilon_
+                  << " bound=" << bound_
+                  << " epsilon-greedy=" << epsilon_greedy_
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " seed=" << seed_
                   << std::endl;
 #endif
     }

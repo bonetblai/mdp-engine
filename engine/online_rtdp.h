@@ -201,11 +201,11 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: finite-horizon-lrtdp(): params:"
-                  << " horizon= " << horizon_
-                  << " max-trials= " << max_trials_
-                  << " labeling= " << (labeling_ ? "true" : "false")
-                  << " random-ties= " << (random_ties_ ? "true" : "false")
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " horizon=" << horizon_
+                  << " max-trials=" << max_trials_
+                  << " labeling=" << (labeling_ ? "true" : "false")
+                  << " random-ties=" << (random_ties_ ? "true" : "false")
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
                   << std::endl;
 #endif
     }

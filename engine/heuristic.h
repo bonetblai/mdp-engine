@@ -131,7 +131,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: min-min(): params:"
-                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << " algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
                   << std::endl;
 #endif
         solve_problem();
@@ -143,7 +143,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
             exit(1);
         }
 #ifdef DEBUG
-        std::cout << "debug: min-min(): solving with algorithm=" << algorithm_->name() << std::endl;
+        std::cout << "debug: min-min(): solving problem with algorithm=" << algorithm_->name() << std::endl;
 #endif
         float start_time = Utils::read_time_in_seconds();
         algorithm_->solve(problem_.init(), *hash_);
@@ -218,7 +218,7 @@ template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: optimal(): params:"
-                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << " algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
                   << std::endl;
 #endif
         solve_problem();
@@ -230,7 +230,7 @@ template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
             exit(1);
         }
 #ifdef DEBUG
-        std::cout << "debug: optimal(): solving with algorithm=" << algorithm_->name() << std::endl;
+        std::cout << "debug: optimal(): solving problem with algorithm=" << algorithm_->name() << std::endl;
 #endif
         float start_time = Utils::read_time_in_seconds();
         assert(algorithm_ != 0);
@@ -281,8 +281,8 @@ template<typename T> class scaled_heuristic_t : public heuristic_t<T> {
         it = parameters.find("heuristic");
 #ifdef DEBUG
         std::cout << "debug: scaled(): params:"
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
-                  << " weight= " << weight_
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " weight=" << weight_
                   << std::endl;
 #endif
     }

@@ -188,11 +188,11 @@ template<typename T> class uct_t : public improvement_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: uct(): params:"
-                  << " width= " << width_
-                  << " horizon= " << horizon_
-                  << " parameter= " << parameter_
-                  << " random-ties= " << (random_ties_ ? "true" : "false")
-                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " width=" << width_
+                  << " horizon=" << horizon_
+                  << " parameter=" << parameter_
+                  << " random-ties=" << (random_ties_ ? "true" : "false")
+                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
                   << std::endl;
 #endif
     }

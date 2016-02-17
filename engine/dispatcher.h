@@ -329,19 +329,19 @@ template<typename T> void dispatcher_t<T>::solve(const std::string &name, const 
 }
 
 template<typename T> void dispatcher_t<T>::print(std::ostream &os, const solve_result_t &result) const {
-    std::cout << "solve-stats: name= " << result.name_
-              << " seed= " << result.seed_
-              << " problem.expansions= " << result.problem_expansions_
-              << " hash.value= " << result.hash_value_
-              << " hash.updates= " << result.hash_updates_
-              << " hash.policy-size= " << result.hash_policy_size_
-              << " heuristic.eval-time= " << result.heuristic_eval_time_
-              << " heuristic.setup-time= " << result.heuristic_setup_time_
-              << " heuristic.evaluations= " << result.heuristic_evaluations_
-              << " heuristic.size= " << result.heuristic_size_
-              << " time.raw= " << result.time_raw_
-              << " time.heuristic= " << result.time_heuristic_
-              << " time.algorithm= " << result.time_algorithm_
+    std::cout << "solve-stats: name=" << result.name_
+              << " seed=" << result.seed_
+              << " problem.expansions=" << result.problem_expansions_
+              << " hash.value=" << result.hash_value_
+              << " hash.updates=" << result.hash_updates_
+              << " hash.policy-size=" << result.hash_policy_size_
+              << " heuristic.eval-time=" << result.heuristic_eval_time_
+              << " heuristic.setup-time=" << result.heuristic_setup_time_
+              << " heuristic.evaluations=" << result.heuristic_evaluations_
+              << " heuristic.size=" << result.heuristic_size_
+              << " time.raw=" << result.time_raw_
+              << " time.heuristic=" << result.time_heuristic_
+              << " time.algorithm=" << result.time_algorithm_
               << std::endl;
 }
 
@@ -371,11 +371,11 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
 }
 
 template<typename T> void dispatcher_t<T>::print(std::ostream &os, const evaluate_result_t &result) const {
-    std::cout << "evaluate-stats: name= " << result.name_
-              << " seed= " << result.seed_
-              << " problem.expansions= " << result.problem_expansions_
-              << " eval.value= " << result.eval_value_
-              << " eval.stdev= " << result.eval_stdev_
+    std::cout << "evaluate-stats: name=" << result.name_
+              << " seed=" << result.seed_
+              << " problem.expansions=" << result.problem_expansions_
+              << " eval.value=" << result.eval_value_
+              << " eval.stdev=" << result.eval_stdev_
 #if 0
               << " hash.value= " << result.hash_value_
               << " hash.updates= " << result.hash_updates_
@@ -385,10 +385,10 @@ template<typename T> void dispatcher_t<T>::print(std::ostream &os, const evaluat
               << " heuristic.evaluations= " << result.heuristic_evaluations_
               << " heuristic.size= " << result.heuristic_size_
 #endif
-              << " time.raw= " << result.time_raw_
-              << " time.policy= " << result.time_policy_
-              << " time.heuristic= " << result.time_heuristic_
-              << " time.algorithm= " << result.time_algorithm_
+              << " time.raw=" << result.time_raw_
+              << " time.policy=" << result.time_policy_
+              << " time.heuristic=" << result.time_heuristic_
+              << " time.algorithm=" << result.time_algorithm_
               << std::endl;
 }
 

@@ -133,7 +133,7 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
         solve_problem();
 #ifdef DEBUG
         std::cout << "debug: optimal(): params:"
-                  << " algorithm= " << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << " algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
                   << std::endl;
 #endif
     }
@@ -144,7 +144,7 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
             exit(1);
         }
 #ifdef DEBUG
-        std::cout << "debug: optimal(): solving with algorithm=" << algorithm_->name() << std::endl;
+        std::cout << "debug: optimal(): solving problem with algorithm=" << algorithm_->name() << std::endl;
 #endif
         algorithm_->solve(problem_.init(), *hash_);
     }

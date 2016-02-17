@@ -115,10 +115,10 @@ template<typename T> class rollout_t : public improvement_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: rollout(): params:"
-                  << " width= " << width_
-                  << " depth= " << depth_
-                  << " nesting= " << nesting_
-                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " width=" << width_
+                  << " depth=" << depth_
+                  << " nesting=" << nesting_
+                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
                   << std::endl;
 #endif
     }
@@ -198,10 +198,10 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: nested-rollout(): params:"
-                  << " width= " << width_
-                  << " depth= " << depth_
-                  << " nesting= " << nesting_
-                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " width=" << width_
+                  << " depth=" << depth_
+                  << " nesting=" << nesting_
+                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
                   << std::endl;
 #endif
         make_nested_policies();

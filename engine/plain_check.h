@@ -124,9 +124,9 @@ template<typename T> class plain_check_t : public algorithm_t<T> {
         if( it != parameters.end() ) seed_ = strtol(it->second.c_str(), 0, 0);
 #ifdef DEBUG
         std::cout << "debug: plain-check(): params:"
-                  << " epsilon= " << epsilon_
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
-                  << " seed= " << seed_
+                  << " epsilon=" << epsilon_
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " seed=" << seed_
                   << std::endl;
 #endif
     }

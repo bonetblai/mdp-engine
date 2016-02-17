@@ -30,7 +30,7 @@
 #include <vector>
 #include <math.h>
 
-//#define DEBUG
+#define DEBUG
 
 namespace Online {
 
@@ -160,7 +160,11 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     float damping_;
     unsigned max_num_samples_;
 
-    mutable const Heuristic::heuristic_t<T> *heuristic_;
+    const Heuristic::heuristic_t<T> *heuristic_;
+
+    const Algorithm::algorithm_t<T> *algorithm_; // CHECK
+    Problem::hash_t<T> *hash_;
+    float g_;
 
     // computed parameters
     float gamma_;
@@ -184,7 +188,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                float epsilon,
                float damping,
                unsigned max_num_samples,
-               const Heuristic::heuristic_t<T> *heuristic)
+               const Heuristic::heuristic_t<T> *heuristic,
+               const Algorithm::algorithm_t<T> *algorithm,
+               Problem::hash_t<T> *hash,
+               float g)
       : improvement_t<T>(problem, base_policy),
         width_(width),
         horizon_(horizon),
@@ -193,8 +200,13 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         epsilon_(epsilon),
         damping_(damping),
         max_num_samples_(max_num_samples),
-        heuristic_(heuristic) {
+        heuristic_(heuristic),
+        algorithm_(algorithm),
+        hash_(hash),
+        g_(g) {
+std::cout << "HOLA.1" << std::endl;
         calculate_parameters();
+std::cout << "HOLA.2" << std::endl;
     }
 
   public:
@@ -207,21 +219,35 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         epsilon_(.1),
         damping_(.8),
         max_num_samples_(10),
-        heuristic_(0) {
+        heuristic_(0),
+        algorithm_(0),
+        hash_(0),
+        g_(.9) {
         gamma_ = problem_.discount();
         num_nodes_pruned_ = 0;
         num_a_nodes_pruned_ = 0;
         num_evaluations_ = 0;
+std::cout << "HOLA.3" << std::endl;
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
-        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, heuristic_);
+        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, heuristic_, algorithm_, hash_, g_);
     }
     virtual std::string name() const {
-        return std::string("pac-tree(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+        return std::string("pac-tree(") +
           std::string(",width=") + std::to_string(width_) +
           std::string(",horizon=") + std::to_string(horizon_) +
-          std::string(",random-ties=") + (random_ties_ ? "true" : "false") + ")";
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") + ")" +
+          std::string(",delta=") + std::to_string(delta_) +
+          std::string(",epsilon=") + std::to_string(epsilon_) +
+          std::string(",damping=") + std::to_string(damping_) +
+          std::string(",max-num-samples=") + std::to_string(max_num_samples_) +
+          std::string("policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+          std::string("heuristic=") + (heuristic_ == 0 ? std::string("null") : heuristic_->name()) +
+          std::string("algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) +
+          std::string("hash=") + std::to_string((long long unsigned)hash_) +
+          std::string("g=") + std::to_string(g_) +
+          std::string(")");
     }
 
     void calculate_parameters() {
@@ -419,6 +445,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
+        //if( algorithm_ != 0 ) algorithm_->reset_stats(*hash_);
     }
     virtual void print_stats(std::ostream &os) const {
         os << "stats: policy=" << name() << std::endl;
@@ -457,18 +484,31 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
 
+        it = parameters.find("algorithm");
+        if( it != parameters.end() ) {
+            delete algorithm_;
+            dispatcher.create_request(problem_, it->first, it->second);
+            algorithm_ = dispatcher.fetch_algorithm(it->second);
+        }
+        it = parameters.find("g");
+        if( it != parameters.end() ) g_ = strtod(it->second.c_str(), 0);
+
         calculate_parameters();
+        if( algorithm_ != 0 ) solve_problem();
 #ifdef DEBUG
         std::cout << "debug: pac(): params:"
-                  << " width= " << width_
-                  << " horizon= " << horizon_
-                  << " random-ties= " << random_ties_
-                  << " delta= " << delta_
-                  << " epsilon= " << epsilon_
-                  << " damping= " << damping_
-                  << " max-num-samples= " << max_num_samples_
-                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " width=" << width_
+                  << " horizon=" << horizon_
+                  << " random-ties=" << random_ties_
+                  << " delta=" << delta_
+                  << " epsilon=" << epsilon_
+                  << " damping=" << damping_
+                  << " max-num-samples=" << max_num_samples_
+                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
+                  << " hash=" << hash_
+                  << " g=" << g_
                   << std::endl;
 #endif
     }
@@ -476,8 +516,17 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     void compute_bounds(state_node_t<T> &node) const {
         assert(node.lower_bound_ == 0);
         assert(node.upper_bound_ == 0);
-        node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
-        node.upper_bound_ = evaluate(node);
+        if( algorithm_ != 0 ) {
+            int depth = node.depth_;
+            float value = hash_->value(*node.state_);
+            node.lower_bound_ = (1 - powf(g_, 2 * depth)) * value;
+            node.upper_bound_ = (1 + powf(g_, 2 * depth)) * value;
+            std::cout << "bound[depth=" << int(node.depth_) << " " << node.lower_bound_ << " <= " << value << " <= " << node.upper_bound_ << "]" << std::endl;
+            std::cout << "B: " << hash_->value(problem_.init()) << std::endl;
+        } else {
+            node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
+            node.upper_bound_ = evaluate(node);
+        }
     }
 
     bool solved(const state_node_t<T> &node) const {
@@ -706,6 +755,20 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             if( (right < heap.size()) && (heap[i]->score_ < heap[right]->score_) ) return false;
         }
         return true;
+    }
+
+    void solve_problem() {
+        if( algorithm_ == 0 ) {
+            std::cout << "error: algorithm must be specified for solving problem!" << std::endl;
+            exit(1);
+        }
+#ifdef DEBUG
+        std::cout << "debug: pac-tree(): solving problem with algorithm=" << algorithm_->name() << std::endl;
+#endif
+        delete hash_;
+        hash_ = new Problem::hash_t<T>(problem_);
+        algorithm_->solve(problem_.init(), *hash_);
+        std::cout << "INIT=" << problem_.init() << std::endl << "VALUE=" << hash_->value(problem_.init()) << std::endl;
     }
 };
 

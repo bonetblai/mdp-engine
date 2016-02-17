@@ -517,13 +517,13 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
 #ifdef DEBUG
         std::cout << "debug: aot(): params:"
-                  << " width= " << width_
-                  << " horizon= " << horizon_
-                  << " probability= " << probability_
-                  << " expansions-per-iteration= " << expansions_per_iteration_
-                  << " random-ties= " << (random_ties_ ? "true" : "false")
-                  << " policy= " << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
-                  << " heuristic= " << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
+                  << " width=" << width_
+                  << " horizon=" << horizon_
+                  << " probability=" << probability_
+                  << " expansions-per-iteration=" << expansions_per_iteration_
+                  << " random-ties=" << (random_ties_ ? "true" : "false")
+                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
                   << std::endl;
 #endif
     }
