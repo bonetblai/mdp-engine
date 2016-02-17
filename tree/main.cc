@@ -65,7 +65,7 @@ int main(int argc, const char **argv) {
     }
 
     // build problem instances
-    cout << "main: seed= " << Algorithm::g_seed << endl;
+    cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
     problem_t problem(size, p, q, r);
 
@@ -93,31 +93,35 @@ int main(int argc, const char **argv) {
     vector<Dispatcher::dispatcher_t<state_t>::solve_result_t> solve_results;
     for( int i = 0; i < int(algorithms.size()); ++i ) {
         const string &request = algorithms[i].first;
-        Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
+        const Algorithm::algorithm_t<state_t> &algorithm = *algorithms[i].second;
         Dispatcher::dispatcher_t<state_t>::solve_result_t result;
-        dispatcher.solve(request, *algorithm, problem.init(), result);
+        dispatcher.solve(request, algorithm, problem.init(), result);
         solve_results.push_back(result);
     }
     if( !solve_results.empty() ) {
-        for( int i = 0; i < int(solve_results.size()); ++i )
-            dispatcher.print(cout, solve_results[i]);
+        for( int i = 0; i < int(solve_results.size()); ++i ) {
+            const Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
+            dispatcher.print_stats(cout, solve_results[i], algorithm);
+        }
     }
 
     // evaluate requested policies
     vector<Dispatcher::dispatcher_t<state_t>::evaluate_result_t> evaluate_results;
     for( int i = 0; i < int(policies.size()); ++i ) {
         const string &request = policies[i].first;
-        Online::Policy::policy_t<state_t> *policy = policies[i].second;
+        const Online::Policy::policy_t<state_t> &policy = *policies[i].second;
         Dispatcher::dispatcher_t<state_t>::evaluate_result_t result;
-        dispatcher.evaluate(request, *policy, problem.init(), result, num_trials, 100, true);
+        dispatcher.evaluate(request, policy, problem.init(), result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
     if( !evaluate_results.empty() ) {
-        for( int i = 0; i < int(evaluate_results.size()); ++i )
-            dispatcher.print(cout, evaluate_results[i]);
+        for( int i = 0; i < int(evaluate_results.size()); ++i ) {
+            const Online::Policy::policy_t<state_t> *policy = policies[i].second;
+            dispatcher.print_stats(cout, evaluate_results[i], policy);
+        }
     }
 
-    cout << "main: total-time= " << Utils::read_time_in_seconds() - start_time << endl;
+    cout << "main: total-time=" << Utils::read_time_in_seconds() - start_time << endl;
     return 0;
 }
 

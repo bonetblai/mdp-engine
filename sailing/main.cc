@@ -62,7 +62,7 @@ int main(int argc, const char **argv) {
     }
 
     // build problem instances
-    cout << "main: seed= " << Algorithm::g_seed << endl;
+    cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
     problem_t problem(xdim, ydim);
 
@@ -119,7 +119,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    cout << "main: total-time= " << Utils::read_time_in_seconds() - start_time << endl;
+    cout << "main: total-time=" << Utils::read_time_in_seconds() - start_time << endl;
     return 0;
 }
 

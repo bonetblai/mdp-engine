@@ -767,6 +767,8 @@ class ctp_optimistic_policy_t : public Online::Policy::policy_t<state_t> {
     }
     virtual void print_stats(std::ostream &os) const { }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<state_t> &dispatcher) { }
+    virtual void reset_stats() const { }
+    virtual void print_other_stats(std::ostream &os, int indent) const { }
 };
 
 inline void sample_weather(const CTP::graph_t &graph, state_t &state) {
