@@ -57,9 +57,11 @@ template<typename T> class random_t : public policy_t<T> {
     virtual void reset_stats() const {
         problem_.clear_expansions();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << std::endl;
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
     }
@@ -90,9 +92,11 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     virtual void reset_stats() const {
         problem_.clear_expansions();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << std::endl;
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
     }
@@ -140,7 +144,7 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
 
     void solve_problem() {
         if( algorithm_ == 0 ) {
-            std::cout << "error: algorithm must be specified for optimal() policy!" << std::endl;
+            std::cout << Utils::error() << "algorithm must be specified for optimal() policy!" << std::endl;
             exit(1);
         }
 #ifdef DEBUG
@@ -236,9 +240,11 @@ template<typename T> class base_greedy_t : public policy_t<T> {
         problem_.clear_expansions();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << std::endl;
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("optimistic");

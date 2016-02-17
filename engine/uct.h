@@ -144,7 +144,7 @@ template<typename T> class uct_t : public improvement_t<T> {
 
     virtual Problem::action_t operator()(const T &s) const {
         if( base_policy_ == 0 ) {
-            std::cout << "error: (base) policy must be specified for uct() policy!" << std::endl;
+            std::cout << Utils::error() << "(base) policy must be specified for uct() policy!" << std::endl;
             exit(1);
         }
 
@@ -166,10 +166,12 @@ template<typename T> class uct_t : public improvement_t<T> {
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        base_policy_->print_stats(os);
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << std::endl;
+        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");

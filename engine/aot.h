@@ -23,6 +23,7 @@
 #include "bdd_priority_queue.h"
 
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <cassert>
 #include <limits>
@@ -417,7 +418,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     virtual Problem::action_t operator()(const T &s) const {
         if( base_policy_ == 0 ) {
-            std::cout << "error: (base) policy must be specified for aot() policy!" << std::endl;
+            std::cout << Utils::error() << "(base) policy must be specified for aot() policy!" << std::endl;
             exit(1);
         }
 
@@ -481,16 +482,16 @@ template<typename T> class aot_t : public improvement_t<T> {
         if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
 
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        os << "stats: %in=" << from_inside_ / (from_inside_ + from_outside_)
-           << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << " %in=" << from_inside_ / (from_inside_ + from_outside_)
+           << " %out=" << from_outside_ / (from_inside_ + from_outside_)
+           << " #expansions=" << total_number_expansions_
+           << " #evaluations=" << total_evaluations_
            << std::endl;
-        os << "stats: #expansions=" << total_number_expansions_
-           << ", #evaluations=" << total_evaluations_
-           << std::endl;
-        base_policy_->print_stats(os);
+        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
@@ -529,7 +530,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     void print_tree(std::ostream &os) const {
-        std::cout << "error: not yet implemented" << std::endl;
+        std::cout << Utils::error() << "not yet implemented" << std::endl;
         assert(0);
     }
 

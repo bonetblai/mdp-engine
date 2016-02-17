@@ -95,10 +95,12 @@ template<typename T> class rollout_t : public improvement_t<T> {
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        base_policy_->print_stats(os);
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << std::endl;
+        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
@@ -125,7 +127,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
 
     float evaluate(const T &s) const {
         if( base_policy_ == 0 ) {
-            std::cout << "error: (base) policy must be specified for rollout() policy!" << std::endl;
+            std::cout << Utils::error() << "(base) policy must be specified for rollout() policy!" << std::endl;
             exit(1);
         }
         return Evaluation::evaluation(*base_policy_, s, 1, depth_);
@@ -178,10 +180,11 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
         problem_.clear_expansions();
         nested_policies_.back()->reset_stats();
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name() << std::endl;
         for( int i = 0; i < int(nested_policies_.size()); ++i )
-            nested_policies_[i]->print_stats(os);
+            nested_policies_[i]->print_other_stats(os, 2 + indent);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
@@ -214,7 +217,7 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
 
     void make_nested_policies() {
         if( base_policy_ == 0 ) {
-            std::cout << "error: (base) policy must be specified for nested-rollout() policy!" << std::endl;
+            std::cout << Utils::error() << "(base) policy must be specified for nested-rollout() policy!" << std::endl;
             exit(1);
         }
         nested_policies_.reserve(1 + nesting_);

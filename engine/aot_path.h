@@ -428,20 +428,20 @@ template<typename T> class aot_t : public improvement_t<T> {
                          leaf_selection_strategy_);
     }
 
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << policy_t<T>::name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        os << "stats: %in=" << from_inside_ / (from_inside_ + from_outside_)
-           << ", %out=" << from_outside_ / (from_inside_ + from_outside_)
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << policy_t<T>::name()
+           << " decisions=" << policy_t<T>::decisions_
+           << " %in=" << from_inside_ / (from_inside_ + from_outside_)
+           << " %out=" << from_outside_ / (from_inside_ + from_outside_)
+           << " #expansions=" << total_number_expansions_
+           << " #evaluations=" << total_evaluations_
            << std::endl;
-        os << "stats: #expansions=" << total_number_expansions_
-           << ", #evaluations=" << total_evaluations_
-           << std::endl;
-        base_policy_.print_stats(os);
+        if( base_policy_ != 0 ) base_policy_.print_other_stats(os, 2 + indent);
     }
 
     void print_tree(std::ostream &os) const {
-        std::cout << "error: not yet implemented" << std::endl;
+        std::cout << Utils::error() << "not yet implemented" << std::endl;
         assert(0);
     }
 

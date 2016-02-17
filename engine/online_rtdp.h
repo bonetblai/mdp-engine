@@ -179,10 +179,12 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
 
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        os << "stats: #expansions=" << total_number_expansions_ << std::endl;
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << " #expansions=" << total_number_expansions_
+           << std::endl;
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("horizon");

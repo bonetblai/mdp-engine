@@ -139,7 +139,7 @@ template<typename T> class min_min_heuristic_t : public heuristic_t<T> {
 
     void solve_problem() {
         if( algorithm_ == 0 ) {
-            std::cout << "error: algorithm must be specified for min-min() heuristic!" << std::endl;
+            std::cout << Utils::error() << "algorithm must be specified for min-min() heuristic!" << std::endl;
             exit(1);
         }
 #ifdef DEBUG
@@ -181,7 +181,7 @@ template<typename T> class hash_heuristic_t : public heuristic_t<T> {
     virtual size_t size() const { return hash_->size(); }
     virtual void dump(std::ostream &os) const { hash_->dump(os); }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
-        std::cout << "error: hash_heuristic_t: set_parameters not supported" << std::endl;
+        std::cout << Utils::error() << "hash_heuristic_t: set_parameters not supported" << std::endl;
     }
 };
 
@@ -226,7 +226,7 @@ template<typename T> class optimal_heuristic_t : public hash_heuristic_t<T> {
 
     void solve_problem() {
         if( algorithm_ == 0 ) {
-            std::cout << "error: algorithm must be specified for optimal() heuristic!" << std::endl;
+            std::cout << Utils::error() << "algorithm must be specified for optimal() heuristic!" << std::endl;
             exit(1);
         }
 #ifdef DEBUG
