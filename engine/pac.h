@@ -30,7 +30,7 @@
 #include <vector>
 #include <math.h>
 
-#define DEBUG
+//#define DEBUG
 //#define DEBUG2
 
 namespace Online {
@@ -97,10 +97,11 @@ template<typename T> struct state_node_t : public node_t<T> {
     using node_t<T>::depth_;
     using node_t<T>::children_;
 
+    mutable int best_child_;
     mutable float score_;
 
     state_node_t(const T &state, unsigned char depth, node_t<T> *parent)
-      : node_t<T>(state, depth, parent), score_(0) {
+      : node_t<T>(state, depth, parent), best_child_(-1), score_(0) {
     }
     virtual ~state_node_t() { }
 
@@ -160,6 +161,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     float epsilon_;
     float damping_;
     unsigned max_num_samples_;
+    bool soft_pruning_;
 
     const Heuristic::heuristic_t<T> *heuristic_;
 
@@ -196,6 +198,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                float epsilon,
                float damping,
                unsigned max_num_samples,
+               bool soft_pruning,
                const Heuristic::heuristic_t<T> *heuristic,
                const Algorithm::algorithm_t<T> *algorithm,
                Problem::hash_t<T> *hash,
@@ -208,6 +211,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         epsilon_(epsilon),
         damping_(damping),
         max_num_samples_(max_num_samples),
+        soft_pruning_(soft_pruning),
         heuristic_(heuristic),
         algorithm_(algorithm),
         hash_(hash),
@@ -225,6 +229,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         epsilon_(.1),
         damping_(.8),
         max_num_samples_(10),
+        soft_pruning_(true),
         heuristic_(0),
         algorithm_(0),
         hash_(0),
@@ -237,22 +242,23 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
-        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, heuristic_, algorithm_, hash_, g_);
+        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, soft_pruning_, heuristic_, algorithm_, hash_, g_);
     }
     virtual std::string name() const {
         return std::string("pac-tree(") +
-          std::string(",width=") + std::to_string(width_) +
+          std::string("width=") + std::to_string(width_) +
           std::string(",horizon=") + std::to_string(horizon_) +
-          std::string(",random-ties=") + (random_ties_ ? "true" : "false") + ")" +
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") +
           std::string(",delta=") + std::to_string(delta_) +
           std::string(",epsilon=") + std::to_string(epsilon_) +
           std::string(",damping=") + std::to_string(damping_) +
           std::string(",max-num-samples=") + std::to_string(max_num_samples_) +
-          std::string("policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
-          std::string("heuristic=") + (heuristic_ == 0 ? std::string("null") : heuristic_->name()) +
-          std::string("algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) +
-          std::string("hash=") + std::to_string((long long unsigned)hash_) +
-          std::string("g=") + std::to_string(g_) +
+          std::string(",sort-pruning=") + (soft_pruning_ ? "true" : "false") +
+          std::string(",policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+          std::string(",heuristic=") + (heuristic_ == 0 ? std::string("null") : heuristic_->name()) +
+          std::string(",algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) +
+          std::string(",hash=") + std::to_string((long long unsigned)hash_) +
+          std::string(",g=") + std::to_string(g_) +
           std::string(")");
     }
 
@@ -462,8 +468,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << " #heuristic-evaluations=" << num_heuristic_evaluations_
                   << Utils::normal()
                   << std::endl;
-#endif
         std::cout << std::endl;
+#endif
         assert(problem_.applicable(s, action));
         return action;
     }
@@ -499,6 +505,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         if( it != parameters.end() ) damping_ = strtod(it->second.c_str(), 0);
         it = parameters.find("max-num-samples");
         if( it != parameters.end() ) max_num_samples_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("soft-pruning");
+        if( it != parameters.end() ) soft_pruning_ = it->second == "true";
 
         it = parameters.find("policy");
         if( it != parameters.end() ) {
@@ -533,6 +541,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << " epsilon=" << epsilon_
                   << " damping=" << damping_
                   << " max-num-samples=" << max_num_samples_
+                  << " soft-pruning=" << soft_pruning_
                   << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
                   << " heuristic=" << (heuristic_ == 0 ? std::string("null") : heuristic_->name())
                   << " algorithm=" << (algorithm_ == 0 ? std::string("null") : algorithm_->name())
@@ -543,19 +552,28 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
 
     void compute_bounds(state_node_t<T> &node) const {
+        float value = 0;
+        if( (algorithm_ != 0) && ((heuristic_ == 0) || (base_policy_ == 0)) ) {
+            assert(hash_ != 0);
+            value = hash_->value(*node.state_);
+        }
+
         assert(node.lower_bound_ == 0);
-        assert(node.upper_bound_ == 0);
-        if( algorithm_ != 0 ) {
-            int depth = node.depth_;
-            float value = hash_->value(*node.state_);
-            node.lower_bound_ = (1 - powf(g_, 2 * depth)) * value;
-            node.upper_bound_ = (1 + powf(g_, 2 * depth)) * value;
-            //std::cout << "bound[depth=" << int(node.depth_) << " " << node.lower_bound_ << " <= " << value << " <= " << node.upper_bound_ << "]" << std::endl;
-        } else {
+        if( heuristic_ != 0 ) {
             ++num_heuristic_evaluations_;
             ++total_num_heuristic_evaluations_;
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
+        } else {
+            assert(algorithm_ != 0);
+            node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
+        }
+
+        assert(node.upper_bound_ == 0);
+        if( base_policy_ != 0 ) {
             node.upper_bound_ = evaluate(node);
+        } else {
+            assert(algorithm_ != 0);
+            node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
         }
     }
 
@@ -624,23 +642,32 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
     void update_bounds(state_node_t<T> &node) const {
         assert(!node.children_.empty());
-        node.lower_bound_ = node.children_[0]->lower_bound_;
         node.upper_bound_ = node.children_[0]->upper_bound_;
+        node.best_child_ = 0;
         for( int i = 1; i < int(node.children_.size()); ++i ) {
             const action_node_t<T> &a_node = *static_cast<const action_node_t<T>*>(node.children_[i]);
-            node.lower_bound_ = std::min(node.lower_bound_, a_node.lower_bound_);
-            node.upper_bound_ = std::min(node.upper_bound_, a_node.upper_bound_);
+            if( node.upper_bound_ > a_node.upper_bound_ ) {
+                node.upper_bound_ = a_node.upper_bound_;
+                node.best_child_ = i;
+            }
         }
+        node.lower_bound_ = node.children_[node.best_child_]->lower_bound_;
 
         // mark nodes (subtrees) as pruned
+        float eta = 0.1; // CHECK
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
-            if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ ) { // hard pruning
+            if( (node.best_child_ == i) || a_node.pruned_ ) continue;
+            if( node.upper_bound_ < a_node.lower_bound_ ) { // hard pruning
 #ifdef DEBUG2
                 std::cout << "debug: pac(): HARD pruning: a-node=" << a_node << std::endl;
 #endif
                 mark_node_as_pruned(a_node, true);
-            } else if( true ) { // soft pruning
+            } else if( soft_pruning_ && (node.upper_bound_ < a_node.lower_bound_ + eta) && (node.upper_bound_ <= a_node.upper_bound_) ) { // soft pruning
+#ifdef DEBUG
+                std::cout << "debug: pac(): SOFT pruning: a-node=" << a_node << std::endl;
+#endif
+                mark_node_as_pruned(a_node, false);
             }
         }
     }
