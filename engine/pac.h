@@ -31,6 +31,7 @@
 #include <math.h>
 
 #define DEBUG
+//#define DEBUG2
 
 namespace Online {
 
@@ -174,10 +175,17 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     // leaf nodes
     mutable std::vector<state_node_t<T>*> leaf_nodes_;
 
-    // stats
+    // stats for single action selection
     mutable int num_nodes_pruned_;
     mutable int num_a_nodes_pruned_;
-    mutable int num_evaluations_;
+    mutable int num_policy_evaluations_;
+    mutable int num_heuristic_evaluations_;
+
+    // overall stats
+    mutable int total_num_nodes_pruned_;
+    mutable int total_num_a_nodes_pruned_;
+    mutable int total_num_policy_evaluations_;
+    mutable int total_num_heuristic_evaluations_;
 
     pac_tree_t(const Problem::problem_t<T> &problem,
                const policy_t<T> *base_policy,
@@ -204,9 +212,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         algorithm_(algorithm),
         hash_(hash),
         g_(g) {
-std::cout << "HOLA.1" << std::endl;
         calculate_parameters();
-std::cout << "HOLA.2" << std::endl;
     }
 
   public:
@@ -224,10 +230,10 @@ std::cout << "HOLA.2" << std::endl;
         hash_(0),
         g_(.9) {
         gamma_ = problem_.discount();
-        num_nodes_pruned_ = 0;
-        num_a_nodes_pruned_ = 0;
-        num_evaluations_ = 0;
-std::cout << "HOLA.3" << std::endl;
+        total_num_nodes_pruned_ = 0;
+        total_num_a_nodes_pruned_ = 0;
+        total_num_policy_evaluations_ = 0;
+        total_num_heuristic_evaluations_ = 0;
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
@@ -251,9 +257,10 @@ std::cout << "HOLA.3" << std::endl;
     }
 
     void calculate_parameters() {
-        num_nodes_pruned_ = 0;
-        num_a_nodes_pruned_ = 0;
-        num_evaluations_ = 0;
+        total_num_nodes_pruned_ = 0;
+        total_num_a_nodes_pruned_ = 0;
+        total_num_policy_evaluations_ = 0;
+        total_num_heuristic_evaluations_ = 0;
 
         gamma_ = problem_.discount();
 
@@ -298,31 +305,39 @@ std::cout << "HOLA.3" << std::endl;
 #endif
     }
 
+    void reset_stats_for_single_action_selection() const {
+        num_nodes_pruned_ = 0;
+        num_a_nodes_pruned_ = 0;
+        num_policy_evaluations_ = 0;
+        num_heuristic_evaluations_ = 0;
+    }
+
     virtual Problem::action_t operator()(const T &s) const {
         std::priority_queue<state_node_t<T>*, std::vector<state_node_t<T>*>, state_node_comparator_t<T> > heap, heap_aux;
 
         ++policy_t<T>::decisions_;
 
+        reset_stats_for_single_action_selection();
         state_node_t<T> *root = new state_node_t<T>(s, 0, 0);
         compute_bounds(*root);
 
         Problem::action_t action = 0;
-        if( solved(*root) ) {
+        if( false && solved(*root) ) { // CHECK
 #ifdef DEBUG
             std::cout << "debug: pac():"
-                      << " root= " << *root
-                      << " lb= " << root->lower_bound_
-                      << " ub= " << root->upper_bound_
-                      << " gap= " << root->gap()
-                      << " threshold= " << solved_threshold_[root->depth_]
+                      << " root=" << *root
+                      << " lb=" << root->lower_bound_
+                      << " ub=" << root->upper_bound_
+                      << " gap=" << root->gap()
+                      << " threshold=" << solved_threshold_[root->depth_]
                       << std::endl;
 #endif
             delete root;
             action = (*base_policy_)(s);
 #ifdef DEBUG
             std::cout << "debug: pac(): selection:"
-                      << " action= " << action
-                      << " method= base-policy"
+                      << " action=" << action
+                      << " method=base-policy"
                       << std::endl;
 #endif
         } else {
@@ -336,10 +351,10 @@ std::cout << "HOLA.3" << std::endl;
                 heap.pop();
 #ifdef DEBUG
                 std::cout << "debug: pac():"
-                          << " pop= " << node
-                          << " gap= " << node.gap()
-                          << " score= " << node.score_
-                          << " gap-at-root= " << root->gap()
+                          << " pop=" << node
+                          << " gap=" << node.gap()
+                          << " score=" << node.score_
+                          << " gap-at-root=" << root->gap()
                           << std::endl;
 #endif
 
@@ -354,7 +369,7 @@ std::cout << "HOLA.3" << std::endl;
 
                 if( heap.empty() ) {
 #ifdef DEBUG
-                    std::cout << "debug: pac(): #leaves= " << leaf_nodes_.size() << std::endl;
+                    std::cout << "debug: pac(): #leaves=" << leaf_nodes_.size() << std::endl;
 #endif
                     int nsolved = 0, npruned = 0, nonleaf = 0;
 
@@ -403,11 +418,11 @@ std::cout << "HOLA.3" << std::endl;
 
 #ifdef DEBUG
                     std::cout << "debug: pac():"
-                              << " #selected= " << heap.size()
-                              << " #remaining= " << leaf_nodes_.size()
-                              << " #solved= " << nsolved
-                              << " #pruned= " << npruned
-                              << " #non-leaf= " << nonleaf
+                              << " #selected=" << heap.size()
+                              << " #remaining=" << leaf_nodes_.size()
+                              << " #solved=" << nsolved
+                              << " #pruned=" << npruned
+                              << " #non-leaf=" << nonleaf
                               << std::endl;
 #endif
                     assert(n_leaf_nodes == heap.size() + leaf_nodes_.size() + nsolved + npruned + nonleaf);
@@ -415,29 +430,40 @@ std::cout << "HOLA.3" << std::endl;
             }
 #ifdef DEBUG
             std::cout << "debug: pac(): main loop ended:"
-                      << " heap-sz= " << heap.size()
-                      << " #leaves= " << leaf_nodes_.size()
+                      << " heap-sz=" << heap.size()
+                      << " #leaves=" << leaf_nodes_.size()
                       << std::endl;
 #endif
 
 #ifdef DEBUG
             std::cout << "debug: pac():"
-                      << " root= " << *root
-                      << " lb= " << root->lower_bound_
-                      << " ub= " << root->upper_bound_
-                      << " gap= " << root->gap()
-                      << " threshold= " << solved_threshold_[root->depth_]
+                      << " root=" << *root
+                      << " lb=" << root->lower_bound_
+                      << " ub=" << root->upper_bound_
+                      << " gap=" << root->gap()
+                      << " threshold=" << solved_threshold_[root->depth_]
                       << std::endl;
 #endif
             action = root->select_action(random_ties_);
             delete_tree(root);
 #ifdef DEBUG
             std::cout << "debug: pac(): selection:"
-                      << " action= " << action
-                      << " method= tree"
+                      << " action=" << action
+                      << " method=tree"
                       << std::endl;
 #endif
         }
+#ifdef DEBUG
+        std::cout << Utils::magenta()
+                  << "debug: pac(): stats-single-call:"
+                  << " #nodes-pruned=" << num_nodes_pruned_
+                  << " #a-nodes-pruned=" << num_a_nodes_pruned_
+                  << " #policy-evaluations=" << num_policy_evaluations_
+                  << " #heuristic-evaluations=" << num_heuristic_evaluations_
+                  << Utils::normal()
+                  << std::endl;
+#endif
+        std::cout << std::endl;
         assert(problem_.applicable(s, action));
         return action;
     }
@@ -447,13 +473,16 @@ std::cout << "HOLA.3" << std::endl;
         if( heuristic_ != 0 ) heuristic_->reset_stats();
         //if( algorithm_ != 0 ) algorithm_->reset_stats(*hash_);
     }
-    virtual void print_stats(std::ostream &os) const {
-        os << "stats: policy=" << name() << std::endl;
-        os << "stats: decisions=" << policy_t<T>::decisions_ << std::endl;
-        os << "stats: num-nodes-pruned=" << num_nodes_pruned_ << std::endl;
-        os << "stats: num-a-nodes-pruned=" << num_a_nodes_pruned_ << std::endl;
-        os << "stats: num-evaluations=" << num_evaluations_ << std::endl;
-        base_policy_->print_stats(os);
+    virtual void print_other_stats(std::ostream &os, int indent) const {
+        os << std::setw(indent) << ""
+           << "other-stats: name=" << name()
+           << " decisions=" << policy_t<T>::decisions_
+           << " num-nodes-pruned=" << total_num_nodes_pruned_
+           << " num-a-nodes-pruned=" << total_num_a_nodes_pruned_
+           << " num-policy-evaluations=" << total_num_policy_evaluations_
+           << " num-heuristic-evaluations=" << total_num_heuristic_evaluations_
+           << std::endl;
+        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
@@ -521,9 +550,10 @@ std::cout << "HOLA.3" << std::endl;
             float value = hash_->value(*node.state_);
             node.lower_bound_ = (1 - powf(g_, 2 * depth)) * value;
             node.upper_bound_ = (1 + powf(g_, 2 * depth)) * value;
-            std::cout << "bound[depth=" << int(node.depth_) << " " << node.lower_bound_ << " <= " << value << " <= " << node.upper_bound_ << "]" << std::endl;
-            std::cout << "B: " << hash_->value(problem_.init()) << std::endl;
+            //std::cout << "bound[depth=" << int(node.depth_) << " " << node.lower_bound_ << " <= " << value << " <= " << node.upper_bound_ << "]" << std::endl;
         } else {
+            ++num_heuristic_evaluations_;
+            ++total_num_heuristic_evaluations_;
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
             node.upper_bound_ = evaluate(node);
         }
@@ -605,11 +635,12 @@ std::cout << "HOLA.3" << std::endl;
         // mark nodes (subtrees) as pruned
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
-            if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ ) {
-#ifdef DEBUG
-                std::cout << "debug: pac(): pruning: a-node= " << a_node << std::endl;
+            if( (node.upper_bound_ < a_node.lower_bound_) && !a_node.pruned_ ) { // hard pruning
+#ifdef DEBUG2
+                std::cout << "debug: pac(): HARD pruning: a-node=" << a_node << std::endl;
 #endif
-                mark_node_as_pruned(a_node);
+                mark_node_as_pruned(a_node, true);
+            } else if( true ) { // soft pruning
             }
         }
     }
@@ -664,27 +695,41 @@ std::cout << "HOLA.3" << std::endl;
         update_bounds_est(static_cast<const state_node_t<T>*>(a_node->parent_), a_node);
     }
 
-    void mark_node_as_pruned(state_node_t<T> &node) const {
-#ifdef DEBUG
-        std::cout << "debug: pac(): marking node as pruned: node= " << node << std::endl;
+    void mark_node_as_pruned(state_node_t<T> &node, bool hard) const {
+#ifdef DEBUG2
+        std::cout << "debug: pac(): marking node as pruned:"
+                  << " hard=" << hard
+                  << " node=" << node;
+        if( !hard ) {
+            std::cout << " gap=" << node.gap();
+        }
+        std::cout << std::endl;
 #endif
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
-            if( !a_node.pruned_ ) mark_node_as_pruned(a_node);
+            if( !a_node.pruned_ ) mark_node_as_pruned(a_node, hard);
         }
         node.pruned_ = true;
         ++num_nodes_pruned_;
+        ++total_num_nodes_pruned_;
     }
-    void mark_node_as_pruned(action_node_t<T> &a_node) const {
-#ifdef DEBUG
-        std::cout << "debug: pac(): marking node as pruned: a-node= " << a_node << std::endl;
+    void mark_node_as_pruned(action_node_t<T> &a_node, bool hard) const {
+#ifdef DEBUG2
+        std::cout << "debug: pac(): marking node as pruned:"
+                  << " hard=" << hard
+                  << " a-node=" << a_node;
+        if( !hard ) {
+            std::cout << " gap=" << a_node.gap();
+        }
+        std::cout << std::endl;
 #endif
         for( int i = 0; i < int(a_node.children_.size()); ++i ) {
             state_node_t<T> &node = *static_cast<state_node_t<T>*>(a_node.children_[i]);
-            if( !node.pruned_ ) mark_node_as_pruned(node);
+            if( !node.pruned_ ) mark_node_as_pruned(node, hard);
         }
         a_node.pruned_ = true;
         ++num_a_nodes_pruned_;
+        ++total_num_a_nodes_pruned_;
     }
 
     void propagate_values(state_node_t<T> &node) const {
@@ -703,7 +748,8 @@ std::cout << "HOLA.3" << std::endl;
     }
 
     float evaluate(const T &s, unsigned num_samples, unsigned depth) const {
-        ++num_evaluations_;
+        ++num_policy_evaluations_;
+        ++total_num_policy_evaluations_;
         return Evaluation::evaluation(*base_policy_, s, num_samples, horizon_ - depth);
     }
     float evaluate(const state_node_t<T> &node) const {
@@ -759,7 +805,7 @@ std::cout << "HOLA.3" << std::endl;
 
     void solve_problem() {
         if( algorithm_ == 0 ) {
-            std::cout << "error: algorithm must be specified for solving problem!" << std::endl;
+            std::cout << Utils::error() << "algorithm must be specified for solving problem!" << std::endl;
             exit(1);
         }
 #ifdef DEBUG
@@ -768,7 +814,6 @@ std::cout << "HOLA.3" << std::endl;
         delete hash_;
         hash_ = new Problem::hash_t<T>(problem_);
         algorithm_->solve(problem_.init(), *hash_);
-        std::cout << "INIT=" << problem_.init() << std::endl << "VALUE=" << hash_->value(problem_.init()) << std::endl;
     }
 };
 
