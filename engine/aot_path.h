@@ -23,6 +23,7 @@
 #include "bdd_priority_queue.h"
 
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <cassert>
 #include <limits>
@@ -132,7 +133,6 @@ template<typename T> struct state_node_t : public node_t<T> {
                 actions.push_back(a_node->action_);
             }
         }
-        //std::cout << "sz=" << actions.size() << std::endl;
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
 
@@ -155,8 +155,6 @@ template<typename T> struct state_node_t : public node_t<T> {
     }
 
     virtual void print(std::ostream &os, bool indent = true) const {
-        os << "depth=" << depth_;
-#if 0
         if( indent ) os << std::setw(2 * depth_) << "";
         os << "[state=" << state_
            << ",depth=" << depth_
@@ -165,7 +163,6 @@ template<typename T> struct state_node_t : public node_t<T> {
            << ",value=" << value_
            << ",delta=" << delta_
            << "]";
-#endif
     }
     virtual void expand(const aot_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) {
@@ -283,9 +280,8 @@ template<typename T> class bdd_priority_queue_t :
 //
 
 template<typename T> class aot_t : public improvement_t<T> {
-  using policy_t<T>::problem;
+  using policy_t<T>::problem_;
   using improvement_t<T>::base_policy_;
-
   protected:
     unsigned width_;
     unsigned horizon_;
@@ -324,8 +320,8 @@ template<typename T> class aot_t : public improvement_t<T> {
     node_t<T>* (aot_t::*select_node_for_expansion_ptr_)(state_node_t<T>*) const;
     void (aot_t::*clear_internal_state_ptr_)() const;
 
-  public:
-    aot_t(const policy_t<T> &base_policy,
+    aot_t(const Problem::problem_t<T> &problem,
+          const policy_t<T> *base_policy,
           unsigned width,
           unsigned horizon,
           float probability,
@@ -335,21 +331,21 @@ template<typename T> class aot_t : public improvement_t<T> {
           unsigned leaf_nsamples,
           unsigned delayed_evaluation_nsamples,
           int leaf_selection_strategy)
-      : improvement_t<T>(base_policy),
+      : improvement_t<T>(problem, base_policy),
         width_(width),
         horizon_(horizon),
         probability_(probability),
         random_ties_(random_ties),
         delayed_evaluation_(delayed_evaluation),
-        expansions_per_iteration_(expansions_per_iteration),
+        expansions_per_iteration_(std::max<unsigned>(1, expansions_per_iteration)),
         leaf_nsamples_(leaf_nsamples),
         delayed_evaluation_nsamples_(delayed_evaluation_nsamples),
         leaf_selection_strategy_(leaf_selection_strategy),
         num_nodes_(0),
         heuristic_(0),
 #ifdef USE_BDD_PQ
-        inside_bdd_priority_queue_(expansions_per_iteration),
-        outside_bdd_priority_queue_(expansions_per_iteration),
+        inside_bdd_priority_queue_(expansions_per_iteration_),
+        outside_bdd_priority_queue_(expansions_per_iteration_),
 #endif
         from_inside_(0),
         from_outside_(0),
@@ -358,30 +354,71 @@ template<typename T> class aot_t : public improvement_t<T> {
         total_evaluations_(0) {
         clear_leaf_selection_strategy();
         set_leaf_selection_strategy(leaf_selection_strategy_);
+    }
 
-        // set policy name
-        std::stringstream name_stream;
-        name_stream << "aot("
-                    << "width=" << width_
-                    << ",horizon=" << horizon_
-                    << ",probability=" << probability_
-                    << ",random-ties=" << (random_ties_ ? "true" : "false")
-                    << ",delayed-eval=" << (delayed_evaluation_ ? "true" : "false")
-                    << ",exp-per-iter=" << expansions_per_iteration_
-                    << ",leaf_nsamples=" << leaf_nsamples_
-                    << ",delayed_eval_nsamples=" << delayed_evaluation_nsamples_
-                    << ",leaf_selection=" << leaf_selection_strategy_
-                    << ")";
-        policy_t<T>::set_name(name_stream.str());
+  public:
+    aot_t(const Problem::problem_t<T> &problem)
+      : improvement_t<T>(problem, 0),
+        width_(0),
+        horizon_(0),
+        probability_(0),
+        random_ties_(false),
+        delayed_evaluation_(false),
+        expansions_per_iteration_(1),
+        leaf_nsamples_(1),
+        delayed_evaluation_nsamples_(0),
+        leaf_selection_strategy_(0),
+        num_nodes_(0),
+        heuristic_(0),
+#ifdef USE_BDD_PQ
+        inside_bdd_priority_queue_(expansions_per_iteration_),
+        outside_bdd_priority_queue_(expansions_per_iteration_),
+#endif
+        from_inside_(0),
+        from_outside_(0),
+        random_leaf_(0),
+        total_number_expansions_(0),
+        total_evaluations_(0) {
+        clear_leaf_selection_strategy();
+        set_leaf_selection_strategy(leaf_selection_strategy_);
     }
     virtual ~aot_t() { }
+    virtual policy_t<T>* clone() const {
+        return new aot_t(problem_,
+                         base_policy_,
+                         width_,
+                         horizon_,
+                         probability_,
+                         random_ties_,
+                         delayed_evaluation_,
+                         expansions_per_iteration_,
+                         leaf_nsamples_,
+                         delayed_evaluation_nsamples_,
+                         leaf_selection_strategy_);
+    }
+    virtual std::string name() const {
+        return std::string("aot-path(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
+          std::string(",width=") + std::to_string(width_) +
+          std::string(",horizon=") + std::to_string(horizon_) +
+          std::string(",probability=") + std::to_string(probability_) +
+          std::string(",random-ties=") + (random_ties_ ? "true" : "false") +
+          std::string(",delayed-eval=") + (delayed_evaluation_ ? "true" : "false") +
+          std::string(",expansions-per-iter=") + std::to_string(expansions_per_iteration_) +
+          std::string(",leaf-nsamples=") + std::to_string(leaf_nsamples_) +
+          std::string(",delayed-eval-nsamples=") + std::to_string(delayed_evaluation_nsamples_) +
+          std::string(",leaf-selection=") + std::to_string(leaf_selection_strategy_) + ")";
+    }
 
-    // this is "const" because make_aot() returns a const policy*
     void set_heuristic(const Heuristic::heuristic_t<T> *heuristic) const {
         heuristic_ = heuristic;
     }
 
     virtual Problem::action_t operator()(const T &s) const {
+        if( ((base_policy_ == 0) && (heuristic_ == 0) && (width_ > 0)) || ((base_policy_ == 0) && (width_ == 0)) ) {
+            std::cout << Utils::error() << "(base) policy or heuristic must be specified for aot-path() policy!" << std::endl;
+            exit(1);
+        }
+
         // initialize tree and setup expansion loop for selection strategy
         ++policy_t<T>::decisions_;
         clear();
@@ -408,36 +445,42 @@ template<typename T> class aot_t : public improvement_t<T> {
         }
         (this->*clear_internal_state_ptr_)();
 
-        assert((width_ == 0) || ((root != 0) && problem().applicable(s, root->best_action(random_ties_))));
+        assert((width_ == 0) || ((root != 0) && problem_.applicable(s, root->best_action(random_ties_))));
         assert(expanded <= width_);
 
         // select best action
-        return width_ == 0 ? base_policy_(s) : root->best_action(random_ties_);
+        if( width_ == 0 ) {
+            float start_time = Utils::read_time_in_seconds();
+            Problem::action_t action = (*base_policy_)(s);
+            policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+            return action;
+        } else {
+            return root->best_action(random_ties_);
+        }
     }
 
-    virtual policy_t<T>* clone() const {
-        return new aot_t(base_policy_,
-                         width_,
-                         horizon_,
-                         probability_,
-                         random_ties_,
-                         delayed_evaluation_,
-                         expansions_per_iteration_,
-                         leaf_nsamples_,
-                         delayed_evaluation_nsamples_,
-                         leaf_selection_strategy_);
+    virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
+        problem_.clear_expansions();
+        if( base_policy_ != 0 ) base_policy_->reset_stats();
+        if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
 
     virtual void print_other_stats(std::ostream &os, int indent) const {
         os << std::setw(indent) << ""
-           << "other-stats: name=" << policy_t<T>::name()
+           << "other-stats: name=" << name()
            << " decisions=" << policy_t<T>::decisions_
            << " %in=" << from_inside_ / (from_inside_ + from_outside_)
            << " %out=" << from_outside_ / (from_inside_ + from_outside_)
            << " #expansions=" << total_number_expansions_
            << " #evaluations=" << total_evaluations_
            << std::endl;
-        if( base_policy_ != 0 ) base_policy_.print_other_stats(os, 2 + indent);
+        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
+    }
+    virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
+        assert(0);
     }
 
     void print_tree(std::ostream &os) const {
@@ -455,27 +498,31 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
     // lookup a node in hash table; if not found, create a new entry.
-    std::pair<state_node_t<T>*, bool> fetch_node(const T &state,
-                                                 unsigned depth) const {
+    std::pair<state_node_t<T>*, bool> fetch_node(const T &state, unsigned depth, bool debug = false) const {
         typename hash_t<T>::iterator it =
           table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
+            if( debug ) std::cout << "fetch_node: node was NOT-FOUND" << std::endl;
             ++num_nodes_;
             state_node_t<T> *node = new state_node_t<T>(state, depth);
             table_.insert(std::make_pair(std::make_pair(&node->state_, depth),
                                          node));
-            if( problem().terminal(state) ) {
+            if( problem_.terminal(state) ) {
+                if( debug ) std::cout << "fetch_node: node is TERMINAL" << std::endl;
                 node->value_ = 0;
                 node->is_goal_ = true;
-            } else if( problem().dead_end(state) ) {
-                node->value_ = problem().dead_end_value();
+            } else if( problem_.dead_end(state) ) {
+                if( debug ) std::cout << "fetch_node: node is DEAD-END" << std::endl;
+                node->value_ = problem_.dead_end_value();
                 node->is_dead_end_ = true;
             } else {
+                if( debug ) std::cout << "fetch_node: node is REGULAR" << std::endl;
                 node->value_ = evaluate(state, depth);
                 node->nsamples_ = leaf_nsamples_;
             }
             return std::make_pair(node, false);
         } else {
+            if( debug ) std::cout << "fetch_node: node was FOUND!" << std::endl;
             bool re_evaluated = false;
             if( it->second->is_leaf() && !it->second->is_dead_end_ && !it->second->is_goal_ && (heuristic_ == 0) ) {
                 // resample: throw other rollouts to get better estimation. Only done when heuristic_ == 0
@@ -495,7 +542,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                            std::vector<node_t<T>*> &nodes_to_propagate) const {
         ++total_number_expansions_;
         node_t<T> *node = (this->*select_node_for_expansion_ptr_)(root);
-        if( node != 0 ) { /*std::cout << "BEGIN PATH" << std::endl;*/ node->expand(this, nodes_to_propagate); /*std::cout << "END PATH" << std::endl;*/ }
+        if( node != 0 ) node->expand(this, nodes_to_propagate);
     }
     void expand(action_node_t<T> *a_node,
                 std::vector<node_t<T>*> &nodes_to_propagate,
@@ -505,7 +552,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(!a_node->parent_->is_dead_end_);
         a_node->value_ = 0;
         std::vector<std::pair<T, float> > outcomes;
-        problem().next(a_node->parent_->state_, a_node->action_, outcomes);
+        problem_.next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
             const T &state = outcomes[i].first;
@@ -519,7 +566,7 @@ template<typename T> class aot_t : public improvement_t<T> {
             a_node->children_.push_back(std::make_pair(prob, p.first));
             a_node->value_ += prob * p.first->value_;
         }
-        a_node->value_ = a_node->action_cost_ + problem().discount() * a_node->value_;
+        a_node->value_ = a_node->action_cost_ + problem_.discount() * a_node->value_;
         //nodes_to_propagate.push_back(a_node);
 
         // re-sample sibling action nodes that are still leaves.
@@ -530,13 +577,13 @@ template<typename T> class aot_t : public improvement_t<T> {
             for( int i = 0, isz = parent->children_.size(); i < isz; ++i ) {
                 action_node_t<T> *sibling = parent->children_[i];
                 if( sibling->is_leaf() ) {
-                    float old_val = (sibling->value_ - sibling->action_cost_) / problem().discount();
+                    float old_val = (sibling->value_ - sibling->action_cost_) / problem_.discount();
                     float eval = evaluate(state, sibling->action_, depth);
                     float new_val = old_val * sibling->nsamples_ + eval;
                     sibling->nsamples_ +=
                       delayed_evaluation_nsamples_ * leaf_nsamples_;
                     sibling->value_ = sibling->action_cost_ +
-                      problem().discount() * new_val/sibling->nsamples_;
+                      problem_.discount() * new_val/sibling->nsamples_;
 
 #ifdef DEBUG
                     std::cout << "sibling re-sampled: "
@@ -559,7 +606,7 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(!a_node->parent_->is_dead_end_);
         a_node->value_ = 0;
         std::vector<std::pair<T, float> > outcomes;
-        problem().next(a_node->parent_->state_, a_node->action_, outcomes);
+        problem_.next(a_node->parent_->state_, a_node->action_, outcomes);
         a_node->children_.reserve(outcomes.size());
 
         int sampled_child = -1;
@@ -593,7 +640,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 }
             }
         }
-        a_node->value_ = a_node->action_cost_ + problem().discount() * a_node->value_;
+        a_node->value_ = a_node->action_cost_ + problem_.discount() * a_node->value_;
         nodes_to_propagate.push_back(a_node);
 
         // no re-sampling because we use heuristic
@@ -605,13 +652,13 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(s_node->is_leaf());
         assert(!s_node->is_goal_);
         assert(!s_node->is_dead_end_);
-        s_node->children_.reserve(problem().number_actions(s_node->state_));
-        for( Problem::action_t a = 0; a < problem().number_actions(s_node->state_); ++a ) {
-            if( problem().applicable(s_node->state_, a) ) {
+        s_node->children_.reserve(problem_.number_actions(s_node->state_));
+        for( Problem::action_t a = 0; a < problem_.number_actions(s_node->state_); ++a ) {
+            if( problem_.applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
                 action_node_t<T> *a_node = new action_node_t<T>(a);
-                a_node->action_cost_ = problem().cost(s_node->state_, a);
+                a_node->action_cost_ = problem_.cost(s_node->state_, a);
                 a_node->parent_ = s_node;
                 s_node->children_.push_back(a_node);
 
@@ -623,7 +670,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                     // estimate by sampling states and applying rollouts
                     // of base policy
                     float eval = evaluate(s_node->state_, a, 1+s_node->depth_);
-                    a_node->value_ = a_node->action_cost_ + problem().discount() * eval;
+                    a_node->value_ = a_node->action_cost_ + problem_.discount() * eval;
                     a_node->nsamples_ = delayed_evaluation_nsamples_ * leaf_nsamples_;
                 }
             }
@@ -643,16 +690,16 @@ template<typename T> class aot_t : public improvement_t<T> {
 
         // calculate selected action by base policy
         Problem::action_t selected_action = base_policy_(s_node->state_);
-        assert(problem().applicable(s_node->state_, selected_action));
+        assert(problem_.applicable(s_node->state_, selected_action));
 
         // expand by generating all applicable actions
-        s_node->children_.reserve(problem().number_actions(s_node->state_));
-        for( Problem::action_t a = 0; a < problem().number_actions(s_node->state_); ++a ) {
-            if( problem().applicable(s_node->state_, a) ) {
+        s_node->children_.reserve(problem_.number_actions(s_node->state_));
+        for( Problem::action_t a = 0; a < problem_.number_actions(s_node->state_); ++a ) {
+            if( problem_.applicable(s_node->state_, a) ) {
                 // create node for this action
                 ++num_nodes_;
                 action_node_t<T> *a_node = new action_node_t<T>(a);
-                a_node->action_cost_ = problem().cost(s_node->state_, a);
+                a_node->action_cost_ = problem_.cost(s_node->state_, a);
                 a_node->parent_ = s_node;
                 s_node->children_.push_back(a_node);
 
@@ -689,7 +736,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                 for( int i = 0, isz = s_node->parents_.size(); i < isz; ++i ) {
                     action_node_t<T> *a_node = s_node->parents_[i].second;
                     float old_value = a_node->value_;
-                    a_node->update_value(problem().discount());
+                    a_node->update_value(problem_.discount());
                     assert(a_node->parent_ != 0);
                     if( !a_node->parent_->in_queue_ && (old_value != a_node->value_) ) {
                         queue.push_back(a_node->parent_);
@@ -705,18 +752,23 @@ template<typename T> class aot_t : public improvement_t<T> {
     float evaluate(const T &s, unsigned depth) const {
         total_evaluations_ += leaf_nsamples_;
         if( (heuristic_ != 0) && (depth < horizon_) ) {
-            return heuristic_->value(s);
+            float value = heuristic_->value(s);
+            policy_t<T>::heuristic_time_ = heuristic_->eval_time();
+            return value;
         } else if( depth >= horizon_ ) {
             return 0;
         } else {
-            return Evaluation::evaluation(base_policy_, s, leaf_nsamples_, horizon_ - depth);
+            float start_time = Utils::read_time_in_seconds();
+            float value = Evaluation::evaluation(*base_policy_, s, leaf_nsamples_, horizon_ - depth);
+            policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+            return value;
         }
     }
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {
         // CHECK: this need to be revised when using heuristics
         float value = 0;
         for( unsigned i = 0; i < delayed_evaluation_nsamples_; ++i ) {
-            std::pair<T, bool> sample = problem().sample(state, action);
+            std::pair<T, bool> sample = problem_.sample(state, action);
             value += evaluate(sample.first, depth);
         }
         return value / delayed_evaluation_nsamples_;
@@ -871,7 +923,7 @@ template<typename T> class aot_t : public improvement_t<T> {
                         action_node_t<T> *parent = s_node->parents_[j].second;
                         assert(parent->children_[child_index].second == s_node);
                         float d = parent->delta_ /
-                                  (problem().discount() * parent->children_[child_index].first);
+                                  (problem_.discount() * parent->children_[child_index].first);
                         delta = Utils::min(delta, fabsf(d));
                         in_best_policy = in_best_policy || parent->in_best_policy_;
                     }
@@ -1080,29 +1132,6 @@ template<typename T> class aot_t : public improvement_t<T> {
 };
 
 }; // namespace AOT_PATH
-
-template<typename T>
-inline const policy_t<T>* make_aot_path(const policy_t<T> &base_policy,
-                                   unsigned width,
-                                   unsigned horizon,
-                                   float probability,
-                                   bool random_ties,
-                                   bool delayed_evaluation = true,
-                                   unsigned expansions_per_iteration = 100,
-                                   unsigned leaf_nsamples = 1,
-                                   unsigned delayed_evaluation_nsamples = 1,
-                                   int leaf_selection_strategy = 0) {
-    return new AOT_PATH::aot_t<T>(base_policy,
-                             width,
-                             horizon,
-                             probability,
-                             random_ties,
-                             delayed_evaluation,
-                             expansions_per_iteration,
-                             leaf_nsamples,
-                             delayed_evaluation_nsamples,
-                             leaf_selection_strategy);
-}
 
 }; // namespace Policy
 

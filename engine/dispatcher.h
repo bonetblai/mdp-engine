@@ -54,26 +54,14 @@ template<typename T> class dispatcher_t {
 
   public:
     struct solve_result_t {
+        T state_;
         std::string name_;
         const Algorithm::algorithm_t<T> *algorithm_;
         unsigned seed_;
-
         unsigned problem_expansions_;
-
         const Problem::hash_t<T> *hash_;
-        float hash_value_;
-        unsigned hash_updates_;
-        unsigned hash_policy_size_;
-
         const Heuristic::heuristic_t<T> *heuristic_;
-        float heuristic_eval_time_;
-        float heuristic_setup_time_;
-        unsigned heuristic_evaluations_;
-        unsigned heuristic_size_;
-
         float time_raw_;
-        float time_heuristic_;
-        float time_algorithm_;
     };
 
     struct evaluate_result_t {
@@ -129,9 +117,9 @@ template<typename T> class dispatcher_t {
     void create_request(const Problem::problem_t<T> &problem, const std::string &request_str);
     void create_request(const Problem::problem_t<T> &problem, const std::string &type, const std::string &request);
     void solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, const T &s, solve_result_t &result) const;
-    void print_stats(std::ostream &os, const solve_result_t &result, const Algorithm::algorithm_t<T> *algorithm = 0) const;
+    void print_stats(std::ostream &os, const solve_result_t &result) const;
     void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const;
-    void print_stats(std::ostream &os, const evaluate_result_t &result, const Online::Policy::policy_t<T> *policy = 0) const;
+    void print_stats(std::ostream &os, const evaluate_result_t &result) const;
 };
 
 }; // namespace Dispatcher
@@ -295,6 +283,7 @@ template<typename T> void dispatcher_t<T>::solve(const std::string &name, const 
 
     result.name_ = name;
     result.algorithm_ = &algorithm;
+    result.state_ = s;
     result.seed_ = algorithm.seed();
     Random::set_seed(result.seed_);
 
@@ -303,47 +292,47 @@ template<typename T> void dispatcher_t<T>::solve(const std::string &name, const 
     algorithm.solve(s, *hash);
     float end_time = Utils::read_time_in_seconds();
 
-    // extract states from problem
+    // expansions from problem
     result.problem_expansions_ = problem.expansions();
 
     // extract stats from hash
     result.hash_ = hash;
-    result.hash_value_ = hash->value(s);
-    result.hash_updates_ = hash->updates();
-    result.hash_policy_size_ = std::numeric_limits<unsigned>::max();
-    if( (name.substr(0, 12) != "simple_astar") && (name.substr(0, 9) == "simple_a*") )
-        result.hash_policy_size_ = problem.policy_size(*hash, s);
-
-    // extract stats from heuristic (stats must be extract here because heuristic mabe shared)
-    const Heuristic::heuristic_t<T> *heuristic = algorithm.heuristic();
-    result.heuristic_ = heuristic;
-    result.heuristic_eval_time_ = heuristic == 0 ? -1 : heuristic->eval_time();
-    result.heuristic_setup_time_ = heuristic == 0 ? -1 : heuristic->setup_time();
-    result.heuristic_evaluations_ = heuristic == 0 ? -1 : heuristic->evaluations();
-    result.heuristic_size_ = heuristic == 0 ? -1 : heuristic->size();
 
     // time stats
     result.time_raw_ = end_time - start_time;
-    result.time_heuristic_ = algorithm.heuristic() == 0 ? 0 : algorithm.heuristic()->eval_time();
-    result.time_algorithm_ = result.time_raw_ - result.time_heuristic_;
 }
 
-template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const solve_result_t &result, const Algorithm::algorithm_t<T> *algorithm) const {
-    os << Utils::green() << "solve-stats:" << Utils::normal() << " name=" << result.name_
+template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const solve_result_t &result) const {
+    const Algorithm::algorithm_t<T> &algorithm = *result.algorithm_;
+    const Problem::problem_t<T> &problem = algorithm.problem();
+
+    // general stats
+    os << Utils::green() << "solve-stats:" << Utils::normal()
+       << " name=" << result.name_
        << " seed=" << result.seed_
-       << " problem.expansions=" << result.problem_expansions_
-       << " hash.value=" << result.hash_value_
-       << " hash.updates=" << result.hash_updates_
-       << " hash.policy-size=" << result.hash_policy_size_
-       << " heuristic.eval-time=" << result.heuristic_eval_time_
-       << " heuristic.setup-time=" << result.heuristic_setup_time_
-       << " heuristic.evaluations=" << result.heuristic_evaluations_
-       << " heuristic.size=" << result.heuristic_size_
-       << " time.raw=" << result.time_raw_
-       << " time.heuristic=" << result.time_heuristic_
-       << " time.algorithm=" << result.time_algorithm_
+       << " problem.expansions=" << result.problem_expansions_;
+
+    // stats from hash
+    const Problem::hash_t<T> &hash = *result.hash_;
+    os << " hash.value=" << hash.value(result.state_)
+       << " hash.updates=" << hash.updates();
+    if( (result.name_.substr(0, 12) != "simple_astar") && (result.name_.substr(0, 9) != "simple_a*") )
+        os << " hash.policy-size=" << problem.policy_size(hash, result.state_);
+
+    // stats fron heuristic
+    const Heuristic::heuristic_t<T> *heuristic = algorithm.heuristic();
+    os << " heuristic.eval-time=" << (heuristic == 0 ? std::string("na") : std::to_string(heuristic->eval_time()))
+       << " heuristic.setup-time=" << (heuristic == 0 ? std::string("na") : std::to_string(heuristic->setup_time()))
+       << " heuristic.evaluations=" << (heuristic == 0 ? std::string("na") : std::to_string(heuristic->evaluations()))
+       << " heuristic.evaluations=" << (heuristic == 0 ? std::string("na") : std::to_string(heuristic->evaluations()))
+       << " heuristic.size=" << (heuristic == 0 ? std::string("na") : std::to_string(heuristic->size()));
+
+    // time stats
+    float time_heuristic = heuristic == 0 ? 0 : heuristic->eval_time();
+    os << " time.raw=" << result.time_raw_
+       << " time.heuristic=" << (heuristic == 0 ? std::string("na") : std::to_string(time_heuristic))
+       << " time.algorithm=" << result.time_raw_ - time_heuristic
        << std::endl;
-    //if( algorithm != 0 ) algorithm->print_other_stats(os, 2); // CHECK: need to add this (virtual) function to algorithm_t
 }
 
 template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const {
@@ -362,36 +351,34 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
     result.eval_stdev_ = p.second;
     float end_time = Utils::read_time_in_seconds();
 
-    // extract states from problem
+    // expansions from problem
     result.problem_expansions_ = problem.expansions();
 
+    // time stats
     result.time_raw_ = end_time - start_time;
-    result.time_policy_ = 0; //XXXX time for policy
-    result.time_heuristic_ = 0; //XXXX time for heuristic
-    result.time_algorithm_ = result.time_raw_ - result.time_policy_ - result.time_heuristic_;
 }
 
-template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const evaluate_result_t &result, const Online::Policy::policy_t<T> *policy) const {
-    os << Utils::green() << "evaluate-stats:" << Utils::normal() << " name=" << result.name_
+template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const evaluate_result_t &result) const {
+    const Online::Policy::policy_t<T> &policy = *result.policy_;
+   
+    // general stats 
+    os << Utils::green() << "evaluate-stats:" << Utils::normal()
+       << " name=" << result.name_
        << " seed=" << result.seed_
-       << " problem.expansions=" << result.problem_expansions_
-       << " eval.value=" << result.eval_value_
-       << " eval.stdev=" << result.eval_stdev_
-#if 0
-       << " hash.value= " << result.hash_value_
-       << " hash.updates= " << result.hash_updates_
-       << " hash.policy-size= " << result.hash_policy_size_
-       << " heuristic.eval-time= " << result.heuristic_eval_time_
-       << " heuristic.setup-time= " << result.heuristic_setup_time_
-       << " heuristic.evaluations= " << result.heuristic_evaluations_
-       << " heuristic.size= " << result.heuristic_size_
-#endif
-       << " time.raw=" << result.time_raw_
-       << " time.policy=" << result.time_policy_
-       << " time.heuristic=" << result.time_heuristic_
-       << " time.algorithm=" << result.time_algorithm_
+       << " problem.expansions=" << result.problem_expansions_;
+
+    // stats from trials
+    os << " eval.value=" << result.eval_value_
+       << " eval.stdev=" << result.eval_stdev_;
+
+    // time stats
+    os << " time.raw=" << result.time_raw_
+       << " time.setup=" << policy.setup_time()
+       << " time.base-policy=" << policy.base_policy_time()
+       << " time.heuristic=" << policy.heuristic_time()
+       << " time.algorithm=" << result.time_raw_ - policy.base_policy_time() - policy.heuristic_time()
        << std::endl;
-    if( policy != 0 ) policy->print_other_stats(os, 2);
+    policy.print_other_stats(os, 2);
 }
 
 }; // namespace Dispatcher

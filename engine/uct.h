@@ -163,6 +163,9 @@ template<typename T> class uct_t : public improvement_t<T> {
         }
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
     }
@@ -188,6 +191,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
+        policy_t<T>::setup_time_ = base_policy_ == 0 ? 0 : base_policy_->setup_time();
 #ifdef DEBUG
         std::cout << "debug: uct(): params:"
                   << " width=" << width_
@@ -311,7 +315,11 @@ template<typename T> class uct_t : public improvement_t<T> {
     }
 
     float evaluate(const T &s, unsigned depth) const {
-        return Evaluation::evaluation(*base_policy_, s, 1, horizon_ - depth);
+        assert(base_policy_ != 0);
+        float start_time = Utils::read_time_in_seconds();
+        float value = Evaluation::evaluation(*base_policy_, s, 1, horizon_ - depth);
+        policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+        return value;
     }
 };
 

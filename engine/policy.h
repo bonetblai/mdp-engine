@@ -42,11 +42,19 @@ template<typename T> class policy_t {
     const Problem::problem_t<T> &problem_;
     unsigned seed_;
 
+    mutable float setup_time_;
+    mutable float base_policy_time_;
+    mutable float heuristic_time_;
     mutable unsigned decisions_;
 
   public:
     policy_t(const Problem::problem_t<T> &problem)
-      : problem_(problem), seed_(g_seed), decisions_(0) {
+      : problem_(problem),
+        seed_(g_seed),
+        setup_time_(0),
+        base_policy_time_(0),
+        heuristic_time_(0),
+        decisions_(0) {
     }
     virtual ~policy_t() { }
     virtual policy_t<T>* clone() const = 0;
@@ -55,7 +63,11 @@ template<typename T> class policy_t {
     virtual void reset_stats() const = 0;
     virtual void print_other_stats(std::ostream &os, int indent) const = 0;
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) = 0;
+
     unsigned seed() const { return seed_; }
+    float setup_time() const { return setup_time_; }
+    float base_policy_time() const { return base_policy_time_; }
+    float heuristic_time() const { return heuristic_time_; }
     unsigned decisions() const { return decisions_; }
     const Problem::problem_t<T>& problem() const { return problem_; }
 };

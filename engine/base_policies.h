@@ -55,6 +55,9 @@ template<typename T> class random_t : public policy_t<T> {
         return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
     }
     virtual void print_other_stats(std::ostream &os, int indent) const {
@@ -90,6 +93,9 @@ template<typename T> class hash_policy_t : public policy_t<T> {
         return p.first;
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
     }
     virtual void print_other_stats(std::ostream &os, int indent) const {
@@ -150,7 +156,9 @@ template<typename T> class optimal_policy_t : public hash_policy_t<T> {
 #ifdef DEBUG
         std::cout << "debug: optimal(): solving problem with algorithm=" << algorithm_->name() << std::endl;
 #endif
+        float start_time = Utils::read_time_in_seconds();
         algorithm_->solve(problem_.init(), *hash_);
+        policy_t<T>::setup_time_ = Utils::read_time_in_seconds() - start_time;
     }
 };
 
@@ -225,11 +233,9 @@ template<typename T> class base_greedy_t : public policy_t<T> {
                     }
                 }
             }
+            policy_t<T>::heuristic_time_ = heuristic_ == 0 ? 0 : heuristic_->eval_time();
             Problem::action_t action = best_actions[Random::uniform(best_actions.size())];
-            if( caching_ ) {
-                //std::cout << "BASE: caching: state=" << s << ", action=" << action << std::endl;
-                cache_.insert(std::make_pair(s, action));
-            }
+            if( caching_ ) cache_.insert(std::make_pair(s, action));
             return action;
         } else {
             //std::cout << "BASE: cached result: state=" << s << ", action=" << it->second << std::endl;
@@ -237,6 +243,9 @@ template<typename T> class base_greedy_t : public policy_t<T> {
         }
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
@@ -259,6 +268,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
+        policy_t<T>::setup_time_ = heuristic_ == 0 ? 0 : heuristic_->setup_time();
 #ifdef DEBUG
         std::cout << "debug: greedy(): params:"
                   << " optimistic= " << optimistic_

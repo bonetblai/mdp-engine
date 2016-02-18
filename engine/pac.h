@@ -486,6 +486,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         return action;
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
@@ -546,6 +549,11 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
         calculate_parameters();
         if( algorithm_ != 0 ) solve_problem();
+
+        // setup time for solve_problem() is accounted inside function
+        policy_t<T>::setup_time_ += base_policy_ == 0 ? 0 : base_policy_->setup_time();
+        policy_t<T>::setup_time_ += heuristic_ == 0 ? 0 : heuristic_->setup_time();
+
 #ifdef DEBUG
         std::cout << "debug: pac(): params:"
                   << " width=" << width_
@@ -579,6 +587,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
             //float lb = (1 - powf(g_, 2 * node.depth_)) * value;
             //std::cout << "H: lb=" << lb << ", n.lb=" << node.lower_bound_ << ", value=" << value << ", gap=" << lb - node.lower_bound_ << std::endl;
+            policy_t<T>::heuristic_time_ = heuristic_->eval_time();
         } else {
             assert(algorithm_ != 0);
             node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
@@ -586,7 +595,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
         assert(node.upper_bound_ == 0);
         if( base_policy_ != 0 ) {
+            float start_time = Utils::read_time_in_seconds();
             node.upper_bound_ = evaluate(node);
+            policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
         } else {
             assert(algorithm_ != 0);
             node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
@@ -863,9 +874,11 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 #ifdef DEBUG
         std::cout << "debug: pac-tree(): solving problem with algorithm=" << algorithm_->name() << std::endl;
 #endif
+        float start_time = Utils::read_time_in_seconds();
         delete hash_;
         hash_ = new Problem::hash_t<T>(problem_);
         algorithm_->solve(problem_.init(), *hash_);
+        policy_t<T>::setup_time_ = Utils::read_time_in_seconds() - start_time;
     }
 };
 

@@ -92,6 +92,9 @@ template<typename T> class rollout_t : public improvement_t<T> {
         return best_action;
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
     }
@@ -115,6 +118,7 @@ template<typename T> class rollout_t : public improvement_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
+        policy_t<T>::setup_time_ = base_policy_ == 0 ? 0 : base_policy_->setup_time();
 #ifdef DEBUG
         std::cout << "debug: rollout(): params:"
                   << " width=" << width_
@@ -130,7 +134,10 @@ template<typename T> class rollout_t : public improvement_t<T> {
             std::cout << Utils::error() << "(base) policy must be specified for rollout() policy!" << std::endl;
             exit(1);
         }
-        return Evaluation::evaluation(*base_policy_, s, 1, depth_);
+        float start_time = Utils::read_time_in_seconds();
+        float value = Evaluation::evaluation(*base_policy_, s, 1, depth_);
+        policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+        return value;
     }
 
     friend nested_rollout_t<T>;
@@ -177,6 +184,9 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
         return (*nested_policies_.back())(s);
     }
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         nested_policies_.back()->reset_stats();
     }
@@ -199,6 +209,9 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
+        make_nested_policies();
+        assert(!nested_policies_.empty());
+        policy_t<T>::setup_time_ = nested_policies_.back()->setup_time();
 #ifdef DEBUG
         std::cout << "debug: nested-rollout(): params:"
                   << " width=" << width_
@@ -207,12 +220,14 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
                   << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
                   << std::endl;
 #endif
-        make_nested_policies();
     }
 
     float evaluate(const T &s) const {
         assert(!nested_policies_.empty());
-        return Evaluation::evaluation(*nested_policies_.bac(), s, 1, depth_);
+        float start_time = Utils::read_time_in_seconds();
+        float value = Evaluation::evaluation(*nested_policies_.bac(), s, 1, depth_);
+        policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+        return value;
     }
 
     void make_nested_policies() {

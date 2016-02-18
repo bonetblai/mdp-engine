@@ -175,6 +175,9 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
     }
 
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
     }
@@ -201,6 +204,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
+        policy_t<T>::setup_time_ = heuristic_ == 0 ? 0 : heuristic_->setup_time();
 #ifdef DEBUG
         std::cout << "debug: finite-horizon-lrtdp(): params:"
                   << " horizon=" << horizon_
@@ -289,6 +293,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
                 hvalue = problem_.dead_end_value();
             } else if( !terminal(node) ) {
                 hvalue = heuristic_ == 0 ? 0 : heuristic_->value(node.state());
+                policy_t<T>::heuristic_time_ = heuristic_ == 0 ? 0 : heuristic_->eval_time();
             }
             return std::make_pair(hvalue, false);
         }
@@ -402,7 +407,6 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
             if( !has_label ) break;
         }
     }
-
 };
 
 }; // namespace RTDP

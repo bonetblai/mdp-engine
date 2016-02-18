@@ -36,7 +36,6 @@
 #include <tr1/unordered_map>
 #endif
 
-
 //#define DEBUG
 #define USE_BDD_PQ
 
@@ -411,14 +410,13 @@ template<typename T> class aot_t : public improvement_t<T> {
           std::string(",leaf-selection=") + std::to_string(leaf_selection_strategy_) + ")";
     }
 
-    // this is "const" because make_aot() returns a const policy*
     void set_heuristic(const Heuristic::heuristic_t<T> *heuristic) const {
         heuristic_ = heuristic;
     }
 
     virtual Problem::action_t operator()(const T &s) const {
-        if( base_policy_ == 0 ) {
-            std::cout << Utils::error() << "(base) policy must be specified for aot() policy!" << std::endl;
+        if( ((base_policy_ == 0) && (heuristic_ == 0) && (width_ > 0)) || ((base_policy_ == 0) && (width_ == 0)) ) {
+            std::cout << Utils::error() << "(base) policy or heuristic must be specified for aot() policy!" << std::endl;
             exit(1);
         }
 
@@ -473,10 +471,20 @@ template<typename T> class aot_t : public improvement_t<T> {
         assert(expanded <= width_);
 
         // select best action
-        return width_ == 0 ? (*base_policy_)(s) : root->best_action(random_ties_);
+        if( width_ == 0 ) {
+            float start_time = Utils::read_time_in_seconds();
+            Problem::action_t action = (*base_policy_)(s);
+            policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+            return action;
+        } else {
+            return root->best_action(random_ties_);
+        }
     }
 
     virtual void reset_stats() const {
+        policy_t<T>::setup_time_ = 0;
+        policy_t<T>::base_policy_time_ = 0;
+        policy_t<T>::heuristic_time_ = 0;
         problem_.clear_expansions();
         if( base_policy_ != 0 ) base_policy_->reset_stats();
         if( heuristic_ != 0 ) heuristic_->reset_stats();
@@ -516,6 +524,9 @@ template<typename T> class aot_t : public improvement_t<T> {
             dispatcher.create_request(problem_, it->first, it->second);
             heuristic_ = dispatcher.fetch_heuristic(it->second);
         }
+        policy_t<T>::setup_time_ = base_policy_ == 0 ? 0 : base_policy_->setup_time();
+        policy_t<T>::setup_time_ += heuristic_ == 0 ? 0 : heuristic_->setup_time();
+
 #ifdef DEBUG
         std::cout << "debug: aot(): params:"
                   << " width=" << width_
@@ -709,11 +720,16 @@ template<typename T> class aot_t : public improvement_t<T> {
     float evaluate(const T &s, unsigned depth) const {
         total_evaluations_ += leaf_nsamples_;
         if( (heuristic_ != 0) && (depth < horizon_) ) {
-            return heuristic_->value(s);
+            float value = heuristic_->value(s);
+            policy_t<T>::heuristic_time_ = heuristic_->eval_time();
+            return value;
         } else if( depth >= horizon_ ) {
             return 0;
         } else {
-            return Evaluation::evaluation(*base_policy_, s, leaf_nsamples_, horizon_ - depth);
+            float start_time = Utils::read_time_in_seconds();
+            float value = Evaluation::evaluation(*base_policy_, s, leaf_nsamples_, horizon_ - depth);
+            policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
+            return value;
         }
     }
     float evaluate(const T &state, Problem::action_t action, unsigned depth) const {
@@ -1080,7 +1096,6 @@ template<typename T> class aot_t : public improvement_t<T> {
     void random_clear_internal_state() const {
         random_leaf_ = 0;
     }
-
 };
 
 }; // namespace AOT
