@@ -45,7 +45,7 @@ namespace Policy {
 
 namespace AOT_PATH {
 
-template<typename T> class aot_t; // Forward reference
+template<typename T> class aot_path_t; // Forward reference
 
 ////////////////////////////////////////////////
 //
@@ -66,9 +66,9 @@ template<typename T> struct node_t {
     virtual ~node_t() { }
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
-    virtual void expand(const aot_t<T> *policy,
+    virtual void expand(const aot_path_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) = 0;
-    virtual void propagate(const aot_t<T> *policy) = 0;
+    virtual void propagate(const aot_path_t<T> *policy) = 0;
 };
 
 template<typename T> struct state_node_t;
@@ -100,11 +100,11 @@ template<typename T> struct action_node_t : public node_t<T> {
            << ",delta=" << delta_
            << "]";
     }
-    virtual void expand(const aot_t<T> *policy,
+    virtual void expand(const aot_path_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) {
         policy->expand_path(this, nodes_to_propagate);
     }
-    virtual void propagate(const aot_t<T> *policy) {
+    virtual void propagate(const aot_path_t<T> *policy) {
         policy->propagate(this);
     }
 };
@@ -164,11 +164,11 @@ template<typename T> struct state_node_t : public node_t<T> {
            << ",delta=" << delta_
            << "]";
     }
-    virtual void expand(const aot_t<T> *policy,
+    virtual void expand(const aot_path_t<T> *policy,
                         std::vector<node_t<T>*> &nodes_to_propagate) {
         policy->expand_path(this, nodes_to_propagate);
     }
-    virtual void propagate(const aot_t<T> *policy) {
+    virtual void propagate(const aot_path_t<T> *policy) {
         policy->propagate(this);
     }
 };
@@ -279,7 +279,7 @@ template<typename T> class bdd_priority_queue_t :
 // Policy
 //
 
-template<typename T> class aot_t : public improvement_t<T> {
+template<typename T> class aot_path_t : public improvement_t<T> {
   using policy_t<T>::problem_;
   using improvement_t<T>::base_policy_;
   protected:
@@ -314,23 +314,23 @@ template<typename T> class aot_t : public improvement_t<T> {
     mutable unsigned total_evaluations_;
 
     // abstraction of selection strategy
-    void (aot_t::*setup_expansion_loop_ptr_)(state_node_t<T>*) const;
-    void (aot_t::*prepare_next_expansion_iteration_ptr_)(state_node_t<T>*) const;
-    bool (aot_t::*exist_nodes_to_expand_ptr_)() const;
-    node_t<T>* (aot_t::*select_node_for_expansion_ptr_)(state_node_t<T>*) const;
-    void (aot_t::*clear_internal_state_ptr_)() const;
+    void (aot_path_t::*setup_expansion_loop_ptr_)(state_node_t<T>*) const;
+    void (aot_path_t::*prepare_next_expansion_iteration_ptr_)(state_node_t<T>*) const;
+    bool (aot_path_t::*exist_nodes_to_expand_ptr_)() const;
+    node_t<T>* (aot_path_t::*select_node_for_expansion_ptr_)(state_node_t<T>*) const;
+    void (aot_path_t::*clear_internal_state_ptr_)() const;
 
-    aot_t(const Problem::problem_t<T> &problem,
-          const policy_t<T> *base_policy,
-          unsigned width,
-          unsigned horizon,
-          float probability,
-          bool random_ties,
-          bool delayed_evaluation,
-          unsigned expansions_per_iteration,
-          unsigned leaf_nsamples,
-          unsigned delayed_evaluation_nsamples,
-          int leaf_selection_strategy)
+    aot_path_t(const Problem::problem_t<T> &problem,
+               const policy_t<T> *base_policy,
+               unsigned width,
+               unsigned horizon,
+               float probability,
+               bool random_ties,
+               bool delayed_evaluation,
+               unsigned expansions_per_iteration,
+               unsigned leaf_nsamples,
+               unsigned delayed_evaluation_nsamples,
+               int leaf_selection_strategy)
       : improvement_t<T>(problem, base_policy),
         width_(width),
         horizon_(horizon),
@@ -357,7 +357,7 @@ template<typename T> class aot_t : public improvement_t<T> {
     }
 
   public:
-    aot_t(const Problem::problem_t<T> &problem)
+    aot_path_t(const Problem::problem_t<T> &problem)
       : improvement_t<T>(problem, 0),
         width_(0),
         horizon_(0),
@@ -382,19 +382,19 @@ template<typename T> class aot_t : public improvement_t<T> {
         clear_leaf_selection_strategy();
         set_leaf_selection_strategy(leaf_selection_strategy_);
     }
-    virtual ~aot_t() { }
+    virtual ~aot_path_t() { }
     virtual policy_t<T>* clone() const {
-        return new aot_t(problem_,
-                         base_policy_,
-                         width_,
-                         horizon_,
-                         probability_,
-                         random_ties_,
-                         delayed_evaluation_,
-                         expansions_per_iteration_,
-                         leaf_nsamples_,
-                         delayed_evaluation_nsamples_,
-                         leaf_selection_strategy_);
+        return new aot_path_t(problem_,
+                              base_policy_,
+                              width_,
+                              horizon_,
+                              probability_,
+                              random_ties_,
+                              delayed_evaluation_,
+                              expansions_per_iteration_,
+                              leaf_nsamples_,
+                              delayed_evaluation_nsamples_,
+                              leaf_selection_strategy_);
     }
     virtual std::string name() const {
         return std::string("aot-path(policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
@@ -792,11 +792,11 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // selection strategy based on delta values
     void delta_setup_selection_strategy() {
-        setup_expansion_loop_ptr_ = &aot_t::delta_setup_expansion_loop;
-        prepare_next_expansion_iteration_ptr_ = &aot_t::delta_prepare_next_expansion_iteration;
-        exist_nodes_to_expand_ptr_ = &aot_t::delta_exist_nodes_to_expand;
-        select_node_for_expansion_ptr_ = &aot_t::delta_select_node_for_expansion;
-        clear_internal_state_ptr_ = &aot_t::delta_clear_internal_state;
+        setup_expansion_loop_ptr_ = &aot_path_t::delta_setup_expansion_loop;
+        prepare_next_expansion_iteration_ptr_ = &aot_path_t::delta_prepare_next_expansion_iteration;
+        exist_nodes_to_expand_ptr_ = &aot_path_t::delta_exist_nodes_to_expand;
+        select_node_for_expansion_ptr_ = &aot_path_t::delta_select_node_for_expansion;
+        clear_internal_state_ptr_ = &aot_path_t::delta_clear_internal_state;
     }
     void delta_setup_expansion_loop(state_node_t<T> *root) const {
         assert(empty_priority_queues());
@@ -1090,11 +1090,11 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // selection strategy based on random selection
     void random_setup_selection_strategy() {
-        setup_expansion_loop_ptr_ = &aot_t::random_setup_expansion_loop;
-        prepare_next_expansion_iteration_ptr_ = &aot_t::random_prepare_next_expansion_iteration;
-        exist_nodes_to_expand_ptr_ = &aot_t::random_exist_nodes_to_expand;
-        select_node_for_expansion_ptr_ = &aot_t::random_select_node_for_expansion;
-        clear_internal_state_ptr_ = &aot_t::random_clear_internal_state;
+        setup_expansion_loop_ptr_ = &aot_path_t::random_setup_expansion_loop;
+        prepare_next_expansion_iteration_ptr_ = &aot_path_t::random_prepare_next_expansion_iteration;
+        exist_nodes_to_expand_ptr_ = &aot_path_t::random_exist_nodes_to_expand;
+        select_node_for_expansion_ptr_ = &aot_path_t::random_select_node_for_expansion;
+        clear_internal_state_ptr_ = &aot_path_t::random_clear_internal_state;
     }
     void random_setup_expansion_loop(state_node_t<T> *root) const {
         random_leaf_ = root;
