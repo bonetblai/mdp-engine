@@ -44,7 +44,9 @@ template<typename T> class heuristic_t {
   public:
     heuristic_t(const Problem::problem_t<T> &problem)
       : problem_(problem),
-        eval_time_(0), setup_time_(0), evaluations_(0) {
+        eval_time_(0),
+        setup_time_(0),
+        evaluations_(0) {
     }
     virtual ~heuristic_t() { }
     virtual heuristic_t<T>* clone() const = 0;
