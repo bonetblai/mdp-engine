@@ -159,13 +159,13 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     bool random_ties_;
     float delta_;
     float epsilon_;
-    float damping_;
+    float score_damping_;
     unsigned max_num_samples_;
     bool soft_pruning_;
 
     const Heuristic::heuristic_t<T> *heuristic_;
 
-    const Algorithm::algorithm_t<T> *algorithm_; // CHECK
+    const Algorithm::algorithm_t<T> *algorithm_; // used for setting LBs and UBs
     Problem::hash_t<T> *hash_;
     float g_;
 
@@ -200,7 +200,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                bool random_ties,
                float delta,
                float epsilon,
-               float damping,
+               float score_damping,
                unsigned max_num_samples,
                bool soft_pruning,
                const Heuristic::heuristic_t<T> *heuristic,
@@ -213,7 +213,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         random_ties_(random_ties),
         delta_(delta),
         epsilon_(epsilon),
-        damping_(damping),
+        score_damping_(score_damping),
         max_num_samples_(max_num_samples),
         soft_pruning_(soft_pruning),
         heuristic_(heuristic),
@@ -231,7 +231,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         random_ties_(false),
         delta_(.1),
         epsilon_(.1),
-        damping_(.8),
+        score_damping_(.8),
         max_num_samples_(10),
         soft_pruning_(true),
         heuristic_(0),
@@ -248,7 +248,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
-        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, damping_, max_num_samples_, soft_pruning_, heuristic_, algorithm_, hash_, g_);
+        return new pac_tree_t(problem_, base_policy_, width_, horizon_, random_ties_, delta_, epsilon_, score_damping_, max_num_samples_, soft_pruning_, heuristic_, algorithm_, hash_, g_);
     }
     virtual std::string name() const {
         return std::string("pac-tree(") +
@@ -257,13 +257,12 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
           std::string(",random-ties=") + (random_ties_ ? "true" : "false") +
           std::string(",delta=") + std::to_string(delta_) +
           std::string(",epsilon=") + std::to_string(epsilon_) +
-          std::string(",damping=") + std::to_string(damping_) +
+          std::string(",score-damping=") + std::to_string(score_damping_) +
           std::string(",max-num-samples=") + std::to_string(max_num_samples_) +
-          std::string(",sort-pruning=") + (soft_pruning_ ? "true" : "false") +
+          std::string(",soft-pruning=") + (soft_pruning_ ? "true" : "false") +
           std::string(",policy=") + (base_policy_ == 0 ? std::string("null") : base_policy_->name()) +
           std::string(",heuristic=") + (heuristic_ == 0 ? std::string("null") : heuristic_->name()) +
           std::string(",algorithm=") + (algorithm_ == 0 ? std::string("null") : algorithm_->name()) +
-          std::string(",hash=") + std::to_string((long long unsigned)hash_) +
           std::string(",g=") + std::to_string(g_) +
           std::string(")");
     }
@@ -518,8 +517,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         if( it != parameters.end() ) delta_ = strtod(it->second.c_str(), 0);
         it = parameters.find("epsilon");
         if( it != parameters.end() ) epsilon_ = strtod(it->second.c_str(), 0);
-        it = parameters.find("damping");
-        if( it != parameters.end() ) damping_ = strtod(it->second.c_str(), 0);
+        it = parameters.find("score-damping");
+        if( it != parameters.end() ) score_damping_ = strtod(it->second.c_str(), 0);
         it = parameters.find("max-num-samples");
         if( it != parameters.end() ) max_num_samples_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("soft-pruning");
@@ -561,7 +560,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << " random-ties=" << random_ties_
                   << " delta=" << delta_
                   << " epsilon=" << epsilon_
-                  << " damping=" << damping_
+                  << " score-damping=" << damping_
                   << " max-num-samples=" << max_num_samples_
                   << " soft-pruning=" << soft_pruning_
                   << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
@@ -574,33 +573,37 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
 
     void compute_bounds(state_node_t<T> &node) const {
-        float value = 0;
+        float value = 0, gamma = 0;
         if( (algorithm_ != 0) && ((heuristic_ == 0) || (base_policy_ == 0)) ) {
             assert(hash_ != 0);
             value = hash_->value(*node.state_);
+        } else if( (algorithm_ == 0) && ((heuristic_ == 0) || (base_policy_ == 0)) ) {
+            gamma = (1 - powf(problem_.discount(), horizon_ - node.depth_ + 1)) / (1 - problem_.discount());
         }
 
+        // lower bound
         assert(node.lower_bound_ == 0);
         if( heuristic_ != 0 ) {
             ++num_heuristic_evaluations_;
             ++total_num_heuristic_evaluations_;
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
-            //float lb = (1 - powf(g_, 2 * node.depth_)) * value;
-            //std::cout << "H: lb=" << lb << ", n.lb=" << node.lower_bound_ << ", value=" << value << ", gap=" << lb - node.lower_bound_ << std::endl;
             policy_t<T>::heuristic_time_ = heuristic_->eval_time();
-        } else {
-            assert(algorithm_ != 0);
+        } else if( algorithm_ != 0 ) {
             node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
+        } else {
+            node.lower_bound_ = gamma * problem_.min_absolute_cost();
         }
 
+        // upper bound
         assert(node.upper_bound_ == 0);
         if( base_policy_ != 0 ) {
             float start_time = Utils::read_time_in_seconds();
             node.upper_bound_ = evaluate(node);
             policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
-        } else {
-            assert(algorithm_ != 0);
+        } else if( algorithm_ != 0 ) {
             node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
+        } else {
+            node.upper_bound_ = gamma * problem_.max_absolute_cost();
         }
     }
 
@@ -618,16 +621,16 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             update_bounds_est(static_cast<const action_node_t<T>*>(node.parent_), &node);
 
             float score = 0;
-            float damping = powf(damping_, node.depth_ - 1);
+            float damping = powf(score_damping_, node.depth_ - 1);
             for( const node_t<T> *n = node.parent_; n != 0; n = n->parent_ ) {
                n = n->parent_;
                assert(dynamic_cast<const state_node_t<T>*>(n) != 0);
                float gap_reduction = n->gap() - n->gap_est();
                //assert(gap_reduction >= 0);
                //score = std::max(score, gap_reduction * damping);
-               //damping /= damping_;
+               //damping /= score_damping_;
                score += gap_reduction * damping;
-               damping /= damping_;
+               damping /= score_damping_;
             }
             node.score_ = score;
         }

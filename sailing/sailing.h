@@ -138,9 +138,8 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.tack(a) == state_t::Into ? false : s.apply(a).in_lake(rows_, cols_);
     }
-    virtual float max_absolute_cost() const {
-        return 4;
-    }
+    virtual float min_absolute_cost() const { return 1; }
+    virtual float max_absolute_cost() const { return 4; }
     virtual float cost(const state_t &s, Problem::action_t a) const {
         return terminal(s) ? 0 : costs_[s.tack(a)];
     }
