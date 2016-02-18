@@ -129,6 +129,7 @@ template<typename T> class problem_t {
     virtual bool terminal(const T &s) const = 0;
     virtual bool dead_end(const T &s) const = 0;
     virtual bool applicable(const T &s, action_t a) const = 0;
+    virtual float min_absolute_cost() const = 0;
     virtual float max_absolute_cost() const = 0;
     virtual float cost(const T &s, action_t a) const = 0;
     virtual int max_action_branching() const = 0;
