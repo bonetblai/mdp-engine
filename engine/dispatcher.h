@@ -329,7 +329,7 @@ template<typename T> void dispatcher_t<T>::solve(const std::string &name, const 
 }
 
 template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const solve_result_t &result, const Algorithm::algorithm_t<T> *algorithm) const {
-    os << "solve-stats: name=" << result.name_
+    os << Utils::green() << "solve-stats:" << Utils::normal() << " name=" << result.name_
        << " seed=" << result.seed_
        << " problem.expansions=" << result.problem_expansions_
        << " hash.value=" << result.hash_value_
@@ -372,7 +372,7 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
 }
 
 template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const evaluate_result_t &result, const Online::Policy::policy_t<T> *policy) const {
-    os << "evaluate-stats: name=" << result.name_
+    os << Utils::green() << "evaluate-stats:" << Utils::normal() << " name=" << result.name_
        << " seed=" << result.seed_
        << " problem.expansions=" << result.problem_expansions_
        << " eval.value=" << result.eval_value_
