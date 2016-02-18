@@ -52,7 +52,7 @@ template<typename T> class random_t : public policy_t<T> {
                 actions.push_back(a);
             }
         }
-        return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
+        return actions.empty() ? Problem::noop : actions[Random::random(actions.size())];
     }
     virtual void reset_stats() const {
         policy_t<T>::setup_time_ = 0;
@@ -234,7 +234,7 @@ template<typename T> class base_greedy_t : public policy_t<T> {
                 }
             }
             policy_t<T>::heuristic_time_ = heuristic_ == 0 ? 0 : heuristic_->eval_time();
-            Problem::action_t action = best_actions[Random::uniform(best_actions.size())];
+            Problem::action_t action = best_actions[Random::random(best_actions.size())];
             if( caching_ ) cache_.insert(std::make_pair(s, action));
             return action;
         } else {

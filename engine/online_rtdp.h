@@ -243,7 +243,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         }
         assert(!actions.empty());
         assert(actions.size() == 1);
-        return actions[Random::uniform(actions.size())];
+        return actions[Random::random(actions.size())];
     }
 
     std::pair<float, bool> QValue(const node_t<T> &node, Problem::action_t a) const {

@@ -123,7 +123,7 @@ template<typename T> struct state_node_t : public node_t<T> {
         }
 
         assert(!best_actions.empty());
-        return best_actions[Random::uniform(best_actions.size())];
+        return best_actions[Random::random(best_actions.size())];
     }
 
     virtual void print(std::ostream &os) const {
@@ -574,9 +574,12 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
     void compute_bounds(state_node_t<T> &node) const {
         float value = 0, gamma = 0;
+        float lower_bound = 0, upper_bound = 0;
         if( (algorithm_ != 0) && ((heuristic_ == 0) || (base_policy_ == 0)) ) {
             assert(hash_ != 0);
             value = hash_->value(*node.state_);
+            lower_bound = (1 - powf(g_, node.depth_)) * value;
+            upper_bound = (1 + powf(g_, node.depth_)) * value;
         } else if( (algorithm_ == 0) && ((heuristic_ == 0) || (base_policy_ == 0)) ) {
             gamma = (1 - powf(problem_.discount(), horizon_ - node.depth_ + 1)) / (1 - problem_.discount());
         }

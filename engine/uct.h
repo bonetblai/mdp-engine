@@ -311,7 +311,7 @@ template<typename T> class uct_t : public improvement_t<T> {
             }
         }
         assert(!best_actions.empty());
-        return best_actions[Random::uniform(best_actions.size())];
+        return best_actions[Random::random(best_actions.size())];
     }
 
     float evaluate(const T &s, unsigned depth) const {

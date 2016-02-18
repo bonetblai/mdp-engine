@@ -162,7 +162,7 @@ template<typename T> class problem_t {
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
-        return std::make_pair(outcomes[Random::uniform(osize)].first, true);
+        return std::make_pair(outcomes[Random::random(osize)].first, true);
     }
 
     // sample next (unlabeled) state given action; probabilities are re-weighted

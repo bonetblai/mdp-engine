@@ -134,7 +134,7 @@ template<typename T> struct state_node_t : public node_t<T> {
             }
             //std::cout << "  state=" << state_ << ", value=" << a_node->value_ << std::endl;
         }
-        return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
+        return actions.empty() ? Problem::noop : actions[Random::random(actions.size())];
     }
 
     bool is_leaf() const {

@@ -54,14 +54,23 @@ inline float real() {
     return _random_float();
 }
 
-inline unsigned uniform(unsigned max) {
+inline unsigned random(unsigned max) {
     assert(max > 0);
     return max == 1 ? 0 : _random_unsigned() % max;
 }
 
-inline unsigned uniform(unsigned min, unsigned max) {
+inline unsigned random(unsigned min, unsigned max) {
     assert(max - min > 0);
-    return min + uniform(max - min);
+    return min + random(max - min);
+}
+
+inline float uniform() {
+    return drand48();
+}
+
+inline float uniform(float a, float b) {
+    assert(a <= b);
+    return a + (b - a) * uniform();
 }
 
 };

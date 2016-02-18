@@ -27,6 +27,8 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
+#include "random.h"
+
 //#define DEBUG
 
 namespace Utils {
@@ -115,7 +117,7 @@ inline int sample_from_distribution(int n, const float *cdf) {
     assert(n > 0);
     if( n == 1 ) return 0;
 
-    float p = drand48();
+    float p = Random::uniform();
     if( p == 1 ) { // border condition (it can only happens when converting drand48() to float)
         for( int i = n - 1; i > 0; --i ) {
             if( cdf[i - 1] < cdf[i] )
@@ -147,7 +149,7 @@ inline int sample_from_distribution(int n, const float *cdf) {
     //std::cout << "    return: mid=" << mid << std::endl;
     return mid;
 #else
-    float p = drand48();
+    float p = Random::uniform();
     for( int i = 0; i < n; ++i )
         if( p < cdf[i] ) return i;
     return n - 1;
@@ -167,7 +169,7 @@ inline void stochastic_sampling(int n, const float *cdf, int k, std::vector<int>
 inline void stochastic_universal_sampling(int n, const float *cdf, int k, std::vector<int> &indices) {
     indices.clear();
     indices.reserve(k);
-    float u = drand48() / float(k);
+    float u = Random::uniform() / float(k);
     for( int i = 0, j = 0; j < k; ++j ) {
         while( (i < n) && (u > cdf[i]) ) ++i;
         indices.push_back(i == n ? n - 1 : i);

@@ -133,7 +133,7 @@ template<typename T> struct state_node_t : public node_t<T> {
                 actions.push_back(a_node->action_);
             }
         }
-        return actions.empty() ? Problem::noop : actions[Random::uniform(actions.size())];
+        return actions.empty() ? Problem::noop : actions[Random::random(actions.size())];
     }
 
     bool is_leaf() const {
