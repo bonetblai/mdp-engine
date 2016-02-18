@@ -26,6 +26,7 @@
 #include <iostream>
 #include <cassert>
 #include <limits>
+#include <set>
 #include <vector>
 #include <float.h>
 
@@ -200,23 +201,22 @@ template<typename T> class problem_t {
     typedef std::pair<T, bool> (problem_t<T>::*sample_function)(int) const;
 
     // compute the size of policy stored at hash table for given state
-    size_t policy_size(hash_t<T> &hash, const T &s) const {
-        hash.unmark_all();
-        size_t size = policy_size_aux(hash, s);
+    size_t policy_size(const hash_t<T> &hash, const T &s) const {
+        std::set<T> marked_states;
+        size_t size = policy_size_aux(hash, s, marked_states);
         return size;
     }
 
-    size_t policy_size_aux(hash_t<T> &hash, const T &s) const {
+    size_t policy_size_aux(const hash_t<T> &hash, const T &s, std::set<T> &marked_states) const {
         std::vector<std::pair<T, float> > outcomes;
         size_t size = 0;
-        if( !terminal(s) && !hash.marked(s) ) {
-            hash.mark(s);
+        if( !terminal(s) && (marked_states.find(s) == marked_states.end()) ) {
+            marked_states.insert(s);
             std::pair<action_t, float> p = hash.bestQValue(s);
             next(s, p.first, outcomes);
             unsigned osize = outcomes.size();
-            for( unsigned i = 0; i < osize; ++i ) {
-                size += policy_size_aux(hash, outcomes[i].first);
-            }
+            for( unsigned i = 0; i < osize; ++i )
+                size += policy_size_aux(hash, outcomes[i].first, marked_states);
             ++size;
         }
         return size;
