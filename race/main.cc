@@ -104,10 +104,11 @@ int main(int argc, const char **argv) {
         dispatcher.solve(request, algorithm, problem.init(), result);
         solve_results.push_back(result);
     }
+
+    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
     if( !solve_results.empty() ) {
         for( int i = 0; i < int(solve_results.size()); ++i ) {
-            const Algorithm::algorithm_t<state_t> *algorithm = algorithms[i].second;
-            dispatcher.print_stats(cout, solve_results[i], algorithm);
+            dispatcher.print_stats(cout, solve_results[i]);
         }
     }
 
@@ -120,10 +121,11 @@ int main(int argc, const char **argv) {
         dispatcher.evaluate(request, policy, problem.init(), result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
+
+    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
     if( !evaluate_results.empty() ) {
         for( int i = 0; i < int(evaluate_results.size()); ++i ) {
-            const Online::Policy::policy_t<state_t> *policy = policies[i].second;
-            dispatcher.print_stats(cout, evaluate_results[i], policy);
+            dispatcher.print_stats(cout, evaluate_results[i]);
         }
     }
 
