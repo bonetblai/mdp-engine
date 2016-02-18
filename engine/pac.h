@@ -180,12 +180,16 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     // stats for single action selection
     mutable int num_nodes_pruned_;
     mutable int num_a_nodes_pruned_;
+    mutable int num_nodes_pruned_soft_;
+    mutable int num_a_nodes_pruned_soft_;
     mutable int num_policy_evaluations_;
     mutable int num_heuristic_evaluations_;
 
     // overall stats
     mutable int total_num_nodes_pruned_;
     mutable int total_num_a_nodes_pruned_;
+    mutable int total_num_nodes_pruned_soft_;
+    mutable int total_num_a_nodes_pruned_soft_;
     mutable int total_num_policy_evaluations_;
     mutable int total_num_heuristic_evaluations_;
 
@@ -237,6 +241,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         gamma_ = problem_.discount();
         total_num_nodes_pruned_ = 0;
         total_num_a_nodes_pruned_ = 0;
+        total_num_nodes_pruned_soft_ = 0;
+        total_num_a_nodes_pruned_soft_ = 0;
         total_num_policy_evaluations_ = 0;
         total_num_heuristic_evaluations_ = 0;
     }
@@ -265,6 +271,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     void calculate_parameters() {
         total_num_nodes_pruned_ = 0;
         total_num_a_nodes_pruned_ = 0;
+        total_num_nodes_pruned_soft_ = 0;
+        total_num_a_nodes_pruned_soft_ = 0;
         total_num_policy_evaluations_ = 0;
         total_num_heuristic_evaluations_ = 0;
 
@@ -314,6 +322,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     void reset_stats_for_single_action_selection() const {
         num_nodes_pruned_ = 0;
         num_a_nodes_pruned_ = 0;
+        num_nodes_pruned_soft_ = 0;
+        num_a_nodes_pruned_soft_ = 0;
         num_policy_evaluations_ = 0;
         num_heuristic_evaluations_ = 0;
     }
@@ -464,6 +474,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << "debug: pac(): stats-single-call:"
                   << " #nodes-pruned=" << num_nodes_pruned_
                   << " #a-nodes-pruned=" << num_a_nodes_pruned_
+                  << " #nodes-pruned-soft=" << num_nodes_pruned_soft_
+                  << " #a-nodes-pruned-soft=" << num_a_nodes_pruned_soft_
                   << " #policy-evaluations=" << num_policy_evaluations_
                   << " #heuristic-evaluations=" << num_heuristic_evaluations_
                   << Utils::normal()
@@ -485,6 +497,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
            << " decisions=" << policy_t<T>::decisions_
            << " num-nodes-pruned=" << total_num_nodes_pruned_
            << " num-a-nodes-pruned=" << total_num_a_nodes_pruned_
+           << " num-nodes-pruned-soft=" << total_num_nodes_pruned_soft_
+           << " num-a-nodes-pruned-soft=" << total_num_a_nodes_pruned_soft_
            << " num-policy-evaluations=" << total_num_policy_evaluations_
            << " num-heuristic-evaluations=" << total_num_heuristic_evaluations_
            << std::endl;
@@ -563,6 +577,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             ++num_heuristic_evaluations_;
             ++total_num_heuristic_evaluations_;
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
+            //float lb = (1 - powf(g_, 2 * node.depth_)) * value;
+            //std::cout << "H: lb=" << lb << ", n.lb=" << node.lower_bound_ << ", value=" << value << ", gap=" << lb - node.lower_bound_ << std::endl;
         } else {
             assert(algorithm_ != 0);
             node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
@@ -739,6 +755,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         node.pruned_ = true;
         ++num_nodes_pruned_;
         ++total_num_nodes_pruned_;
+        if( !hard ) {
+            ++num_nodes_pruned_soft_;
+            ++total_num_nodes_pruned_soft_;
+        }
     }
     void mark_node_as_pruned(action_node_t<T> &a_node, bool hard) const {
 #ifdef DEBUG2
@@ -757,6 +777,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         a_node.pruned_ = true;
         ++num_a_nodes_pruned_;
         ++total_num_a_nodes_pruned_;
+        if( !hard ) {
+            ++num_a_nodes_pruned_soft_;
+            ++total_num_a_nodes_pruned_soft_;
+        }
     }
 
     void propagate_values(state_node_t<T> &node) const {
@@ -780,7 +804,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         return Evaluation::evaluation(*base_policy_, s, num_samples, horizon_ - depth);
     }
     float evaluate(const state_node_t<T> &node) const {
-        return evaluate(*node.state_, num_samples_[node.depth_], node.depth_);
+        //return evaluate(*node.state_, num_samples_[node.depth_], node.depth_);
+        return evaluate(*node.state_, 3, node.depth_); // CHECK
     }
 
     void delete_tree(state_node_t<T> *node) const {
