@@ -592,7 +592,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
             policy_t<T>::heuristic_time_ = heuristic_->eval_time();
         } else if( algorithm_ != 0 ) {
-            node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
+            //node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
+            node.lower_bound_ = Random::uniform(lower_bound, value);
         } else {
             node.lower_bound_ = gamma * problem_.min_absolute_cost();
         }
@@ -604,7 +605,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             node.upper_bound_ = evaluate(node);
             policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
         } else if( algorithm_ != 0 ) {
-            node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
+            //node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
+            node.upper_bound_ = Random::uniform(value, upper_bound);
         } else {
             node.upper_bound_ = gamma * problem_.max_absolute_cost();
         }
