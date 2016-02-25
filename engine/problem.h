@@ -69,13 +69,13 @@ template<typename T> class hash_t : public Hash::hash_map_t<T> {
         Hash::hash_map_t<T>::update(s, value);
     }
 
-    virtual float QValue(const T &s, action_t a) const;
-    std::pair<action_t, float> bestQValue(const T &s) const {
+    virtual float q_value(const T &s, action_t a) const;
+    std::pair<action_t, float> best_q_value(const T &s) const {
         action_t best_action = noop;
         float best_value = std::numeric_limits<float>::max();
         for( action_t a = 0; a < problem_.number_actions(s); ++a ) {
             if( problem_.applicable(s, a) ) {
-                float value = QValue(s, a);
+                float value = q_value(s, a);
                 if( value < best_value ) {
                     best_value = value;
                     best_action = a;
@@ -95,7 +95,7 @@ template<typename T> class min_hash_t : public hash_t<T> {
       : hash_t<T>(problem, heuristic) {
     }
     virtual ~min_hash_t() { }
-    virtual float QValue(const T &s, action_t a) const;
+    virtual float q_value(const T &s, action_t a) const;
 };
 
 
@@ -213,7 +213,7 @@ template<typename T> class problem_t {
         size_t size = 0;
         if( !terminal(s) && (marked_states.find(s) == marked_states.end()) ) {
             marked_states.insert(s);
-            std::pair<action_t, float> p = hash.bestQValue(s);
+            std::pair<action_t, float> p = hash.best_q_value(s);
             next(s, p.first, outcomes);
             unsigned osize = outcomes.size();
             for( unsigned i = 0; i < osize; ++i )
@@ -228,7 +228,7 @@ template<typename T> class problem_t {
 };
 
 template<typename T>
-inline float hash_t<T>::QValue(const T &s, action_t a) const {
+inline float hash_t<T>::q_value(const T &s, action_t a) const {
     if( problem_.terminal(s) ) return 0;
 
     std::vector<std::pair<T, float> > outcomes;
@@ -243,7 +243,7 @@ inline float hash_t<T>::QValue(const T &s, action_t a) const {
 }
 
 template<typename T>
-inline float min_hash_t<T>::QValue(const T &s, action_t a) const {
+inline float min_hash_t<T>::q_value(const T &s, action_t a) const {
     if( hash_t<T>::problem_.terminal(s) ) return 0;
 
     std::vector<std::pair<T, float> > outcomes;

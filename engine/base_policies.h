@@ -72,7 +72,7 @@ template<typename T> class random_t : public policy_t<T> {
     virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 };
 
-// Hash-based based policy: select best action using bestQValue method of hash table
+// Hash-based based policy: select best action using best_q_value method of hash table
 template<typename T> class hash_policy_t : public policy_t<T> {
   using policy_t<T>::problem_;
   protected:
@@ -90,7 +90,7 @@ template<typename T> class hash_policy_t : public policy_t<T> {
     virtual Problem::action_t operator()(const T &s) const {
         assert(hash_ != 0);
         ++policy_t<T>::decisions_;
-        std::pair<Problem::action_t, float> p = hash_->bestQValue(s);
+        std::pair<Problem::action_t, float> p = hash_->best_q_value(s);
         assert(problem_.applicable(s, p.first));
         return p.first;
     }

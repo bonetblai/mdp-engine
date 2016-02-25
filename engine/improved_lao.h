@@ -84,7 +84,7 @@ template<typename T> class improved_lao_t : public algorithm_t<T> {
                     ++size_;
                 } else {
                     bool unsolved = false;
-                    std::pair<Problem::action_t, float> p = hash_.bestQValue(n.first);
+                    std::pair<Problem::action_t, float> p = hash_.best_q_value(n.first);
                     assert(p.first != Problem::noop);
                     n.second->set_action(p.first);
 
@@ -148,7 +148,7 @@ template<typename T> class improved_lao_t : public algorithm_t<T> {
                         }
                     }
                 } else {
-                    std::pair<Problem::action_t, float> p = hash_.bestQValue(n.first);
+                    std::pair<Problem::action_t, float> p = hash_.best_q_value(n.first);
                     problem_.next(n.first, p.first, outcomes);
                     unsigned osize = outcomes.size();
                     for( unsigned i = 0; i < osize; ++i )
@@ -163,7 +163,7 @@ template<typename T> class improved_lao_t : public algorithm_t<T> {
 
         void update(pair_list &visited) {
             for( list_iterator si = visited.begin(); si != visited.end(); ++si ) {
-                std::pair<Problem::action_t, float> p = hash_.bestQValue(si->first);
+                std::pair<Problem::action_t, float> p = hash_.best_q_value(si->first);
                 si->second->update(p.second);
                 hash_.inc_updates();
             }
@@ -240,7 +240,7 @@ template<typename T> class improved_lao_t : public algorithm_t<T> {
             residual = 0.0;
             for( const_list_iterator si = graph.nodes().begin(); si != graph.nodes().end(); ++si ) {
                 float hv = si->second->value();
-                std::pair<Problem::action_t, float> p = hash.bestQValue(si->first);
+                std::pair<Problem::action_t, float> p = hash.best_q_value(si->first);
                 residual = Utils::max(residual, (float)fabs(p.second - hv));
                 si->second->update(p.second);
                 hash.inc_updates();

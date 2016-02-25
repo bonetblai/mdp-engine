@@ -117,7 +117,7 @@ template<typename T> class lrtdp_base_t : public algorithm_t<T> {
             std::cout << "debug: lrtdp-base():   " << t << " = " << dptr->value() << std::endl;
 #endif
 
-            std::pair<Problem::action_t, float> p = hash.bestQValue(t);
+            std::pair<Problem::action_t, float> p = hash.best_q_value(t);
             dptr->update(p.second);
             hash.inc_updates();
 

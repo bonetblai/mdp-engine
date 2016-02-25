@@ -125,7 +125,7 @@ template<typename T> class hdp_t : public algorithm_t<T> {
         }
 
         // if residual > epsilon, update and return
-        std::pair<Problem::action_t, float> p = hash.bestQValue(s);
+        std::pair<Problem::action_t, float> p = hash.best_q_value(s);
         if( fabs(p.second - dptr->value()) > epsilon_ ) {
             dptr->update(p.second);
             hash.inc_updates();
@@ -158,7 +158,7 @@ template<typename T> class hdp_t : public algorithm_t<T> {
 
         // update
         if( !flag ) {
-            std::pair<Problem::action_t, float> p = hash.bestQValue(s);
+            std::pair<Problem::action_t, float> p = hash.best_q_value(s);
             dptr->update(p.second);
             hash.inc_updates();
             while( !stack.empty() && (stack.front()->scc_idx() >= idx) ) {

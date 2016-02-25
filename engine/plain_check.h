@@ -50,7 +50,7 @@ bool check_solved(const Problem::problem_t<T> &problem,
         open.pop_back();
         if( problem.terminal(n.first) ) continue;
 
-        std::pair<Problem::action_t, float> p = hash.bestQValue(n.first);
+        std::pair<Problem::action_t, float> p = hash.best_q_value(n.first);
         if( fabs(p.second - n.second->value()) > epsilon ) {
             rv = false;
             continue;
@@ -75,7 +75,7 @@ bool check_solved(const Problem::problem_t<T> &problem,
         }
     } else {
         while( !closed.empty() ) {
-            std::pair<Problem::action_t, float> p = hash.bestQValue(closed.back().first);
+            std::pair<Problem::action_t, float> p = hash.best_q_value(closed.back().first);
             closed.back().second->update(p.second);
             closed.back().second->unmark();
             hash.inc_updates();

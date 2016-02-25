@@ -152,7 +152,7 @@ template<typename T> class value_iteration_t : public algorithm_t<T> {
             residual = 0;
             for( hash_iterator hi = hash.begin(); hi != hash.end(); ++hi ) {
                 float hv = hi->second->value();
-                std::pair<Problem::action_t, float> p = hash.bestQValue(hi->first);
+                std::pair<Problem::action_t, float> p = hash.best_q_value(hi->first);
                 float res = (float)fabs(p.second - hv);
                 residual = Utils::max(residual, res);
                 hi->second->update(p.second);

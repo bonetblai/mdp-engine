@@ -233,7 +233,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         actions.reserve(random_ties ? nactions : 1);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( problem_.applicable(node.state(), a) ) {
-                std::pair<float, bool> p = QValue(node, a);
+                std::pair<float, bool> p = q_value(node, a);
                 if( p.first <= best_value ) {
                     if( p.first < best_value ) {
                         best_value = p.first;
@@ -249,7 +249,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         return actions[Random::random(actions.size())];
     }
 
-    std::pair<float, bool> QValue(const node_t<T> &node, Problem::action_t a) const {
+    std::pair<float, bool> q_value(const node_t<T> &node, Problem::action_t a) const {
         ++total_number_expansions_;
         float qvalue = 0;
         bool all_children_labeled = true;
@@ -267,14 +267,14 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         return std::make_pair(qvalue, all_children_labeled);
     }
 
-    std::pair<std::pair<float, Problem::action_t>, bool> bestQValue(const node_t<T> &node) const {
+    std::pair<std::pair<float, Problem::action_t>, bool> best_q_value(const node_t<T> &node) const {
         bool all_labeled = false;
         Problem::action_t best_action = Problem::noop;
         float best_value = std::numeric_limits<float>::max();
         int nactions = problem_.number_actions(node.state());
         for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( problem_.applicable(node.state(), a) ) {
-                std::pair<float, bool> p = QValue(node, a);
+                std::pair<float, bool> p = q_value(node, a);
                 if( (best_action == Problem::noop) || (p.first < best_value) ) {
                     all_labeled = p.second;
                     best_value = p.first;
@@ -334,7 +334,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
         } else if( terminal(node) ) {
             dptr->value_ = 0;
         } else {
-            std::pair<std::pair<float, Problem::action_t>, bool> p = bestQValue(node);
+            std::pair<std::pair<float, Problem::action_t>, bool> p = best_q_value(node);
             if( (p.first.first == dptr->value_) && p.second ) {
                 labeled = true;
             } else {
@@ -376,7 +376,7 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
                       << ", depth=" << node.depth()
                       << ", dptr=" << dptr << std::endl;
 #endif
-            std::pair<float, Problem::action_t> p = bestQValue(node).first;
+            std::pair<float, Problem::action_t> p = best_q_value(node).first;
             Problem::action_t best_action = p.second;
             update_value(node, p.first);
             node.set_state(problem_.sample(node.state(), best_action).first);

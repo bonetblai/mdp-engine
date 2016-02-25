@@ -106,7 +106,7 @@ template<typename T> class ldfs_base_t : public algorithm_t<T> {
         //dptr->mark();
 
         if( type_ == 1 ) {
-            std::pair<Problem::action_t, float> p = hash.bestQValue(s);
+            std::pair<Problem::action_t, float> p = hash.best_q_value(s);
             dptr->update(p.second);
             hash.inc_updates();
         }
@@ -137,7 +137,7 @@ template<typename T> class ldfs_base_t : public algorithm_t<T> {
                         dptr->set_scc_low(Utils::min(dptr->scc_low(), ptr->scc_idx()));
                     }
                 }
-                if( (type_ == 1) && flag && (hash.QValue(s, a) - dptr->value() > epsilon_) ) flag = false;
+                if( (type_ == 1) && flag && (hash.q_value(s, a) - dptr->value() > epsilon_) ) flag = false;
                 if( flag ) break;
                 while( stack.front()->scc_idx() > idx ) {
                     stack.front()->set_scc_low(std::numeric_limits<unsigned>::max());
@@ -152,7 +152,7 @@ template<typename T> class ldfs_base_t : public algorithm_t<T> {
             if( !dptr->marked() ) {
                 dptr->update(bqv);
             } else {
-                std::pair<Problem::action_t, float> p = hash.bestQValue(s);
+                std::pair<Problem::action_t, float> p = hash.best_q_value(s);
                 dptr->update(p.second);
             }
             hash.inc_updates();
