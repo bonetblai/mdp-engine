@@ -128,6 +128,9 @@ template<typename T> class rollout_t : public improvement_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::Yes; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::No; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
     float evaluate(const T &s) const {
         if( base_policy_ == 0 ) {
@@ -221,6 +224,9 @@ template<typename T> class nested_rollout_t : public improvement_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::Yes; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::No; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
     float evaluate(const T &s) const {
         assert(!nested_policies_.empty());

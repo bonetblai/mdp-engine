@@ -30,7 +30,7 @@
 #include <vector>
 #include <math.h>
 
-//#define DEBUG
+#define DEBUG
 //#define DEBUG2
 
 namespace Online {
@@ -245,6 +245,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         total_num_a_nodes_pruned_soft_ = 0;
         total_num_policy_evaluations_ = 0;
         total_num_heuristic_evaluations_ = 0;
+        std::cout << Utils::red() << "warning: pac-tree() is research in progress. Don't use it without permission" << Utils::normal() << std::endl;
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
@@ -560,7 +561,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << " random-ties=" << random_ties_
                   << " delta=" << delta_
                   << " epsilon=" << epsilon_
-                  << " score-damping=" << damping_
+                  << " score-damping=" << score_damping_
                   << " max-num-samples=" << max_num_samples_
                   << " soft-pruning=" << soft_pruning_
                   << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
@@ -571,6 +572,9 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::Optional; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::Optional; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::Optional; }
 
     void compute_bounds(state_node_t<T> &node) const {
         float value = 0, gamma = 0;
@@ -589,10 +593,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         if( heuristic_ != 0 ) {
             ++num_heuristic_evaluations_;
             ++total_num_heuristic_evaluations_;
-            node.lower_bound_ = heuristic_->value(*node.state_); // XXXX: heuristic should use (s, depth)
+            node.lower_bound_ = heuristic_->value(*node.state_); // CHECK: heuristic should use (s, depth)
             policy_t<T>::heuristic_time_ = heuristic_->eval_time();
         } else if( algorithm_ != 0 ) {
-            //node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value;
+            //node.lower_bound_ = (1 - powf(g_, 2 * node.depth_)) * value; // CHECK: old lower bound
             node.lower_bound_ = Random::uniform(lower_bound, value);
         } else {
             node.lower_bound_ = gamma * problem_.min_absolute_cost();
@@ -605,7 +609,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             node.upper_bound_ = evaluate(node);
             policy_t<T>::base_policy_time_ += Utils::read_time_in_seconds() - start_time;
         } else if( algorithm_ != 0 ) {
-            //node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value;
+            //node.upper_bound_ = (1 + powf(g_, 2 * node.depth_)) * value; // CHECK: old upper bound
             node.upper_bound_ = Random::uniform(value, upper_bound);
         } else {
             node.upper_bound_ = gamma * problem_.max_absolute_cost();
@@ -618,7 +622,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
 
     // assuming the upper bound decreases by gap / 4, compute sum of gap reductions on ancestor nodes
     void compute_score(const state_node_t<T> &node) const {
-        // XXXX: NEED TO ESTIMATE PRUNED BRANCHES
+        // CHECK: NEED TO ESTIMATE PRUNED BRANCHES
         if( node.parent_ != 0 ) {
             node.lower_bound_est_ = (node.lower_bound_ + (node.lower_bound_ + node.upper_bound_) / 2) / 2;
             node.upper_bound_est_ = ((node.lower_bound_ + node.upper_bound_) / 2 + node.upper_bound_) / 2;
@@ -689,7 +693,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         node.lower_bound_ = node.children_[node.best_child_]->lower_bound_;
 
         // mark nodes (subtrees) as pruned
-        float eta = 0.1; // CHECK
+        float eta = 0.1; // CHECK: eta is the gap parameter
         for( int i = 0; i < int(node.children_.size()); ++i ) {
             action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
             if( (node.best_child_ == i) || a_node.pruned_ ) continue;
@@ -824,7 +828,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
     float evaluate(const state_node_t<T> &node) const {
         //return evaluate(*node.state_, num_samples_[node.depth_], node.depth_);
-        return evaluate(*node.state_, 3, node.depth_); // CHECK
+        return evaluate(*node.state_, 3, node.depth_); // CHECK: 3 is number of samples at node, it should be parameter
     }
 
     void delete_tree(state_node_t<T> *node) const {

@@ -215,6 +215,9 @@ template<typename T> class finite_horizon_lrtdp_t : public policy_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::No; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::Yes; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
     void clear_table() const {
         for( typename hash_table_t<T>::const_iterator it = table_.begin(); it != table_.end(); ++it ) {

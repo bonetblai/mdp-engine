@@ -307,14 +307,15 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const s
     const Problem::problem_t<T> &problem = algorithm.problem();
 
     // general stats
-    os << Utils::green() << "solve-stats:" << Utils::normal()
+    os << Utils::green() << "stats:" << Utils::normal()
+       << " type=solve"
        << " name=" << result.name_
        << " seed=" << result.seed_
        << " problem.expansions=" << result.problem_expansions_;
 
     // stats from hash
     const Problem::hash_t<T> &hash = *result.hash_;
-    os << " hash.value=" << hash.value(result.state_)
+    os << Utils::green() << " hash.value=" << hash.value(result.state_) << Utils::normal()
        << " hash.updates=" << hash.updates();
     if( (result.name_.substr(0, 12) != "simple_astar") && (result.name_.substr(0, 9) != "simple_a*") )
         os << " hash.policy-size=" << problem.policy_size(hash, result.state_);
@@ -362,21 +363,24 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const e
     const Online::Policy::policy_t<T> &policy = *result.policy_;
    
     // general stats 
-    os << Utils::green() << "evaluate-stats:" << Utils::normal()
+    os << Utils::green() << "stats:" << Utils::normal()
+       << " type=eval"
        << " name=" << result.name_
        << " seed=" << result.seed_
        << " problem.expansions=" << result.problem_expansions_;
 
     // stats from trials
-    os << " eval.value=" << result.eval_value_
+    os << Utils::green() << " eval.value=" << result.eval_value_ << Utils::normal()
        << " eval.stdev=" << result.eval_stdev_;
 
     // time stats
     os << " time.raw=" << result.time_raw_
-       << " time.setup=" << policy.setup_time()
-       << " time.base-policy=" << policy.base_policy_time()
-       << " time.heuristic=" << policy.heuristic_time()
-       << " time.algorithm=" << result.time_raw_ - policy.base_policy_time() - policy.heuristic_time()
+       << " time.setup=" << policy.setup_time();
+    if( policy.uses_base_policy() != Online::Policy::policy_t<T>::usage_t::No )
+         os << " time.base-policy=" << policy.base_policy_time();
+    if( policy.uses_heuristic() != Online::Policy::policy_t<T>::usage_t::No )
+         os << " time.heuristic=" << policy.heuristic_time();
+    os << " time.policy=" << result.time_raw_ - policy.base_policy_time() - policy.heuristic_time()
        << std::endl;
     policy.print_other_stats(os, 2);
 }

@@ -202,6 +202,9 @@ template<typename T> class uct_t : public improvement_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::Yes; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::No; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
     float value(const T &s, Problem::action_t a) const {
         typename hash_t<T>::const_iterator it = table_.find(std::make_pair(0, s));

@@ -33,6 +33,8 @@
 
 namespace Utils {
 
+extern bool g_use_colors;
+
 #if 0 // kappa stuff
 extern float kappa_log;
 
@@ -41,16 +43,16 @@ inline size_t kappa_value(float p, float kl = kappa_log) {
 }
 #endif
 
-inline std::string normal() { return "\x1B[0m"; }
-inline std::string red() { return "\x1B[31;1m"; }
-inline std::string green() { return "\x1B[32;1m"; }
-inline std::string yellow() { return "\x1B[33;1m"; }
-inline std::string blue() { return "\x1B[34;1m"; }
-inline std::string magenta() { return "\x1B[35;1m"; }
-inline std::string cyan() { return "\x1B[36;1m"; }
-inline std::string error() { return "\x1B[31;1merror: \x1B[0m"; }
-inline std::string warning() { return "\x1B[35;1mwarning: \x1B[0m"; }
-inline std::string internal_error() { return "\x1B[31;1minternal error: \x1B[0m"; }
+inline std::string normal() { return !g_use_colors ? "" : "\x1B[0m"; }
+inline std::string red() { return !g_use_colors ? "" : "\x1B[31;1m"; }
+inline std::string green() { return !g_use_colors ? "" : "\x1B[32;1m"; }
+inline std::string yellow() { return !g_use_colors ? "" : "\x1B[33;1m"; }
+inline std::string blue() { return !g_use_colors ? "" : "\x1B[34;1m"; }
+inline std::string magenta() { return !g_use_colors ? "" : "\x1B[35;1m"; }
+inline std::string cyan() { return !g_use_colors ? "" : "\x1B[36;1m"; }
+inline std::string error() { return !g_use_colors ? "" : "\x1B[31;1merror: \x1B[0m"; }
+inline std::string warning() { return !g_use_colors ? "" : "\x1B[35;1mwarning: \x1B[0m"; }
+inline std::string internal_error() { return !g_use_colors ? "" : "\x1B[31;1minternal error: \x1B[0m"; }
 
 inline float read_time_in_seconds() {
     struct rusage r_usage;

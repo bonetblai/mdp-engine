@@ -64,6 +64,11 @@ template<typename T> class policy_t {
     virtual void print_other_stats(std::ostream &os, int indent) const = 0;
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) = 0;
 
+    typedef enum { No, Yes, Optional } usage_t;
+    virtual usage_t uses_base_policy() const = 0;
+    virtual usage_t uses_heuristic() const = 0;
+    virtual usage_t uses_algorithm() const = 0;
+
     unsigned seed() const { return seed_; }
     float setup_time() const { return setup_time_; }
     float base_policy_time() const { return base_policy_time_; }

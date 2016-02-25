@@ -539,6 +539,9 @@ template<typename T> class aot_t : public improvement_t<T> {
                   << std::endl;
 #endif
     }
+    virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::Optional; }
+    virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::Optional; }
+    virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
     void print_tree(std::ostream &os) const {
         std::cout << Utils::error() << "not yet implemented" << std::endl;

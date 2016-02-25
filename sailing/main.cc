@@ -8,17 +8,21 @@
 #include "sailing.h"
 
 namespace Algorithm {
-  unsigned g_seed = 0;
+    unsigned g_seed = 0;
 };
 
 namespace Online {
-  unsigned g_seed = 0;
+    unsigned g_seed = 0;
+};
+
+namespace Utils {
+    bool g_use_colors = true;
 };
 
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: sailing [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <x-dim> <y-dim>" << endl;
+    os << "usage: sailing [--nc] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <x-dim> <y-dim>" << endl;
 }
 
 int main(int argc, const char **argv) {
@@ -33,7 +37,9 @@ int main(int argc, const char **argv) {
 
     // parse arguments
     for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
-        if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
+        if( string(*argv) == "--nc" ) {
+            Utils::g_use_colors = false;
+        } else if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
             requests.push_back(argv[1]);
             ++argv;
             --argc;
