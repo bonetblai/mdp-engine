@@ -61,8 +61,13 @@ template<typename T> struct node_t {
     bool in_pq_;
 
     node_t(float value = 0, float delta = 0)
-      : value_(value), delta_(delta), nsamples_(0),
-        in_best_policy_(false), in_queue_(false), in_pq_(false) { }
+      : value_(value),
+        delta_(delta),
+        nsamples_(0),
+        in_best_policy_(false),
+        in_queue_(false),
+        in_pq_(false) {
+    }
     virtual ~node_t() { }
 
     virtual void print(std::ostream &os, bool indent = true) const = 0;
@@ -78,6 +83,7 @@ template<typename T> struct action_node_t : public node_t<T> {
 
     Problem::action_t action_;
     float action_cost_;
+
     state_node_t<T> *parent_;
     std::vector<std::pair<float, state_node_t<T>*> > children_;
 
@@ -117,11 +123,16 @@ template<typename T> struct state_node_t : public node_t<T> {
     bool is_goal_;
     bool is_dead_end_;
     unsigned depth_;
+
     std::vector<std::pair<int, action_node_t<T>*> > parents_;
     std::vector<action_node_t<T>*> children_;
 
     state_node_t(const T &state, unsigned depth = 0)
-      : state_(state), is_goal_(false), is_dead_end_(false), depth_(depth) { }
+      : state_(state),
+        is_goal_(false),
+        is_dead_end_(false),
+        depth_(depth) {
+    }
     virtual ~state_node_t() { }
 
     Problem::action_t best_action(bool random_ties) const {
