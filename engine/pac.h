@@ -30,7 +30,7 @@
 #include <vector>
 #include <math.h>
 
-#define DEBUG
+//#define DEBUG
 //#define DEBUG2
 
 namespace Online {
@@ -338,7 +338,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         compute_bounds(*root);
 
         Problem::action_t action = 0;
-        if( false && solved(*root) ) { // CHECK
+        if( solved(*root) ) {
 #ifdef DEBUG
             std::cout << "debug: pac():"
                       << " root=" << *root
@@ -349,7 +349,14 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                       << std::endl;
 #endif
             delete root;
-            action = (*base_policy_)(s);
+            if( base_policy_ != 0 ) {
+                action = (*base_policy_)(s);
+            } else {
+                assert(algorithm_ != 0);
+                assert(hash_ != 0);
+                std::pair<Problem::action_t, float> p = hash_->best_q_value(s);
+                action = p.first;
+            }
 #ifdef DEBUG
             std::cout << "debug: pac(): selection:"
                       << " action=" << action
