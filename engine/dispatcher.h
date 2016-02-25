@@ -142,6 +142,7 @@ template<typename T> class dispatcher_t {
 #include "aot_gh.h"
 #include "aot_path.h"
 #include "pac.h"
+#include "pac2.h"
 #include "online_rtdp.h"
 
 //#define DEBUG
@@ -263,6 +264,8 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
             assert(0);
         else if( name == "pac-tree" )
             policy = new Online::Policy::PAC::pac_tree_t<T>(problem);
+        else if( name == "pac2-tree" )
+            policy = new Online::Policy::PAC2::pac_tree_t<T>(problem);
         else if( name == "finite-horizon-lrtdp" )
             policy = new Online::Policy::RTDP::finite_horizon_lrtdp_t<T>(problem);
 
