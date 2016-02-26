@@ -570,8 +570,7 @@ template<typename T> class aot_t : public improvement_t<T> {
 
     // lookup a node in hash table; if not found, create a new entry.
     std::pair<state_node_t<T>*, bool> fetch_node(const T &state, unsigned depth, bool debug = false) const {
-        typename hash_t<T>::iterator it =
-          table_.find(std::make_pair(&state, depth));
+        typename hash_t<T>::iterator it = table_.find(std::make_pair(&state, depth));
         if( it == table_.end() ) {
             if( debug ) std::cout << "fetch_node: node was NOT-FOUND" << std::endl;
             ++num_nodes_;
