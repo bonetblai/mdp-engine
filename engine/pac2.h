@@ -45,25 +45,26 @@ namespace PAC2 {
 //
 
 template<typename T> struct node_t {
+    // bounding and pruning
     float lower_bound_;
     float upper_bound_;
     bool pruned_;
 
     // used for computing scores
-    mutable float lower_bound_est_;
-    mutable float upper_bound_est_;
+    mutable float lower_bound_guessed_;
+    mutable float upper_bound_guessed_;
 
     node_t()
       : lower_bound_(0),
         upper_bound_(0),
         pruned_(false),
-        lower_bound_est_(0),
-        upper_bound_est_(0) {
+        lower_bound_guessed_(0),
+        upper_bound_guessed_(0) {
     }
     virtual ~node_t() { }
 
     float gap() const { return upper_bound_ - lower_bound_; }
-    float gap_est() const { return upper_bound_est_ - lower_bound_est_; }
+    float gap_guessed() const { return upper_bound_guessed_ - lower_bound_guessed_; }
     virtual void print(std::ostream &os) const = 0;
 };
 
@@ -75,7 +76,12 @@ template<typename T> struct action_node_t : public node_t<T> {
     state_node_t<T> *parent_;
     std::vector<std::pair<float, state_node_t<T>*> > children_;
 
-    action_node_t(Problem::action_t action) : action_(action) { }
+    action_node_t(Problem::action_t action, float action_cost, state_node_t<T> *parent)
+      : action_(action),
+        action_cost_(action_cost),
+        parent_(parent) {
+    }
+    //action_node_t(Problem::action_t action) : action_(action) { }
     virtual ~action_node_t() { }
 
     virtual void print(std::ostream &os) const {
@@ -113,10 +119,10 @@ template<typename T> struct state_node_t : public node_t<T> {
         float best_value = use_upper_bound ? children_[0]->upper_bound_ : children_[0]->lower_bound_;
         std::vector<Problem::action_t> best_actions;
         best_actions.reserve(random_ties ? children_.size() : 1);
-        best_actions.push_back(static_cast<const action_node_t<T>*>(children_[0])->action_);
+        best_actions.push_back(children_[0]->action_);
 
         for( int i = 1; i < int(children_.size()); ++i ) {
-            const action_node_t<T> *a_node = static_cast<const action_node_t<T>*>(children_[i]);
+            const action_node_t<T> *a_node = children_[i];
             if( (use_upper_bound && (a_node->upper_bound_ <= best_value)) || (!use_upper_bound && (a_node->lower_bound_ <= best_value)) ) {
                 if( (use_upper_bound && (a_node->upper_bound_ < best_value)) || (!use_upper_bound && (a_node->lower_bound_ < best_value)) )
                     best_actions.clear();
@@ -248,7 +254,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         total_num_a_nodes_pruned_soft_ = 0;
         total_num_policy_evaluations_ = 0;
         total_num_heuristic_evaluations_ = 0;
-        std::cout << Utils::red() << "warning: pac-tree() is research in progress. Don't use it without permission" << Utils::normal() << std::endl;
+        std::cout << Utils::red() << "warning: pac2-tree() is research in progress. Don't use it without permission" << Utils::normal() << std::endl;
     }
     virtual ~pac_tree_t() { }
     virtual policy_t<T>* clone() const {
@@ -340,6 +346,8 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         state_node_t<T> *root = new state_node_t<T>(s, 0);
         compute_bounds(*root);
 
+        bool pac_tree = true;
+
         Problem::action_t action = 0;
         if( solved(*root) ) {
 #ifdef DEBUG
@@ -367,7 +375,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                       << std::endl;
 #endif
         } else {
-            compute_score(*root);
+            compute_score(*root, pac_tree);
             heap.push(root);
             int last_heap_size = heap.size();
 
@@ -387,10 +395,10 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                 // node must be active leaf
                 if( node.pruned_ ) continue; // node can become pruned after it is inserted in heap
                 assert(!solved(node));
-                assert(node.children_.empty());
+                assert(node.children_.empty()); // node must be a leaf node
 
                 // expand leaf node
-                expand(node, leaf_nodes_);
+                expand(node, leaf_nodes_, pac_tree);
                 propagate_values(node);
 
                 if( heap.empty() ) {
@@ -405,13 +413,12 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                         state_node_t<T> *node = leaf_nodes_[i];
                         bool is_leaf = node->children_.empty();
                         bool is_solved = solved(*node);
-                        bool is_pruned = node->pruned_;
-                        if( !is_solved && !is_pruned && is_leaf ) {
-                            compute_score(*node);
+                        if( !is_solved && !node->pruned_ && is_leaf ) {
+                            compute_score(*node, pac_tree);
                         } else {
                             if( is_leaf ) {
                                 if( is_solved ) ++nsolved;
-                                if( !is_solved && is_pruned ) ++npruned;
+                                if( !is_solved && node->pruned_ ) ++npruned;
                             } else {
                                 ++nonleaf;
                             }
@@ -425,8 +432,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
                         state_node_t<T> *node = leaf_nodes_[i];
                         bool is_leaf = node->children_.empty();
                         bool is_solved = solved(*node);
-                        bool is_pruned = node->pruned_;
-                        assert(is_leaf && !is_solved && !is_pruned);
+                        assert(is_leaf && !is_solved && !node->pruned_);
                     }
 
                     // insert all leaves in auxiliary heap and select best ones for new heap
@@ -627,63 +633,137 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
 
     bool solved(const state_node_t<T> &node) const {
-        return node.gap() < solved_threshold_[node.depth_]; 
+        return node.is_goal_ || node.is_dead_end_ || node.gap() < solved_threshold_[node.depth_]; 
     }
 
     // assuming the upper bound decreases by gap / 4, compute sum of gap reductions on ancestor nodes
-    void compute_score(const state_node_t<T> &node) const {
+    void compute_score(const state_node_t<T> &node, bool is_tree) const {
         // CHECK: NEED TO ESTIMATE PRUNED BRANCHES
-#ifdef XXX
-        if( node.parent_ != 0 ) {
-            node.lower_bound_est_ = (node.lower_bound_ + (node.lower_bound_ + node.upper_bound_) / 2) / 2;
-            node.upper_bound_est_ = ((node.lower_bound_ + node.upper_bound_) / 2 + node.upper_bound_) / 2;
+        if( !node.parents_.empty() ) {
+            // assume that we can improve the lower and upper bounds on node when expanded
+            node.lower_bound_guessed_ = (node.lower_bound_ + (node.lower_bound_ + node.upper_bound_) / 2) / 2;
+            node.upper_bound_guessed_ = ((node.lower_bound_ + node.upper_bound_) / 2 + node.upper_bound_) / 2;
 
-            update_bounds_est(static_cast<const action_node_t<T>*>(node.parent_), &node);
+            // propagate this assumption on ancestors
+            std::set<const node_t<T>*> affected;
+            if( !is_tree ) affected.insert(&node);
+            assert(!is_tree || (node.parents_.size() == 1));
+            for( int i = 0; i < int(node.parents_.size()); ++i ) {
+                if( is_tree )
+                    propagate_guessed_bounds_upward(node.parents_[i].second, &node);
+                else
+                    propagate_guessed_bounds_upward(node.parents_[i].second, affected);
+            }
 
-            float score = 0;
+            // summarize the impact of the assumption in the score
             float damping = powf(score_damping_, node.depth_ - 1);
-            for( const node_t<T> *n = node.parent_; n != 0; n = n->parent_ ) {
-               n = n->parent_;
-               assert(dynamic_cast<const state_node_t<T>*>(n) != 0);
-               float gap_reduction = n->gap() - n->gap_est();
-               //assert(gap_reduction >= 0);
-               //score = std::max(score, gap_reduction * damping);
-               //damping /= score_damping_;
-               score += gap_reduction * damping;
-               damping /= score_damping_;
+            const state_node_t<T> *n = &node;
+            const action_node_t<T> *a_n = 0;
+            float score = 0;
+            if( is_tree ) {
+                assert(n->parents_.size() == 1);
+                a_n = n->parents_[0].second;
+                while( a_n != 0 ) {
+                    n = a_n->parent_;
+                    float gap_reduction = n->gap() - n->gap_guessed();
+                    //assert(gap_reduction >= 0);
+                    //score = std::max(score, gap_reduction * damping);
+                    //damping /= score_damping_;
+                    score += gap_reduction * damping;
+                    damping /= score_damping_;
+                    assert(n->parents_.size() <= 1);
+                    a_n = n->parents_.empty() ? 0 : n->parents_[0].second;
+                }
+            } else {
+                assert(0); // XXX: need to do this for non-trees
             }
             node.score_ = score;
         }
-#endif
     }
 
-    void expand(state_node_t<T> &node, std::vector<state_node_t<T>*> &leaf_nodes) const {
-        std::vector<std::pair<T, float> > outcomes;
+    std::pair<state_node_t<T>*, bool> fetch_node_in_hash(const T &state, int depth, bool debug) const {
+        typename hash_t<T>::iterator it = table_.find(std::make_pair(&state, depth));
+        if( it == table_.end() ) {
+            if( debug ) std::cout << "fetch_node: node was NOT-FOUND" << std::endl;
+            ++num_nodes_;
+            state_node_t<T> *node = new state_node_t<T>(state, depth);
+            table_.insert(std::make_pair(std::make_pair(&node->state_, depth), node));
+            if( problem_.terminal(state) ) {
+                if( debug ) std::cout << "fetch_node: node is TERMINAL" << std::endl;
+                node->value_ = 0;
+                node->is_goal_ = true;
+            } else if( problem_.dead_end(state) ) {
+                if( debug ) std::cout << "fetch_node: node is DEAD-END" << std::endl;
+                node->value_ = problem_.dead_end_value();
+                node->is_dead_end_ = true;
+            } else {
+                if( debug ) std::cout << "fetch_node: node is REGULAR" << std::endl;
+                node->value_ = evaluate(state, depth);
+                node->nsamples_ = leaf_nsamples_;
+            }
+            return std::make_pair(node, false);
+        } else {
+            if( debug ) std::cout << "fetch_node: node was FOUND!" << std::endl;
+
+            // if marked as pruned, unmark it and descendants
+            if( it->second->pruned_ )
+                unmark_node_as_pruned(it->second);
+#if 0
+            bool re_evaluated = false;
+            if( it->second->is_leaf() && !it->second->is_dead_end_ && !it->second->is_goal_ && (heuristic_ == 0) ) {
+                // resample: throw other rollouts to get better estimation. Only done when heuristic_ == 0
+                float old_val = it->second->value_;
+                float new_val = old_val * it->second->nsamples_ + evaluate(state, depth);
+                it->second->nsamples_ += leaf_nsamples_;
+                it->second->value_ = new_val / it->second->nsamples_;
+                re_evaluated = true;
+            }
+#endif
+            return std::make_pair(it->second, re_evaluated);
+        }
+    }
+    std::pair<state_node_t<T>*, bool> fetch_node(const T &state, int depth, bool build_tree, bool debug) const {
+        if( build_tree ) {
+            state_node_t<T> *node = new state_node_t<T>(state, depth);
+            return std::make_pair(node, false);
+        } else {
+            return fetch_node_in_hash(state, depth, debug);
+        }
+    }
+
+    void expand(state_node_t<T> &node, std::vector<state_node_t<T>*> &leaf_nodes, bool build_tree) const {
         assert(node.children_.empty());
         int nactions = problem_.number_actions(node.state_);
         node.children_.reserve(nactions);
         for( Problem::action_t a = 0; a < nactions; ++a ) {
             if( problem_.applicable(node.state_, a) ) {
-                action_node_t<T> *a_node = new action_node_t<T>(a);
-                problem_.next(node.state_, a, outcomes);
-                a_node->children_.reserve(outcomes.size());
-                for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                    const T &state = outcomes[i].first;
-                    float prob = outcomes[i].second;
-
-                    state_node_t<T> *s_node = new state_node_t<T>(state, 1 + node.depth_);
-                    compute_bounds(*s_node);
-                    leaf_nodes.push_back(s_node);
-
-                    s_node->parents_.push_back(std::make_pair(i, a_node));
-                    a_node->children_.push_back(std::make_pair(prob, s_node));
-                }
-
+                float cost = problem_.cost(node.state_, a);
+                action_node_t<T> *a_node = new action_node_t<T>(a, cost, &node);
+                expand(*a_node, leaf_nodes, build_tree);
                 update_bounds(*a_node);
                 node.children_.push_back(a_node);
             }
         }
         // we don't update bounds here. It is done in propagate_values()
+    }
+    void expand(action_node_t<T> &a_node, std::vector<state_node_t<T>*> &leaf_nodes, bool build_tree) const {
+        std::vector<std::pair<T, float> > outcomes;
+        const state_node_t<T> &parent = *a_node.parent_;
+        problem_.next(parent.state_, a_node.action_, outcomes);
+        assert(a_node.children_.empty());
+        a_node.children_.reserve(outcomes.size());
+        for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
+            const T &state = outcomes[i].first;
+            float prob = outcomes[i].second;
+
+            std::pair<state_node_t<T>*, bool> p = fetch_node(state, 1 + parent.depth_, build_tree, true);
+            compute_bounds(*p.first);
+            leaf_nodes.push_back(p.first);
+
+            p.first->parents_.push_back(std::make_pair(i, &a_node));
+            a_node.children_.push_back(std::make_pair(prob, p.first));
+            assert(!build_tree || (p.first->parents_.size() == 1));
+        }
     }
 
     void update_bounds(state_node_t<T> &node) const {
@@ -691,7 +771,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         node.upper_bound_ = node.children_[0]->upper_bound_;
         node.best_child_ = 0;
         for( int i = 1; i < int(node.children_.size()); ++i ) {
-            const action_node_t<T> &a_node = *static_cast<const action_node_t<T>*>(node.children_[i]);
+            const action_node_t<T> &a_node = *node.children_[i];
             if( node.upper_bound_ > a_node.upper_bound_ ) {
                 node.upper_bound_ = a_node.upper_bound_;
                 node.best_child_ = i;
@@ -702,18 +782,18 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         // mark nodes (subtrees) as pruned
         float eta = 0.1; // CHECK: eta is the gap parameter
         for( int i = 0; i < int(node.children_.size()); ++i ) {
-            action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
+            action_node_t<T> &a_node = *node.children_[i];
             if( (node.best_child_ == i) || a_node.pruned_ ) continue;
             if( node.upper_bound_ < a_node.lower_bound_ ) { // hard pruning
 #ifdef DEBUG2
-                std::cout << "debug: pac(): HARD pruning: a-node=" << a_node << std::endl;
+                std::cout << "debug: pac(): try to HARD prune: a-node=" << a_node << std::endl;
 #endif
-                mark_node_as_pruned(a_node, true);
+                try_to_mark_node_as_pruned(a_node, true);
             } else if( soft_pruning_ && (node.upper_bound_ < a_node.lower_bound_ + eta) && (node.upper_bound_ <= a_node.upper_bound_) ) { // soft pruning
 #ifdef DEBUG
-                std::cout << "debug: pac(): SOFT pruning: a-node=" << a_node << std::endl;
+                std::cout << "debug: pac(): try to SOFT prune: a-node=" << a_node << std::endl;
 #endif
-                mark_node_as_pruned(a_node, false);
+                try_to_mark_node_as_pruned(a_node, false);
             }
         }
     }
@@ -731,43 +811,167 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         a_node.upper_bound_ = a_node.action_cost_ + gamma_ * a_node.upper_bound_;
     }
 
-    void update_bounds_est(const state_node_t<T> *node, const action_node_t<T> *child) const {
+    // propagate guessed bounds for trees
+    void propagate_guessed_bounds_upward(const state_node_t<T> *node, const action_node_t<T> *child) const {
         assert(node != 0);
         assert(!node->children_.empty());
-        node->lower_bound_est_ = node->children_[0] == child ? node->children_[0]->lower_bound_est_ : node->children_[0]->lower_bound_;
-        node->upper_bound_est_ = node->children_[0] == child ? node->children_[0]->upper_bound_est_ : node->children_[0]->upper_bound_;
-        for( int i = 1; i < int(node->children_.size()); ++i ) {
-            const action_node_t<T> *a_node = static_cast<const action_node_t<T>*>(node->children_[i]);
-            node->lower_bound_est_ = std::min(node->lower_bound_est_, a_node == child ? a_node->lower_bound_est_ : a_node->lower_bound_);
-            node->upper_bound_est_ = std::min(node->upper_bound_est_, a_node == child ? a_node->upper_bound_est_ : a_node->upper_bound_);
-        }
 
-        if( node->parent_ != 0 ) {
-            assert(dynamic_cast<const action_node_t<T>*>(node->parent_) != 0);
-            update_bounds_est(static_cast<const action_node_t<T>*>(node->parent_), node);
+        // compute guessed bounds
+#if 0
+        int best_child = 0;
+        float best_upper = node->children_[0] == child ? child->upper_bound_guessed_ : node->children_[0]->upper_bound_;
+        //float best_gap = node->children_[0] == child ? child->upper_bound_guessed_ : node->children_[0]->upper_bound_;
+        //best_gap -= node->children_[0] == child ? child->lower_bound_guessed_ : node->children_[0]->lower_bound_;
+        for( int i = 1; i < int(node->children_.size()); ++i ) {
+            const action_node_t<T> *a_node = node->children_[i];
+            if( a_node == child ) {
+                if( child->upper_bound_guessed_ < best_upper ) {
+                    best_child = i;
+                    best_upper = child->upper_bound_guessed_;
+                }
+            } else {
+                if( child->upper_bound_ < best_upper ) {
+                    best_child = i;
+                    best_upper = child->upper_bound_;
+                }
+            }
         }
+        const action_node_t<T> *best_a_node = node->children_[best_child];
+        node->lower_bound_guessed_ = best_a_node == child ? child->lower_bound_guessed_ : best_a_node->lower_bound_;
+        node->upper_bound_guessed_ = best_upper;
+#else
+        node->lower_bound_guessed_ = node->children_[0] == child ? child->lower_bound_guessed_ : node->children_[0]->lower_bound_;
+        node->upper_bound_guessed_ = node->children_[0] == child ? child->upper_bound_guessed_ : node->children_[0]->upper_bound_;
+        for( int i = 1; i < int(node->children_.size()); ++i ) {
+            const action_node_t<T> *a_node = node->children_[i];
+            node->lower_bound_guessed_ = std::min(node->lower_bound_guessed_, a_node == child ? child->lower_bound_guessed_ : a_node->lower_bound_);
+            node->upper_bound_guessed_ = std::min(node->upper_bound_guessed_, a_node == child ? child->upper_bound_guessed_ : a_node->upper_bound_);
+        }
+#endif
+
+        assert(node->parents_.size() <= 1);
+        if( !node->parents_.empty() ) propagate_guessed_bounds_upward(node->parents_[0].second, node);
     }
-    void update_bounds_est(const action_node_t<T> *a_node, const state_node_t<T> *child) const {
+    void propagate_guessed_bounds_upward(const action_node_t<T> *a_node, const state_node_t<T> *child) const {
         assert(a_node != 0);
         assert(!a_node->children_.empty());
-        assert(a_node->children_.size() == a_node->prob_.size());
-        a_node->lower_bound_est_ = 0;
-        a_node->upper_bound_est_ = 0;
-        for( int i = 0; i < int(a_node->children_.size()); ++i ) {
-            const node_t<T> *node = a_node->children_[i];
-            float prob = a_node->prob_[i];
-            a_node->lower_bound_est_ += prob * (node == child ? node->lower_bound_est_ : node->lower_bound_);
-            a_node->upper_bound_est_ += prob * (node == child ? node->upper_bound_est_ : node->upper_bound_);
-        }
-        a_node->lower_bound_est_ = problem_.cost(*a_node->state_, a_node->action_) + gamma_ * a_node->lower_bound_est_;
-        a_node->upper_bound_est_ = problem_.cost(*a_node->state_, a_node->action_) + gamma_ * a_node->upper_bound_est_;
 
+        // compute guessed bounds
+        a_node->lower_bound_guessed_ = 0;
+        a_node->upper_bound_guessed_ = 0;
+        for( int i = 0; i < int(a_node->children_.size()); ++i ) {
+            float prob = a_node->children_[i].first;
+            const node_t<T> *node = a_node->children_[i].second;
+            a_node->lower_bound_guessed_ += prob * (node == child ? node->lower_bound_guessed_ : node->lower_bound_);
+            a_node->upper_bound_guessed_ += prob * (node == child ? node->upper_bound_guessed_ : node->upper_bound_);
+        }
+        a_node->lower_bound_guessed_ = a_node->action_cost_ + gamma_ * a_node->lower_bound_guessed_;
+        a_node->upper_bound_guessed_ = a_node->action_cost_ + gamma_ * a_node->upper_bound_guessed_;
+
+        // propagate upwards
         assert(a_node->parent_ != 0);
-        assert(dynamic_cast<const state_node_t<T>*>(a_node->parent_) != 0);
-        update_bounds_est(static_cast<const state_node_t<T>*>(a_node->parent_), a_node);
+        propagate_guessed_bounds_upward(a_node->parent_, a_node);
     }
 
-    void mark_node_as_pruned(state_node_t<T> &node, bool hard) const {
+    // propagate guessed bounds for non-trees
+    void propagate_guessed_bounds_upward(const state_node_t<T> *node, std::set<const node_t<T>*> &affected) const {
+        assert(node != 0);
+        assert(!node->children_.empty());
+
+        // compute guessed bounds
+#if 0
+        int best_child = 0;
+        float best_upper = node->children_[0] == child ? child->upper_bound_guessed_ : node->children_[0]->upper_bound_;
+        //float best_gap = node->children_[0] == child ? child->upper_bound_guessed_ : node->children_[0]->upper_bound_;
+        //best_gap -= node->children_[0] == child ? child->lower_bound_guessed_ : node->children_[0]->lower_bound_;
+        for( int i = 1; i < int(node->children_.size()); ++i ) {
+            const action_node_t<T> *a_node = node->children_[i];
+            if( a_node == child ) {
+                if( child->upper_bound_guessed_ < best_upper ) {
+                    best_child = i;
+                    best_upper = child->upper_bound_guessed_;
+                }
+            } else {
+                if( child->upper_bound_ < best_upper ) {
+                    best_child = i;
+                    best_upper = child->upper_bound_;
+                }
+            }
+        }
+        const action_node_t<T> *best_a_node = node->children_[best_child];
+        node->lower_bound_guessed_ = best_a_node == child ? child->lower_bound_guessed_ : best_a_node->lower_bound_;
+        node->upper_bound_guessed_ = best_upper;
+#else
+        if( affected.find(node->children_[0]) != affected.end() ) {
+            node->lower_bound_guessed_ = node->children_[0]->lower_bound_guessed_;
+            node->upper_bound_guessed_ = node->children_[0]->upper_bound_guessed_;
+        } else {
+            node->lower_bound_guessed_ = node->children_[0]->lower_bound_;
+            node->upper_bound_guessed_ = node->children_[0]->upper_bound_;
+        }
+        for( int i = 1; i < int(node->children_.size()); ++i ) {
+            const action_node_t<T> *a_node = node->children_[i];
+            if( affected.find(a_node) != affected.end() ) {
+                node->lower_bound_guessed_ = a_node->lower_bound_guessed_;
+                node->upper_bound_guessed_ = a_node->upper_bound_guessed_;
+            } else {
+                node->lower_bound_guessed_ = a_node->lower_bound_;
+                node->upper_bound_guessed_ = a_node->upper_bound_;
+            }
+        }
+#endif
+
+        affected.insert(node);
+        for( int i = 0; i < int(node->parents_.size()); ++i )
+            propagate_guessed_bounds_upward(node->parents_[i].second, affected);
+    }
+    void propagate_guessed_bounds_upward(const action_node_t<T> *a_node, std::set<const node_t<T>*> &affected) const {
+        assert(a_node != 0);
+        assert(!a_node->children_.empty());
+
+        // compute guessed bounds
+        a_node->lower_bound_guessed_ = 0;
+        a_node->upper_bound_guessed_ = 0;
+        for( int i = 0; i < int(a_node->children_.size()); ++i ) {
+            float prob = a_node->children_[i].first;
+            const node_t<T> *node = a_node->children_[i].second;
+            if( affected.find(node) != affected.end() ) {
+                a_node->lower_bound_guessed_ += prob * node->lower_bound_guessed_;
+                a_node->upper_bound_guessed_ += prob * node->upper_bound_guessed_;
+            } else {
+                a_node->lower_bound_guessed_ += prob * node->lower_bound_;
+                a_node->upper_bound_guessed_ += prob * node->upper_bound_;
+            }
+        }
+        a_node->lower_bound_guessed_ = a_node->action_cost_ + gamma_ * a_node->lower_bound_guessed_;
+        a_node->upper_bound_guessed_ = a_node->action_cost_ + gamma_ * a_node->upper_bound_guessed_;
+
+        // propagate upwards
+        affected.insert(a_node);
+        propagate_guessed_bounds_upward(a_node->parent_, affected);
+    }
+
+    void try_to_mark_node_as_pruned(state_node_t<T> &node, bool hard) const {
+        // state nodes may have multiple parent nodes, mark as pruned only if all parents are pruned
+        bool all_parents_pruned = true;
+        for( int i = 0; all_parents_pruned && (i < int(node.parents_.size())); ++i ) {
+            action_node_t<T> &parent = *node.parents_[i].second;
+            all_parents_pruned = parent.pruned_;
+        }
+
+        if( !all_parents_pruned ) {
+#if 1//def DEBUG2
+            std::cout << "debug: pac(): failing to mark state-node as pruned:"
+                      << " hard=" << hard
+                      << " node=" << node;
+            if( !hard ) {
+                std::cout << " gap=" << node.gap();
+            }
+            std::cout << std::endl;
+#endif
+            return;
+        } 
+ 
 #ifdef DEBUG2
         std::cout << "debug: pac(): marking node as pruned:"
                   << " hard=" << hard
@@ -777,10 +981,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         }
         std::cout << std::endl;
 #endif
-        for( int i = 0; i < int(node.children_.size()); ++i ) {
-            action_node_t<T> &a_node = *static_cast<action_node_t<T>*>(node.children_[i]);
-            if( !a_node.pruned_ ) mark_node_as_pruned(a_node, hard);
-        }
+
         node.pruned_ = true;
         ++num_nodes_pruned_;
         ++total_num_nodes_pruned_;
@@ -788,8 +989,15 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             ++num_nodes_pruned_soft_;
             ++total_num_nodes_pruned_soft_;
         }
+
+        // try to mark children nodes
+        for( int i = 0; i < int(node.children_.size()); ++i ) {
+            action_node_t<T> &a_node = *node.children_[i];
+            if( !a_node.pruned_ ) try_to_mark_node_as_pruned(a_node, hard);
+        }
     }
-    void mark_node_as_pruned(action_node_t<T> &a_node, bool hard) const {
+    void try_to_mark_node_as_pruned(action_node_t<T> &a_node, bool hard) const {
+        // action nodes have just one parent, mark this as pruned
 #ifdef DEBUG2
         std::cout << "debug: pac(): marking node as pruned:"
                   << " hard=" << hard
@@ -799,10 +1007,7 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
         }
         std::cout << std::endl;
 #endif
-        for( int i = 0; i < int(a_node.children_.size()); ++i ) {
-            state_node_t<T> &node = *a_node.children_[i].second;
-            if( !node.pruned_ ) mark_node_as_pruned(node, hard);
-        }
+
         a_node.pruned_ = true;
         ++num_a_nodes_pruned_;
         ++total_num_a_nodes_pruned_;
@@ -810,21 +1015,27 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
             ++num_a_nodes_pruned_soft_;
             ++total_num_a_nodes_pruned_soft_;
         }
+
+        // try to mark children nodes
+        for( int i = 0; i < int(a_node.children_.size()); ++i ) {
+            state_node_t<T> &node = *a_node.children_[i].second;
+            if( !node.pruned_ ) try_to_mark_node_as_pruned(node, hard);
+        }
+    }
+
+    void unmark_node_as_pruned(state_node_t<T> &node) const {
+        assert(0); // XXX
     }
 
     void propagate_values(state_node_t<T> &node) const {
         update_bounds(node);
-        for( int i = 0; i < int(node.parents_.size()); ++i ) {
-            action_node_t<T> &parent = *node.parents_[i].second;
-            propagate_values(parent);
-        }
+        for( int i = 0; i < int(node.parents_.size()); ++i )
+            propagate_values(*node.parents_[i].second);
     }
     void propagate_values(action_node_t<T> &a_node) const {
         update_bounds(a_node);
-        if( a_node.parent_ != 0 ) {
-            assert(dynamic_cast<state_node_t<T>*>(a_node.parent_) != 0);
-            propagate_values(*static_cast<state_node_t<T>*>(a_node.parent_));
-        }
+        if( a_node.parent_ != 0 )
+            propagate_values(*a_node.parent_);
     }
 
     float evaluate(const T &s, unsigned num_samples, unsigned depth) const {
@@ -838,17 +1049,14 @@ template<typename T> class pac_tree_t : public improvement_t<T> {
     }
 
     void delete_tree(state_node_t<T> *node) const {
-        for( int i = 0; i < int(node->children_.size()); ++i ) {
-            action_node_t<T> *a_node = static_cast<action_node_t<T>*>(node->children_[i]);
-            delete_tree(a_node);
-        }
+        assert(node->parents_.size() <= 1);
+        for( int i = 0; i < int(node->children_.size()); ++i )
+            delete_tree(node->children_[i]);
         delete node;
     }
     void delete_tree(action_node_t<T> *a_node) const {
-        for( int i = 0; i < int(a_node->children_.size()); ++i ) {
-            state_node_t<T> *node = a_node->children_[i].second;
-            delete_tree(node);
-        }
+        for( int i = 0; i < int(a_node->children_.size()); ++i )
+            delete_tree(a_node->children_[i].second);
         delete a_node;
     }
 
