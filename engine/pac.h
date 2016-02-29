@@ -30,7 +30,7 @@
 #include <vector>
 #include <math.h>
 
-//#define DEBUG
+#define DEBUG
 //#define DEBUG2
 
 namespace Online {
