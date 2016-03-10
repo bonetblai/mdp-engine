@@ -262,10 +262,6 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
             assert(0);
         else if( name == "aot-path" )
             assert(0);
-        else if( name == "pac-tree" )
-            policy = new Online::Policy::PAC::pac_tree_t<T>(problem);
-        else if( name == "pac2" )
-            policy = new Online::Policy::PAC2::pac_t<T>(problem);
         else if( name == "finite-horizon-lrtdp" )
             policy = new Online::Policy::RTDP::finite_horizon_lrtdp_t<T>(problem);
 
