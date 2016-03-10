@@ -22,7 +22,7 @@ namespace Utils {
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: sailing [--nc] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <x-dim> <y-dim>" << endl;
+    os << "usage: sailing [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <x-dim> <y-dim>" << endl;
 }
 
 int main(int argc, const char **argv) {
@@ -37,7 +37,7 @@ int main(int argc, const char **argv) {
 
     // parse arguments
     for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
-        if( string(*argv) == "--nc" ) {
+        if( string(*argv) == "--no-colors" ) {
             Utils::g_use_colors = false;
         } else if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
             requests.push_back(argv[1]);
