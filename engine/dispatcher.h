@@ -141,8 +141,6 @@ template<typename T> class dispatcher_t {
 #include "aot.h"
 #include "aot_gh.h"
 #include "aot_path.h"
-#include "pac.h"
-#include "pac2.h"
 #include "online_rtdp.h"
 
 //#define DEBUG

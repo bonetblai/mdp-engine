@@ -31,8 +31,6 @@ $(OBJS):	../engine/ldfs.h
 $(OBJS):	../engine/lrtdp.h
 $(OBJS):	../engine/makefile
 $(OBJS):	../engine/online_rtdp.h
-$(OBJS):	../engine/pac.h
-$(OBJS):	../engine/pac2.h
 $(OBJS):	../engine/plain_check.h
 $(OBJS):	../engine/policy.h
 $(OBJS):	../engine/problem.h
