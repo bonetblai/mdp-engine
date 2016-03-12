@@ -112,6 +112,9 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return (a == 0) || (s != init_);
     }
+    virtual float min_absolute_cost() const {
+        return 1;
+    }
     virtual float max_absolute_cost() const {
         return 1;
     }

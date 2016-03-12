@@ -560,8 +560,11 @@ class problem_t : public Problem::problem_t<state_t> {
         return ((s.current_ == -1) && (a == 0)) ||
                ((s.current_ != -1) && s.perimeter(a));
     }
+    virtual float min_absolute_cost() const {
+        return 0;
+    }
     virtual float max_absolute_cost() const {
-        return 100; // guess? (TODO)
+        return 100; // CHECK: guess?
     }
     virtual const state_t& init() const { return init_; }
     virtual bool terminal(const state_t &s) const {
@@ -577,7 +580,7 @@ class problem_t : public Problem::problem_t<state_t> {
         return graph_.num_nodes_;
     }
     virtual int max_state_branching() const {
-        return 32; // guess? (TODO)
+        return 32; // CHECK: guess?
     }
     virtual void next(const state_t &s,
                       Problem::action_t a,
@@ -767,6 +770,11 @@ class ctp_optimistic_policy_t : public Online::Policy::policy_t<state_t> {
     }
     virtual void print_stats(std::ostream &os) const { }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<state_t> &dispatcher) { }
+
+    virtual usage_t uses_base_policy() const { return usage_t::No; }
+    virtual usage_t uses_heuristic() const { return usage_t::No; }
+    virtual usage_t uses_algorithm() const { return usage_t::No; }
+
     virtual void reset_stats() const { }
     virtual void print_other_stats(std::ostream &os, int indent) const { }
 };

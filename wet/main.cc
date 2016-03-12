@@ -15,6 +15,10 @@ namespace Online {
   unsigned g_seed = 0;
 };
 
+namespace Utils {
+  bool g_use_colors = true;
+};
+
 using namespace std;
 
 void usage(ostream &os) {
@@ -76,8 +80,8 @@ int main(int argc, const char **argv) {
     // build problem instances
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
-    state_t init(Random::uniform(size), Random::uniform(size));
-    state_t goal(Random::uniform(size), Random::uniform(size));
+    state_t init(Random::random(size), Random::random(size));
+    state_t goal(Random::random(size), Random::random(size));
     problem_t problem(size, p, init, goal);
     //problem.print(cout);
 
