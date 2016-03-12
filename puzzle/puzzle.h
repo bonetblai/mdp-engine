@@ -102,7 +102,7 @@ class state_t {
     }
     void random_moves(unsigned rows, unsigned cols, unsigned n = 0) {
         for( unsigned i = 0; i < n; ++i ) {
-            unsigned m = Random::uniform(4);
+            unsigned m = Random::random(4);
             if( m == 0 )
                 up(rows, cols);
             else if( m == 1 )
@@ -186,6 +186,9 @@ class problem_t : public Problem::problem_t<state_t> {
     }
     virtual bool applicable(const state_t &s, ::Problem::action_t a) const {
         return s.applicable(rows_, cols_, a);
+    }
+    virtual float min_absolute_cost() const {
+        return 1;
     }
     virtual float max_absolute_cost() const {
         return 1;

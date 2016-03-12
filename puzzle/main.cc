@@ -14,6 +14,10 @@ namespace Online {
   unsigned g_seed = 0;
 };
 
+namespace Utils {
+  bool g_use_colors = true;
+};
+
 using namespace std;
 
 void usage(ostream &os) {
