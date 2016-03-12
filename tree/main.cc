@@ -21,7 +21,7 @@ namespace Utils {
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: tree [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <size> [<p>] [<q>] [<r>]" << endl;
+    os << "usage: tree [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <size> [<p>] [<q>] [<r>]" << endl;
 }
 
 int main(int argc, const char **argv) {
@@ -38,7 +38,9 @@ int main(int argc, const char **argv) {
 
     // parse arguments
     for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
-        if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
+        if( string(*argv) == "--no-colors" ) {
+            Utils::g_use_colors = false;
+        } else if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
             requests.push_back(argv[1]);
             ++argv;
             --argc;
