@@ -106,6 +106,9 @@ class problem_t : public Problem::problem_t<state_t> {
     virtual bool applicable(const state_t &s, Problem::action_t a) const {
         return true;
     }
+    virtual float min_absolute_cost() const {
+        return 1;
+    }
     virtual float max_absolute_cost() const {
         return 1;
     }
@@ -175,7 +178,7 @@ class problem_t : public Problem::problem_t<state_t> {
                 if( terminal(state_t(x, y)) ) {
                     os << " *";
                 } else {
-                    std::pair<Problem::action_t, float> p = hash.bestQValue(state_t(x, y));
+                    std::pair<Problem::action_t, float> p = hash.best_q_value(state_t(x, y));
                     os << " " << asymb[p.first];
                 }
             }
