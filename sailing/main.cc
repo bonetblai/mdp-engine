@@ -8,15 +8,15 @@
 #include "sailing.h"
 
 namespace Algorithm {
-    unsigned g_seed = 0;
+  unsigned g_seed = 0;
 };
 
 namespace Online {
-    unsigned g_seed = 0;
+  unsigned g_seed = 0;
 };
 
 namespace Utils {
-    bool g_use_colors = true;
+  bool g_use_colors = true;
 };
 
 using namespace std;
