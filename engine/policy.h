@@ -20,6 +20,7 @@
 #define POLICY_H
 
 #include "problem.h"
+
 #include <iostream>
 #include <iomanip>
 #include <sstream>

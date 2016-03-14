@@ -19,6 +19,10 @@ namespace Utils {
     bool g_use_colors = true;
 };
 
+int beam_t::dim_ = 0;
+unsigned belief_state_t::bitmap_mask_ = 0;
+std::vector<unsigned> belief_state_t::action_masks_;
+
 using namespace std;
 
 void usage(ostream &os) {
@@ -57,7 +61,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    // read problem parameters
+    // read pomdp parameters
     if( argc == 1 ) {
         dim = strtoul(argv[0], 0, 0);
     } else {
@@ -65,10 +69,28 @@ int main(int argc, const char **argv) {
         exit(-1);
     }
 
-    // build problem instances
+    // build pomdp instance
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
-    problem_t problem(dim);
+    beam_t::set_dimension(dim);
+    belief_state_t::set_bitmap_mask(dim);
+    pomdp_t pomdp(dim);
+
+    belief_state_t ibel = pomdp.init();
+    cout << "initial bel = " << ibel << endl;
+    vector<pair<belief_state_t, float> > outcomes;
+    for( int a = 0; a <= dim; ++a ) {
+        pomdp.next(ibel, a, outcomes);
+        cout << "action a=" << a << ":" << endl;
+        cout << "  p=" << outcomes[0].second << " --> " << outcomes[0].first << " {";
+        for( beam_t::const_iterator it = outcomes[0].first.beam(0).begin(); it != outcomes[0].first.beam(0).end(); ++it )
+            cout << it.value() << ",";
+        cout << "}" << endl;
+        cout << "  p=" << outcomes[1].second << " --> " << outcomes[1].first << " {";
+        for( beam_t::const_iterator it = outcomes[1].first.beam(0).begin(); it != outcomes[1].first.beam(0).end(); ++it )
+            cout << it.value() << ",";
+        cout << "}" << endl;
+    }
 
     // build requests
     vector<pair<string, Online::Policy::policy_t<belief_state_t>*> > policies;
@@ -79,7 +101,7 @@ int main(int argc, const char **argv) {
         std::multimap<std::string, std::string> request;
         Utils::tokenize(request_str, request);
         for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
-            dispatcher.create_request(problem, it->first, it->second);
+            dispatcher.create_request(pomdp, it->first, it->second);
             if( it->first == "algorithm" ) {
                 Algorithm::algorithm_t<belief_state_t> *algorithm = dispatcher.fetch_algorithm(it->second);
                 if( algorithm != 0 ) algorithms.push_back(make_pair(it->second, algorithm));
@@ -90,13 +112,13 @@ int main(int argc, const char **argv) {
         }
     }
 
-    // solve problems with requested algorithms
+    // solve pomdp with requested algorithms
     vector<Dispatcher::dispatcher_t<belief_state_t>::solve_result_t> solve_results;
     for( int i = 0; i < int(algorithms.size()); ++i ) {
         const string &request = algorithms[i].first;
         const Algorithm::algorithm_t<belief_state_t> &algorithm = *algorithms[i].second;
         Dispatcher::dispatcher_t<belief_state_t>::solve_result_t result;
-        dispatcher.solve(request, algorithm, problem.init(), result);
+        dispatcher.solve(request, algorithm, pomdp.init(), result);
         solve_results.push_back(result);
     }
 
@@ -113,7 +135,7 @@ int main(int argc, const char **argv) {
         const string &request = policies[i].first;
         const Online::Policy::policy_t<belief_state_t> &policy = *policies[i].second;
         Dispatcher::dispatcher_t<belief_state_t>::evaluate_result_t result;
-        dispatcher.evaluate(request, policy, problem.init(), result, num_trials, 100, true);
+        dispatcher.evaluate(request, policy, pomdp.init(), result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
 
