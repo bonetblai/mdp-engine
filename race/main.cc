@@ -88,7 +88,7 @@ int main(int argc, const char **argv) {
     for( int i = 0; i < int(requests.size()); ++i ) {
         const string &request_str = requests[i];
         std::multimap<std::string, std::string> request;
-        Utils::tokenize(request_str, request);
+        if( !Utils::tokenize(request_str, request) ) continue;
         for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
             dispatcher.create_request(problem, it->first, it->second);
             if( it->first == "algorithm" ) {

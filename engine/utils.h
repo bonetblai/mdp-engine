@@ -89,7 +89,7 @@ inline void split_request(const std::string &request, std::string &name, std::st
 #endif
 }
 
-inline void tokenize(const std::string &parameter_str, std::multimap<std::string, std::string> &parameters, char separator = ',') {
+inline bool tokenize(const std::string &parameter_str, std::multimap<std::string, std::string> &parameters, char separator = ',') {
     for( size_t i = 0; i < parameter_str.size(); ++i ) {
         size_t first = i;
         int nesting_level = 0;
@@ -97,20 +97,29 @@ inline void tokenize(const std::string &parameter_str, std::multimap<std::string
             if( (parameter_str[i] == separator) && (nesting_level == 0) ) {
                 break;
             } else if( parameter_str[i] == ')' ) {
-                assert(nesting_level > 0);
+                if( nesting_level <= 0 ) {
+                    std::cout << Utils::error() << "tokenize: invalid input '" << parameter_str << "'" << std::endl;
+                    return false;
+                }
                 --nesting_level;
             } else if( parameter_str[i] == '(' ) {
                 ++nesting_level;
             }
             ++i;
         }
-        assert(nesting_level == 0);
+        if( nesting_level != 0 ) {
+            std::cout << Utils::error() << "tokenize: invalid input '" << parameter_str << "'" << std::endl;
+            return false;
+        }
         std::string par = parameter_str.substr(first, i - first);
 #ifdef DEBUG
         std::cout << "tokenize: parameter=|" << par << "|" << std::endl;
 #endif
         size_t equal = par.find_first_of("=");
-        assert(equal != std::string::npos);
+        if( equal == std::string::npos ) {
+            std::cout << Utils::error() << "tokenize: invalid input '" << parameter_str << "'" << std::endl;
+            return false;
+        }
         std::string key = par.substr(0, equal);
         std::string value = par.substr(equal + 1);
 #ifdef DEBUG
@@ -118,6 +127,7 @@ inline void tokenize(const std::string &parameter_str, std::multimap<std::string
 #endif
         parameters.insert(std::make_pair(key, value));
     }
+    return true;
 }
 
 inline void print_bits(std::ostream &os, unsigned bitmap, int n) {

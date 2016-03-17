@@ -151,7 +151,7 @@ namespace Dispatcher {
 
 template<typename T> void dispatcher_t<T>::create_request(const Problem::problem_t<T> &problem, const std::string &request_str) {
     std::multimap<std::string, std::string> request;
-    Utils::tokenize(request_str, request);
+    if( !Utils::tokenize(request_str, request) ) return;
     for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it )
         create_request(problem, it->first, it->second);
 }
@@ -167,7 +167,7 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
     std::string parameter_str;
     std::multimap<std::string, std::string> parameters;
     Utils::split_request(request, name, parameter_str);
-    Utils::tokenize(parameter_str, parameters);
+    if( !Utils::tokenize(parameter_str, parameters) ) return;
 
     // algorithms
     if( type == "algorithm" ) {
