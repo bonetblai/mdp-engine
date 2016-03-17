@@ -169,6 +169,7 @@ struct feature_t : public POMDP::feature_t<belief_state_t> {
     feature_t(const belief_state_t &bel) {
         // CHECK
     }
+    virtual ~feature_t() { }
 };
 
 class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
@@ -236,7 +237,11 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return varsets_[0];
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
+        std::cout << "NEW FEATURE" << std::endl;
         return new feature_t(bel);
+    }
+    virtual void clean_feature(const POMDP::feature_t<belief_state_t> *feature) const {
+        delete feature;
     }
     virtual void print(std::ostream &os) const {
     }

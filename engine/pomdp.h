@@ -36,6 +36,8 @@
 namespace POMDP {
 
 template<typename T> struct feature_t {
+    std::vector<std::vector<float> > marginals_;
+    virtual ~feature_t() { }
 };
 
 template<typename T> class pomdp_t : public Problem::problem_t<T> {
@@ -81,6 +83,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     //virtual const beam_t& beam(const T &bel, int bid) const = 0;
 
     virtual const feature_t<T> *get_feature(const T &bel) const = 0;
+    virtual void clean_feature(const feature_t<T> *feature) const = 0;
 
 #if 0
     // sample next state given action using problem's dynamics

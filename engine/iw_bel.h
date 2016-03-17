@@ -29,7 +29,7 @@
 
 #include "pomdp.h"
 
-//#define DEBUG
+#define DEBUG
 
 namespace Online {
 
@@ -115,8 +115,19 @@ template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T
 //
 
 template<typename T> class iw_bel_t : public policy_t<T> {
+  public:
+    typedef enum { MOST_LIKELY, SAMPLE } determinization_t;
+    typedef enum { REWARD, TARGET } stop_criterion_t;
+    typedef enum { TOTAL, KL, KL_SYMMETRIC } divergence_t;
+
   protected:
     const POMDP::pomdp_t<T> &pomdp_;
+
+    unsigned width_;
+    determinization_t determinization_;
+    stop_criterion_t stop_criterion_;
+    divergence_t divergence_;
+    unsigned max_expansions_;
 
     mutable node_hash_t<T> node_table_;
 
@@ -129,11 +140,19 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
     iw_bel_t(const POMDP::pomdp_t<T> &pomdp,
              unsigned width,
-             unsigned horizon,
+             determinization_t determinization,
+             stop_criterion_t stop_criterion,
+             divergence_t divergence,
+             unsigned max_expansions,
              float parameter,
              bool random_ties)
       : policy_t<T>(pomdp),
-        pomdp_(pomdp) {
+        pomdp_(pomdp),
+        width_(width),
+        determinization_(determinization),
+        stop_criterion_(stop_criterion),
+        divergence_(divergence),
+        max_expansions_(max_expansions) {
     }
 
   protected:
@@ -142,26 +161,38 @@ template<typename T> class iw_bel_t : public policy_t<T> {
   public:
     iw_bel_t(const POMDP::pomdp_t<T> &pomdp)
       : policy_t<T>(pomdp),
-        pomdp_(pomdp) {
+        pomdp_(pomdp),
+        width_(0),
+        determinization_(MOST_LIKELY),
+        stop_criterion_(TARGET),
+        divergence_(TOTAL),
+        max_expansions_(std::numeric_limits<unsigned>::max()) {
     }
     virtual ~iw_bel_t() { }
     virtual policy_t<T>* clone() const {
         return new iw_bel_t(pomdp_);
     }
     virtual std::string name() const {
-        return std::string("iw-bel()");
+        return std::string("iw-bel(") +
+          std::string("width=") + std::to_string(width_) +
+          std::string("determinization=") + std::to_string(determinization_) +
+          std::string("stop-criterion=") + std::to_string(stop_criterion_) +
+          std::string("divergence=") + std::to_string(divergence_) +
+          std::string("max-expansions=") + std::to_string(max_expansions_) +
+          std::string(")");
     }
 
     Problem::action_t operator()(const T &bel) const {
         std::cout << "bel=" << bel << std::endl;
         std::cout << "cardinality=" << bel.cardinality() << std::endl;
-        std::cout << "throwing pruned BFS for goal" << std::endl;
+        std::cout << "throwing BFS for goal" << std::endl;
 
         if( pomdp_.dead_end(bel) ) return Problem::noop;
 
         const POMDP::feature_t<T> *feature = pomdp_.get_feature(bel);
         node_t<T> *root = get_root_node(bel, feature);
-        const node_t<T> *goal = pruned_bfs(root);
+        //const node_t<T> *goal = pruned_bfs(root);
+        const node_t<T> *goal = breadth_first_search(root);
 
         if( goal == 0 ) {
             // goal node wasn't found, return random action
@@ -204,9 +235,17 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #endif
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
-#if 0
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
         if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("determinization");
+        if( it != parameters.end() ) determinization_ = it->second == "sampling" ? SAMPLE : MOST_LIKELY;
+        it = parameters.find("stop-criterion");
+        if( it != parameters.end() ) stop_criterion_ = it->second == "reward" ? REWARD : TARGET;
+        it = parameters.find("divergence");
+        if( it != parameters.end() ) divergence_ = it->second == "total" ? TOTAL : (it->second == "kl" ? KL : KL_SYMMETRIC);
+        it = parameters.find("max-expansions");
+        if( it != parameters.end() ) max_expansions_ = strtol(it->second.c_str(), 0, 0);
+#if 0
         it = parameters.find("horizon");
         if( it != parameters.end() ) horizon_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("parameter");
@@ -220,15 +259,15 @@ template<typename T> class iw_bel_t : public policy_t<T> {
             base_policy_ = dispatcher.fetch_policy(it->second);
         }
         policy_t<T>::setup_time_ = base_policy_ == 0 ? 0 : base_policy_->setup_time();
+#endif
 #ifdef DEBUG
         std::cout << "debug: iw-bel(): params:"
                   << " width=" << width_
-                  << " horizon=" << horizon_
-                  << " parameter=" << parameter_
-                  << " random-ties=" << (random_ties_ ? "true" : "false")
-                  << " policy=" << (base_policy_ == 0 ? std::string("null") : base_policy_->name())
+                  << " determinization=" << determinization_
+                  << " stop-criterion=" << stop_criterion_
+                  << " divergence=" << divergence_
+                  << " max-expansions=" << max_expansions_
                   << std::endl;
-#endif
 #endif
     }
     virtual typename policy_t<T>::usage_t uses_base_policy() const { return policy_t<T>::usage_t::No; }
@@ -277,10 +316,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
             const node_t<T> *node = q.top();
             q.pop();
 
+            // check whether we need to stop
             if( pomdp_.terminal(node->belief_) ) {
                 return node;
             }
 
+            // expand node
             for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
                 if( pomdp_.applicable(node->belief_, a) ) {
                     pomdp_.next(node->belief_, a, outcomes);
@@ -306,6 +347,122 @@ template<typename T> class iw_bel_t : public policy_t<T> {
             }
         }
         return 0;
+    }
+
+    // breadth-first search
+    const node_t<T>* breadth_first_search(const node_t<T> *root) const {
+        std::list<const node_t<T>*> open_list, closed_list;
+        std::vector<std::pair<T, float> > outcomes;
+
+        //clear_feature_table();
+        clear_node_table();
+
+        //insert_feature(*root->feature_);
+        insert_node(root);
+        open_list.push_back(root);
+        for( unsigned iter = 0; !open_list.empty() && ((stop_criterion_ != TARGET) || (iter < max_expansions_)); ++iter ) {
+            const node_t<T> *node = select_node_for_expansion(open_list, closed_list);
+            closed_list.push_front(node);
+
+            // check whether we need to stop
+            if( (stop_criterion_ == TARGET) && pomdp_.terminal(node->belief_) ) {
+                return node;
+            }
+
+            // expand node
+            for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
+                if( pomdp_.applicable(node->belief_, a) ) {
+                    node_t<T> *new_node = 0;
+                    const POMDP::feature_t<T> *feature = 0;
+                    float cost = pomdp_.cost(node->belief_, a);
+
+                    // determinize the next belief
+                    if( determinization_ == SAMPLE ) {
+                        std::pair<const T, bool> p = pomdp_.sample(node->belief_, a);
+                        feature = pomdp_.get_feature(new_node->belief_);
+                        new_node = get_node(p.first, feature, node, a, cost);
+                    } else {
+                        pomdp_.next(node->belief_, a, outcomes);
+
+                        // select best (unexpanded) successors to continue search
+                        int best = -1;
+                        for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
+                            if( pomdp_.dead_end(outcomes[i].first) ) continue;
+                            if( lookup_node(outcomes[i].first) != 0 ) continue;
+                            if( (best == -1) && (outcomes[i].second > outcomes[best].second) ) {
+                                best = i;
+                            }
+                        }
+                        assert((best >= 0) && (best < outcomes.size()));
+                        feature = pomdp_.get_feature(new_node->belief_);
+                        new_node = get_node(outcomes[best].first, feature, node, a, cost);
+                    }
+
+                    // insert new node into open list
+                    open_list.push_back(new_node);
+                }
+            }
+        }
+        return 0;
+    }
+
+    const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
+        std::cout << "hola" << std::endl;
+        typename std::list<const node_t<T>*>::iterator best;
+        float best_score = std::numeric_limits<float>::min();
+        for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
+            float max_score = std::numeric_limits<float>::min();
+            for( typename std::list<const node_t<T>*>::const_iterator jt = closed_list.begin(); jt != closed_list.end(); ++jt ) {
+                float s = score(**it, **jt);
+                if( s > max_score ) max_score = s;
+            }
+
+            if( (max_score == std::numeric_limits<float>::min()) || (max_score > best_score) ) {
+                best_score = max_score;
+                best = it;
+            }
+        }
+
+        const node_t<T> *node = *best;
+        open_list.erase(best);
+        std::cout << "select: node=" << node << std::endl;
+        return node;
+    }
+
+    float score(const node_t<T> &n1, const node_t<T> &n2) const {
+        assert(n1.feature_ != 0);
+        assert(n2.feature_ != 0);
+        const std::vector<std::vector<float> > &m1 = n1.feature_->marginals_;
+        const std::vector<std::vector<float> > &m2 = n2.feature_->marginals_;
+        assert(m1.size() == m2.size());
+
+        float max_score = 0;
+        for( int i = 0, isz = int(m1.size()); i < isz; ++i )
+            max_score += score(m1[i], m2[i]);
+        return max_score;
+    }
+    float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
+        return divergence_ == TOTAL ? score_total(d1, d2) : score_kl(d1, d2, divergence_ == KL_SYMMETRIC);
+    }
+    float score_total(const std::vector<float> &p, const std::vector<float> &q) const {
+        assert(p.size() == q.size());
+        float score = 0;
+        for( int i = 0, isz = int(p.size()); i < isz; ++i )
+            score += fabs(p[i] - q[i]);
+        return score / 2;
+    }
+    float score_kl(const std::vector<float> &p, const std::vector<float> &q, bool symmetric) const {
+        assert(p.size() == q.size());
+        float h_p = 0, h_pq = 0, h_q = 0, h_qp = 0;
+        for( int i = 0, isz = int(p.size()); i < isz; ++i ) {
+            h_p += p[i] * log2f(p[i]);
+            h_pq += p[i] * log2f(q[i]);
+            if( symmetric ) {
+                h_q += q[i] * log2f(q[i]);
+                h_qp += q[i] * log2f(p[i]);
+            }
+        }
+        return (h_p - h_pq) + (h_q - h_qp);
     }
 };
 
