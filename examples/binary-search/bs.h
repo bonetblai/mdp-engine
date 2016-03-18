@@ -4,6 +4,8 @@
 
 #define DISCOUNT .95
 
+//#define DEBUG
+
 struct beam_t {
     unsigned bitmap_;
 
@@ -11,11 +13,12 @@ struct beam_t {
         unsigned bitmap_;
         int pos_;
         int size_;
+        float p_;
 
         enum { Begin, End }; // iterator type
 
         const_iterator(unsigned bitmap, int type, int size)
-          : bitmap_(bitmap), size_(size) {
+          : bitmap_(bitmap), size_(size), p_(1.0 / float(__builtin_popcount(bitmap_))) {
             if( type == Begin ) {
                 pos_ = -1;
                 ++(*this);
@@ -24,25 +27,21 @@ struct beam_t {
             }
         }
 
-        virtual bool operator==(const const_iterator &it) const {
+        bool operator==(const const_iterator &it) const {
             return (bitmap_ == it.bitmap_) && (pos_ == it.pos_) && (size_ == it.size_);
         }
-        virtual bool operator!=(const const_iterator &it) const {
+        bool operator!=(const const_iterator &it) const {
             return (bitmap_ != it.bitmap_) || (pos_ != it.pos_) || (size_ != it.size_);
         }
-        virtual const const_iterator& operator++() {
+        const const_iterator& operator++() {
             if( pos_ < size_ ) {
                 for( ++pos_; (pos_ < size_) && (((bitmap_ >> pos_) & 1) == 0); ++pos_ );
             }
             return *this;
         }
 
-        virtual int value() const {
-            return pos_;
-        }
-        virtual float prob() const {
-            return 1.0 / float(size_);
-        }
+        int value() const { return pos_; }
+        float prob() const { return p_; }
     }; // const_iterator
 
     static int dim_;
@@ -94,6 +93,7 @@ class belief_state_t {
     beam_t beam_;
     int hidden_;
 
+    static int dim_;
     static unsigned bitmap_mask_;
     static std::vector<unsigned> action_masks_;
 
@@ -104,20 +104,21 @@ class belief_state_t {
 
     static void set_bitmap_mask(int dim) {
         assert(dim <= 8 * sizeof(unsigned));
+        dim_ = dim;
         bitmap_mask_ = unsigned(-1);
-        bitmap_mask_ = bitmap_mask_ << (8 * sizeof(unsigned) - dim);
-        bitmap_mask_ = bitmap_mask_ >> (8 * sizeof(unsigned) - dim);
+        bitmap_mask_ = bitmap_mask_ << (8 * sizeof(unsigned) - dim_);
+        bitmap_mask_ = bitmap_mask_ >> (8 * sizeof(unsigned) - dim_);
 
-        action_masks_.reserve(2 * (1 + dim));
-        for( int i = 0; i <= dim; ++i ) {
+        action_masks_.reserve(2 * (1 + dim_));
+        for( int i = 0; i <= dim_; ++i ) {
             unsigned base = unsigned(-1);
             unsigned lower = i == 0 ? 0 : (base << (8 * sizeof(unsigned) - i)) >> (8 * sizeof(unsigned) - i);
             action_masks_.push_back(lower);
             unsigned upper = (base >> i) << i;
             action_masks_.push_back(upper);
 #ifdef DEBUG
-            std::cout << "action_mask[a=" << i << ",lower]="; Utils::print_bits(std::cout, lower, beam_t::dim_); std::cout << std::endl;
-            std::cout << "action_mask[a=" << i << ",upper]="; Utils::print_bits(std::cout, upper, beam_t::dim_); std::cout << std::endl;
+            std::cout << "action_mask[a=" << i << ",lower]="; Utils::print_bits(std::cout, lower, dim_); std::cout << std::endl;
+            std::cout << "action_mask[a=" << i << ",upper]="; Utils::print_bits(std::cout, upper, dim_); std::cout << std::endl;
 #endif
         }
     }
@@ -167,7 +168,22 @@ inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
 
 struct feature_t : public POMDP::feature_t<belief_state_t> {
     feature_t(const belief_state_t &bel) {
-        // CHECK
+#ifdef DEBUG
+        std::cout << "bel=" << bel << std::endl;
+        std::cout << "marginal:";
+#endif
+        marginals_ = std::vector<std::vector<float> >(1);
+        marginals_[0] = std::vector<float>(beam_t::dim_, 0);
+        for( beam_t::const_iterator it = bel.beam(0).begin(); it != bel.beam(0).end(); ++it ) {
+            assert((it.value() >= 0) && (it.value() < beam_t::dim_));
+            marginals_[0][it.value()] = it.prob();
+#ifdef DEBUG
+            std::cout << " " << it.prob() << "@" << it.value() << std::flush;
+#endif
+        }
+#ifdef DEBUG
+        std::cout << std::endl;
+#endif
     }
     virtual ~feature_t() { }
 };
@@ -237,7 +253,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return varsets_[0];
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
-        std::cout << "NEW FEATURE" << std::endl;
         return new feature_t(bel);
     }
     virtual void clean_feature(const POMDP::feature_t<belief_state_t> *feature) const {
@@ -255,4 +270,6 @@ inline std::ostream& operator<<(std::ostream &os, const pomdp_t &p) {
     p.print(os);
     return os;
 }
+
+#undef DEBUG
 

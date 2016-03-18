@@ -20,6 +20,7 @@ namespace Utils {
 };
 
 int beam_t::dim_ = 0;
+int belief_state_t::dim_ = 0;
 unsigned belief_state_t::bitmap_mask_ = 0;
 std::vector<unsigned> belief_state_t::action_masks_;
 

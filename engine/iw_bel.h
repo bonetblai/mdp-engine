@@ -54,7 +54,16 @@ template<typename T> struct node_t {
         if( parent_ != 0 ) g_ = parent_->g_ + cost;
     }
     ~node_t() { }
+
+    void print(std::ostream &os) const {
+        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",p=" << parent_ << "]";
+    }
 };
+
+template<typename T> inline std::ostream& operator<<(std::ostream &os, const node_t<T> &node) {
+    node.print(os);
+    return os;
+}
 
 template<typename T> inline node_t<T>* get_root_node(const T &belief, const POMDP::feature_t<T> *feature) {
     return new node_t<T>(belief, feature);
@@ -92,9 +101,7 @@ template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T
   public:
     typedef typename Hash::generic_hash_map_t<const T*, const node_t<T>*, node_map_function_t<T> > base_type;
     typedef typename base_type::const_iterator const_iterator;
-    //typedef typename base_type::iterator iterator; //CHECK
-    //const_iterator begin() const { return base_type::begin(); } //CHECK
-    //const_iterator end() const { return base_type::end(); } //CHECK
+    typedef typename base_type::iterator iterator;
 
   public:
     node_hash_t() { }
@@ -175,10 +182,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     virtual std::string name() const {
         return std::string("iw-bel(") +
           std::string("width=") + std::to_string(width_) +
-          std::string("determinization=") + std::to_string(determinization_) +
-          std::string("stop-criterion=") + std::to_string(stop_criterion_) +
-          std::string("divergence=") + std::to_string(divergence_) +
-          std::string("max-expansions=") + std::to_string(max_expansions_) +
+          std::string(",determinization=") + std::to_string(determinization_) +
+          std::string(",stop-criterion=") + std::to_string(stop_criterion_) +
+          std::string(",divergence=") + std::to_string(divergence_) +
+          std::string(",max-expansions=") + std::to_string(max_expansions_) +
           std::string(")");
     }
 
@@ -213,26 +220,18 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 parent = node->parent_;
             }
             assert(node->belief_ == bel);
+            std::cout << "BEST=" << node->a_ << std::endl;
             return node->a_;
         }
     }
     virtual void reset_stats() const {
-#if 0
-        policy_t<T>::setup_time_ = 0;
-        policy_t<T>::base_policy_time_ = 0;
-        policy_t<T>::heuristic_time_ = 0;
-        problem_.clear_expansions();
-        if( base_policy_ != 0 ) base_policy_->reset_stats();
-#endif
+        pomdp_.clear_expansions();
     }
     virtual void print_other_stats(std::ostream &os, int indent) const {
-#if 0
         os << std::setw(indent) << ""
            << "other-stats: name=" << name()
            << " decisions=" << policy_t<T>::decisions_
            << std::endl;
-        if( base_policy_ != 0 ) base_policy_->print_other_stats(os, 2 + indent);
-#endif
     }
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
@@ -246,20 +245,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         it = parameters.find("max-expansions");
         if( it != parameters.end() ) max_expansions_ = strtol(it->second.c_str(), 0, 0);
 #if 0
-        it = parameters.find("horizon");
-        if( it != parameters.end() ) horizon_ = strtol(it->second.c_str(), 0, 0);
-        it = parameters.find("parameter");
-        if( it != parameters.end() ) parameter_ = strtod(it->second.c_str(), 0);
         it = parameters.find("random-ties");
         if( it != parameters.end() ) random_ties_ = it->second == "true";
-        it = parameters.find("policy");
-        if( it != parameters.end() ) {
-            delete base_policy_;
-            dispatcher.create_request(problem_, it->first, it->second);
-            base_policy_ = dispatcher.fetch_policy(it->second);
-        }
-        policy_t<T>::setup_time_ = base_policy_ == 0 ? 0 : base_policy_->setup_time();
 #endif
+        policy_t<T>::setup_time_ = 0;
 #ifdef DEBUG
         std::cout << "debug: iw-bel(): params:"
                   << " width=" << width_
@@ -379,7 +368,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                     // determinize the next belief
                     if( determinization_ == SAMPLE ) {
                         std::pair<const T, bool> p = pomdp_.sample(node->belief_, a);
-                        feature = pomdp_.get_feature(new_node->belief_);
+                        feature = pomdp_.get_feature(p.first);
                         new_node = get_node(p.first, feature, node, a, cost);
                     } else {
                         pomdp_.next(node->belief_, a, outcomes);
@@ -389,12 +378,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
                             if( pomdp_.dead_end(outcomes[i].first) ) continue;
                             if( lookup_node(outcomes[i].first) != 0 ) continue;
-                            if( (best == -1) && (outcomes[i].second > outcomes[best].second) ) {
+                            if( (best == -1) || (outcomes[i].second > outcomes[best].second) ) {
                                 best = i;
                             }
                         }
                         assert((best >= 0) && (best < outcomes.size()));
-                        feature = pomdp_.get_feature(new_node->belief_);
+                        feature = pomdp_.get_feature(outcomes[best].first);
                         new_node = get_node(outcomes[best].first, feature, node, a, cost);
                     }
 
@@ -407,7 +396,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 
     const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
-        std::cout << "hola" << std::endl;
+        std::cout << "hola: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
         typename std::list<const node_t<T>*>::iterator best;
         float best_score = std::numeric_limits<float>::min();
         for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
@@ -416,16 +405,14 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 float s = score(**it, **jt);
                 if( s > max_score ) max_score = s;
             }
-
-            if( (max_score == std::numeric_limits<float>::min()) || (max_score > best_score) ) {
+            if( (best_score == std::numeric_limits<float>::min()) || (max_score > best_score) ) {
                 best_score = max_score;
                 best = it;
             }
         }
-
         const node_t<T> *node = *best;
         open_list.erase(best);
-        std::cout << "select: node=" << node << std::endl;
+        std::cout << "select: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
         return node;
     }
 
@@ -437,8 +424,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         assert(m1.size() == m2.size());
 
         float max_score = 0;
-        for( int i = 0, isz = int(m1.size()); i < isz; ++i )
-            max_score += score(m1[i], m2[i]);
+        for( int i = 0, isz = int(m1.size()); i < isz; ++i ) {
+            float s = score(m1[i], m2[i]);
+            max_score = s > max_score ? s : max_score;
+        }
         return max_score;
     }
     float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
