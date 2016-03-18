@@ -82,6 +82,9 @@ template<typename T> struct node_map_function_t {
     size_t operator()(const T *bel) const {
         return bel->hash();
     }
+    bool operator()(const T *b1, const T *b2) const {
+        return *b1 == *b2;
+    }
 };
 
 #if 0
@@ -97,9 +100,9 @@ struct data_t {
 };
 #endif
 
-template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T*, const node_t<T>*, node_map_function_t<T> > {
+template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T*, const node_t<T>*, node_map_function_t<T>, node_map_function_t<T> > {
   public:
-    typedef typename Hash::generic_hash_map_t<const T*, const node_t<T>*, node_map_function_t<T> > base_type;
+    typedef typename Hash::generic_hash_map_t<const T*, const node_t<T>*, node_map_function_t<T>, node_map_function_t<T> > base_type;
     typedef typename base_type::const_iterator const_iterator;
     typedef typename base_type::iterator iterator;
 
@@ -282,10 +285,13 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         node_table_.clear();
     }
     const node_t<T>* lookup_node(const T &belief) const {
+        std::cout << "lookup: bel=" << belief << std::flush;
         typename node_hash_t<T>::const_iterator it = node_table_.find(&belief);
+        std::cout << ", found=" << (it == node_table_.end() ? "NO" : "YES") << std::endl;
         return it == node_table_.end() ? 0 : it->second;
     }
     bool insert_node(const node_t<T> *node) const {
+        std::cout << "INSERT: bel=" << node->belief_ << std::endl;
         std::pair<typename node_hash_t<T>::iterator, bool> p = node_table_.insert(std::make_pair(&node->belief_, node));
         return p.second;
     }
@@ -367,6 +373,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
                     // determinize the next belief
                     if( determinization_ == SAMPLE ) {
+                        assert(0); // CHECK: not sure how to handle copies in hash
                         std::pair<const T, bool> p = pomdp_.sample(node->belief_, a);
                         feature = pomdp_.get_feature(p.first);
                         new_node = get_node(p.first, feature, node, a, cost);
@@ -382,12 +389,13 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                                 best = i;
                             }
                         }
-                        assert((best >= 0) && (best < outcomes.size()));
+                        if( best == -1 ) continue; // no new belief, continue to next action
                         feature = pomdp_.get_feature(outcomes[best].first);
                         new_node = get_node(outcomes[best].first, feature, node, a, cost);
                     }
 
                     // insert new node into open list
+                    insert_node(new_node);
                     open_list.push_back(new_node);
                 }
             }
@@ -400,6 +408,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         typename std::list<const node_t<T>*>::iterator best;
         float best_score = std::numeric_limits<float>::min();
         for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
+            std::cout << "    candidate: bel=" << (*it)->belief_ << ", score=" << std::flush;
             float max_score = std::numeric_limits<float>::min();
             for( typename std::list<const node_t<T>*>::const_iterator jt = closed_list.begin(); jt != closed_list.end(); ++jt ) {
                 float s = score(**it, **jt);
@@ -409,6 +418,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 best_score = max_score;
                 best = it;
             }
+            std::cout << max_score << std::endl;
         }
         const node_t<T> *node = *best;
         open_list.erase(best);
