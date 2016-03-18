@@ -139,20 +139,20 @@ class hash_function_t {
 };
 
 #if __clang_major__ >= 5
-template<typename T, typename D, typename F=Hash::hash_function_t<T> >
-class generic_hash_map_t : public std::unordered_map<T, D, F> {
+template<typename T, typename D, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
+class generic_hash_map_t : public std::unordered_map<T, D, F, P> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> >
-class generic_hash_set_t : public std::unordered_map<T, F> {
+template<typename T, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
+class generic_hash_set_t : public std::unordered_map<T, F, P> {
 };
 #else
-template<typename T, typename D, typename F=Hash::hash_function_t<T> >
-class generic_hash_map_t : public std::tr1::unordered_map<T, D, F> {
+template<typename T, typename D, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
+class generic_hash_map_t : public std::tr1::unordered_map<T, D, F, P> {
 };
 
-template<typename T, typename F=Hash::hash_function_t<T> >
-class generic_hash_set_t : public std::tr1::unordered_map<T, F> {
+template<typename T, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
+class generic_hash_set_t : public std::tr1::unordered_map<T, F, P> {
 };
 #endif
 
