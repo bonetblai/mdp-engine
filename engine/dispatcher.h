@@ -116,9 +116,9 @@ template<typename T> class dispatcher_t {
 
     void create_request(const Problem::problem_t<T> &problem, const std::string &request_str);
     void create_request(const Problem::problem_t<T> &problem, const std::string &type, const std::string &request);
-    void solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, const T &s, solve_result_t &result) const;
+    void solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, solve_result_t &result) const;
     void print_stats(std::ostream &os, const solve_result_t &result) const;
-    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const;
+    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const;
     void print_stats(std::ostream &os, const evaluate_result_t &result) const;
 };
 
@@ -286,19 +286,19 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
     std::cout << Utils::error() << "dispatcher: create-request: unrecognized: type=" << type << ", request=" << request << std::endl;
 }
 
-template<typename T> void dispatcher_t<T>::solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, const T &s, solve_result_t &result) const {
+template<typename T> void dispatcher_t<T>::solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, solve_result_t &result) const {
     std::cout << "dispatcher: solve: " << name << std::endl;
     const Problem::problem_t<T> &problem = algorithm.problem();
 
     result.name_ = name;
     result.algorithm_ = &algorithm;
-    result.state_ = s;
+    result.state_ = problem.init();
     result.seed_ = algorithm.seed();
     Random::set_seed(result.seed_);
 
     float start_time = Utils::read_time_in_seconds();
     Problem::hash_t<T> *hash = new Problem::hash_t<T>(problem);
-    algorithm.solve(s, *hash);
+    algorithm.solve(result.state_, *hash);
     float end_time = Utils::read_time_in_seconds();
 
     // expansions from problem
@@ -345,7 +345,7 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const s
        << std::endl;
 }
 
-template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, const T &s, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const {
+template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const {
     std::cout << "dispatcher: evaluate: " << name << std::endl;
     const Problem::problem_t<T> &problem = policy.problem();
     policy.reset_stats();
@@ -356,7 +356,7 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
     Random::set_seed(result.seed_);
 
     float start_time = Utils::read_time_in_seconds();
-    std::pair<float, float> p = Online::Evaluation::evaluation_with_stdev(policy, problem.init(), num_trials, max_evaluation_depth, verbose);
+    std::pair<float, float> p = Online::Evaluation::evaluation_with_stdev(policy, num_trials, max_evaluation_depth, verbose);
     result.eval_value_ = p.first;
     result.eval_stdev_ = p.second;
     float end_time = Utils::read_time_in_seconds();

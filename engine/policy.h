@@ -143,7 +143,6 @@ inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned 
 template<typename T>
 inline std::pair<float, float>
   evaluation_with_stdev(const Policy::policy_t<T> &policy,
-                        const T &s,
                         unsigned number_trials,
                         unsigned max_depth,
                         bool verbose = false) {
@@ -153,7 +152,7 @@ inline std::pair<float, float>
     if( verbose ) std::cout << "#trials=" << number_trials << ":";
     for( unsigned trial = 0; trial < number_trials; ++trial ) {
         if( verbose ) std::cout << " " << trial << std::flush;
-        values.push_back(evaluation_trial(policy, s, max_depth));
+        values.push_back(evaluation_trial(policy, policy.problem().init(), max_depth));
         sum += values.back();
         if( verbose ) {
             std::cout << "(" << std::setprecision(1) << sum/(1+trial) << ")"

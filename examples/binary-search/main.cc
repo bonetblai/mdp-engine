@@ -83,14 +83,12 @@ int main(int argc, const char **argv) {
     for( int a = 0; a <= dim; ++a ) {
         pomdp.next(ibel, a, outcomes);
         cout << "action a=" << a << ":" << endl;
-        cout << "  p=" << outcomes[0].second << " --> " << outcomes[0].first << " {";
-        for( beam_t::const_iterator it = outcomes[0].first.beam(0).begin(); it != outcomes[0].first.beam(0).end(); ++it )
-            cout << it.value() << ",";
-        cout << "}" << endl;
-        cout << "  p=" << outcomes[1].second << " --> " << outcomes[1].first << " {";
-        for( beam_t::const_iterator it = outcomes[1].first.beam(0).begin(); it != outcomes[1].first.beam(0).end(); ++it )
-            cout << it.value() << ",";
-        cout << "}" << endl;
+        for( int i = 0; i < int(outcomes.size()); ++i ) {
+            cout << "  p=" << outcomes[i].second << " --> " << outcomes[i].first << " {";
+            for( beam_t::const_iterator it = outcomes[i].first.beam(0).begin(); it != outcomes[i].first.beam(0).end(); ++it )
+                cout << it.value() << ",";
+            cout << "}" << endl;
+        }
     }
 
     // build requests
@@ -119,7 +117,7 @@ int main(int argc, const char **argv) {
         const string &request = algorithms[i].first;
         const Algorithm::algorithm_t<belief_state_t> &algorithm = *algorithms[i].second;
         Dispatcher::dispatcher_t<belief_state_t>::solve_result_t result;
-        dispatcher.solve(request, algorithm, pomdp.init(), result);
+        dispatcher.solve(request, algorithm, result);
         solve_results.push_back(result);
     }
 
@@ -136,7 +134,7 @@ int main(int argc, const char **argv) {
         const string &request = policies[i].first;
         const Online::Policy::policy_t<belief_state_t> &policy = *policies[i].second;
         Dispatcher::dispatcher_t<belief_state_t>::evaluate_result_t result;
-        dispatcher.evaluate(request, policy, pomdp.init(), result, num_trials, 100, true);
+        dispatcher.evaluate(request, policy, result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
 
