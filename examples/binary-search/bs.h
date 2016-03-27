@@ -262,6 +262,16 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual void clean_feature(const POMDP::feature_t<belief_state_t> *feature) const {
         delete feature;
     }
+
+    virtual void apply_action(belief_state_t &bel_a, Problem::action_t a) const { /* work done below */ }
+    virtual void apply_obs(belief_state_t &bel_ao, Problem::action_t a, POMDP::observation_t obs) const {
+        belief_state_t nbel = bel_ao.apply(a, obs);
+        bel_ao = nbel;
+    }
+    virtual POMDP::observation_t sample_observation(const belief_state_t &bel, const belief_state_t &bel_a, Problem::action_t a) const {
+        return bel.hidden_ < a ? 0 : 1;
+    }
+
     virtual void print(std::ostream &os) const {
     }
 

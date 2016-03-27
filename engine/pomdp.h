@@ -31,9 +31,14 @@
 #include <vector>
 #include <float.h>
 
-//#define DEBUG
+#define DEBUG
 
 namespace POMDP {
+
+#ifndef __OBSERVATION_TYPE
+#define __OBSERVATION_TYPE
+typedef int observation_t;
+#endif
 
 template<typename T> struct feature_t {
     std::vector<std::vector<float> > marginals_;
@@ -77,6 +82,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
         belief_expansions_ = 0;
     }
 
+
     virtual int num_variables() const = 0;
     virtual int num_beams() const = 0;
     virtual const varset_t& varset(int bid) const = 0;
@@ -86,69 +92,33 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     virtual const feature_t<T> *get_feature(const T &bel) const = 0;
     virtual void clean_feature(const feature_t<T> *feature) const = 0;
 
-#if 0
+    virtual void apply_action(T &bel_a, Problem::action_t a) const = 0;
+    virtual void apply_obs(T &bel_ao, Problem::action_t a, observation_t obs) const = 0;
+    virtual observation_t sample_observation(const T &bel, const T &bel_a, Problem::action_t a) const = 0;
+
     // sample next state given action using problem's dynamics
-    std::pair<T, bool> sample(const T &s, action_t a) const {
-        std::vector<std::pair<T, float> > outcomes;
-        next(s, a, outcomes);
-        unsigned osize = outcomes.size();
-        assert(osize > 0);
-
-        float r = Random::real();
-        for( unsigned i = 0; i < osize; ++i ) {
-            if( r < outcomes[i].second ) {
-                return std::make_pair(outcomes[i].first, true);
-            }
-            r -= outcomes[i].second;
-        }
-        return std::make_pair(outcomes[0].first, true);
-    }
+    virtual std::pair<T, bool> sample(const T &bel, Problem::action_t a) const {
+        T nbel = bel;
+        apply_action(nbel, a);
+        observation_t obs = sample_observation(bel, nbel, a);
+        apply_obs(nbel, a, obs);
+#ifdef DEBUG
+        std::cout << "pomdp: sampling: obs=" << obs << ", nbel=" << nbel << std::endl;
 #endif
+        return std::make_pair(nbel, true);
+    }
 
-#if 0
     // sample next state given action uniformly among all possible next states
-    std::pair<T, bool> usample(const T &s, action_t a) const {
-        std::vector<std::pair<T, float> > outcomes;
-        next(s, a, outcomes);
-        unsigned osize = outcomes.size();
-        return std::make_pair(outcomes[Random::random(osize)].first, true);
+    virtual std::pair<T, bool> usample(const T &bel, Problem::action_t a) const {
+        std::cout << Utils::error() << "this sampling (usample) is not supported for POMDPs" << std::endl;
+        exit(0);
     }
-#endif
 
-#if 0
     // sample next (unlabeled) state given action; probabilities are re-weighted
-    std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
-        std::vector<std::pair<T, float> > outcomes;
-        next(s, a, outcomes);
-        unsigned osize = outcomes.size();
-        std::vector<bool> label(osize, false);
-
-        size_t n = 0;
-        float mass = 0;
-        for( unsigned i = 0; i < osize; ++i ) {
-            if( (label[i] = hash.solved(outcomes[i].first)) ) {
-                mass += outcomes[i].second;
-                ++n;
-            }
-        }
-
-        mass = 1.0 - mass;
-        n = osize - n;
-        if( n == 0 ) return std::make_pair(s, false);
-
-        float d = Random::real();
-        for( unsigned i = 0; i < osize; ++i ) {
-            if( !label[i] && ((n == 1) || (d <= outcomes[i].second / mass)) ) {
-                return std::make_pair(outcomes[i].first, true);
-            } else if( !label[i] ) {
-                --n;
-                d -= outcomes[i].second / mass;
-            }
-        }
-        assert(0);
-        return std::make_pair(s, false);
+    virtual std::pair<T, bool> nsample(const T &bel, Problem::action_t a, const Problem::hash_t<T> &hash) const {
+        std::cout << Utils::error() << "this sampling (nsample) is not supported for POMDPs" << std::endl;
+        exit(0);
     }
-#endif
 
     // print pomdp description
     virtual void print(std::ostream &os) const = 0;

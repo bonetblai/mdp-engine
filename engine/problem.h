@@ -36,8 +36,8 @@ namespace Problem {
 
 #ifndef __ACTION_TYPE
 #define __ACTION_TYPE
-    typedef int action_t;
-    const action_t noop = -1;
+typedef int action_t;
+const action_t noop = -1;
 #endif
 
 template<typename T> class problem_t;
@@ -141,7 +141,7 @@ template<typename T> class problem_t {
     }
 
     // sample next state given action using problem's dynamics
-    std::pair<T, bool> sample(const T &s, action_t a) const {
+    virtual std::pair<T, bool> sample(const T &s, action_t a) const {
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
@@ -158,7 +158,7 @@ template<typename T> class problem_t {
     }
 
     // sample next state given action uniformly among all possible next states
-    std::pair<T, bool> usample(const T &s, action_t a) const {
+    virtual std::pair<T, bool> usample(const T &s, action_t a) const {
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
@@ -166,7 +166,7 @@ template<typename T> class problem_t {
     }
 
     // sample next (unlabeled) state given action; probabilities are re-weighted
-    std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
+    virtual std::pair<T, bool> nsample(const T &s, action_t a, const hash_t<T> &hash) const {
         std::vector<std::pair<T, float> > outcomes;
         next(s, a, outcomes);
         unsigned osize = outcomes.size();
