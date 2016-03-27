@@ -139,6 +139,45 @@ inline void stochastic_universal_sampling(int n, const float *cdf, int k, std::v
     assert(k == int(indices.size()));
 }
 
+// total divergence
+inline float total_divergence(const std::vector<float> &p, const std::vector<float> &q) {
+    assert(p.size() == q.size());
+    float d = 0;
+    for( int i = 0, isz = int(p.size()); i < isz; ++i )
+        d += fabs(p[i] - q[i]);
+    return d / 2;
+}
+
+// Kullback-Leibler divergence
+inline float kl_divergence(const std::vector<float> &p, const std::vector<float> &q, bool symmetric) {
+    assert(p.size() == q.size());
+    float h_p = 0, h_pq = 0, h_q = 0, h_qp = 0;
+    for( int i = 0, isz = int(p.size()); i < isz; ++i ) {
+        if( p[i] > 0 ) h_p += p[i] * log2f(p[i]);
+        if( p[i] > 0 ) h_pq += p[i] * log2f(q[i]);
+        if( symmetric ) {
+            if( q[i] > 0 ) h_q += q[i] * log2f(q[i]);
+            if( q[i] > 0 ) h_qp += q[i] * log2f(p[i]);
+        }
+    }
+    return (h_p - h_pq) + (h_q - h_qp);
+}
+
+// lambda divergence
+inline float lambda_divergence(const std::vector<float> &p, const std::vector<float> &q, float lambda) {
+    assert((lambda >= 0) && (lambda <= 1));
+    assert(p.size() == q.size());
+    std::vector<float> m(p);
+    for( int i = 0, isz = int(p.size()); i < isz; ++i )
+        m[i] = lambda * p[i] + (1 - lambda) * q[i];
+    return lambda * kl_divergence(p, m, false) + (1 - lambda) * kl_divergence(q, m, false);
+}
+
+// Jensen-Shannon divergence
+inline float js_divergence(const std::vector<float> &p, const std::vector<float> &q) {
+    return lambda_divergence(p, q, 0.5);
+}
+
 };
 
 #undef DEBUG
