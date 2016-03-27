@@ -31,7 +31,7 @@
 #include <vector>
 #include <float.h>
 
-#define DEBUG
+//#define DEBUG
 
 namespace POMDP {
 
