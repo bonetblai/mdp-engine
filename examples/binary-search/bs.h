@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <strings.h>
 
-#define DISCOUNT .95
+#define DISCOUNT 1
 
 //#define DEBUG
 
@@ -268,7 +268,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         belief_state_t nbel = bel_ao.apply(a, obs);
         bel_ao = nbel;
     }
-    virtual POMDP::observation_t sample_observation(const belief_state_t &bel, const belief_state_t &bel_a, Problem::action_t a) const {
+    virtual POMDP::observation_t sample_observation_using_hidden_state(const belief_state_t &bel, const belief_state_t &bel_a, Problem::action_t a) const {
         return bel.hidden_ < a ? 0 : 1;
     }
 

@@ -149,9 +149,8 @@ template<typename T> class problem_t {
 
         float r = Random::real();
         for( unsigned i = 0; i < osize; ++i ) {
-            if( r < outcomes[i].second ) {
+            if( r < outcomes[i].second )
                 return std::make_pair(outcomes[i].first, true);
-            }
             r -= outcomes[i].second;
         }
         return std::make_pair(outcomes[0].first, true);

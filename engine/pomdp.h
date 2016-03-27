@@ -50,6 +50,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     mutable size_t belief_expansions_;
 
   public:
+    using Problem::problem_t<T>::next;
     typedef std::vector<int> varset_t;
 
 #if 0
@@ -94,18 +95,32 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
 
     virtual void apply_action(T &bel_a, Problem::action_t a) const = 0;
     virtual void apply_obs(T &bel_ao, Problem::action_t a, observation_t obs) const = 0;
-    virtual observation_t sample_observation(const T &bel, const T &bel_a, Problem::action_t a) const = 0;
+    virtual observation_t sample_observation_using_hidden_state(const T &bel, const T &bel_a, Problem::action_t a) const = 0;
 
     // sample next state given action using problem's dynamics
     virtual std::pair<T, bool> sample(const T &bel, Problem::action_t a) const {
         T nbel = bel;
         apply_action(nbel, a);
-        observation_t obs = sample_observation(bel, nbel, a);
+        observation_t obs = sample_observation_using_hidden_state(bel, nbel, a);
         apply_obs(nbel, a, obs);
 #ifdef DEBUG
-        std::cout << "pomdp: sampling: obs=" << obs << ", nbel=" << nbel << std::endl;
+        std::cout << "pomdp: sampling: bel=" << bel << ", a=" << a << ", obs=" << obs << ", nbel=" << nbel << std::endl;
 #endif
         return std::make_pair(nbel, true);
+    }
+    virtual std::pair<T, bool> sample_without_hidden(const T &bel, Problem::action_t a) const {
+        std::vector<std::pair<T, float> > outcomes;
+        next(bel, a, outcomes);
+        unsigned osize = outcomes.size();
+        assert(osize > 0);
+
+        float r = Random::real();
+        for( unsigned i = 0; i < osize; ++i ) {
+            if( r < outcomes[i].second )
+                return std::make_pair(outcomes[i].first, true);
+            r -= outcomes[i].second;
+        }
+        return std::make_pair(outcomes[0].first, true);
     }
 
     // sample next state given action uniformly among all possible next states
