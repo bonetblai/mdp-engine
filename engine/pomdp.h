@@ -82,6 +82,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     virtual const varset_t& varset(int bid) const = 0;
     //virtual const beam_t& beam(const T &bel, int bid) const = 0;
 
+    virtual int cardinality(const T &bel) const = 0;
     virtual const feature_t<T> *get_feature(const T &bel) const = 0;
     virtual void clean_feature(const feature_t<T> *feature) const = 0;
 

@@ -8,15 +8,15 @@
 #include "bs.h"
 
 namespace Algorithm {
-    unsigned g_seed = 0;
+  unsigned g_seed = 0;
 };
 
 namespace Online {
-    unsigned g_seed = 0;
+  unsigned g_seed = 0;
 };
 
 namespace Utils {
-    bool g_use_colors = true;
+  bool g_use_colors = true;
 };
 
 int beam_t::dim_ = 0;
@@ -121,8 +121,8 @@ int main(int argc, const char **argv) {
         solve_results.push_back(result);
     }
 
-    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
     if( !solve_results.empty() ) {
+        cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
         for( int i = 0; i < int(solve_results.size()); ++i ) {
             dispatcher.print_stats(cout, solve_results[i]);
         }
@@ -138,8 +138,8 @@ int main(int argc, const char **argv) {
         evaluate_results.push_back(result);
     }
 
-    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
     if( !evaluate_results.empty() ) {
+        cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
         for( int i = 0; i < int(evaluate_results.size()); ++i ) {
             dispatcher.print_stats(cout, evaluate_results[i]);
         }

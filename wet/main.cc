@@ -113,12 +113,12 @@ int main(int argc, const char **argv) {
         const string &request = algorithms[i].first;
         const Algorithm::algorithm_t<state_t> &algorithm = *algorithms[i].second;
         Dispatcher::dispatcher_t<state_t>::solve_result_t result;
-        dispatcher.solve(request, algorithm, problem.init(), result);
+        dispatcher.solve(request, algorithm, result);
         solve_results.push_back(result);
     }
 
-    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
     if( !solve_results.empty() ) {
+        cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
         for( int i = 0; i < int(solve_results.size()); ++i ) {
             dispatcher.print_stats(cout, solve_results[i]);
         }
@@ -130,12 +130,12 @@ int main(int argc, const char **argv) {
         const string &request = policies[i].first;
         const Online::Policy::policy_t<state_t> &policy = *policies[i].second;
         Dispatcher::dispatcher_t<state_t>::evaluate_result_t result;
-        dispatcher.evaluate(request, policy, problem.init(), result, num_trials, 100, true);
+        dispatcher.evaluate(request, policy, result, num_trials, 100, true);
         evaluate_results.push_back(result);
     }
 
-    cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
     if( !evaluate_results.empty() ) {
+        cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
         for( int i = 0; i < int(evaluate_results.size()); ++i ) {
             dispatcher.print_stats(cout, evaluate_results[i]);
         }
