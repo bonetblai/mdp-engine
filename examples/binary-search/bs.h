@@ -67,7 +67,7 @@ struct beam_t {
         return bitmap_ < beam.bitmap_;
     }
 
-    virtual int cardinality() const {
+    int cardinality() const {
         return __builtin_popcount(bitmap_);
     }
 
@@ -238,8 +238,9 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         float p_lower = float(lower.cardinality()) / float(bel.cardinality());
         belief_state_t upper = bel.apply(a, 1);
         float p_upper = float(upper.cardinality()) / float(bel.cardinality());
-        outcomes.push_back(std::make_pair(lower, p_lower));
-        outcomes.push_back(std::make_pair(upper, p_upper));
+        assert(p_lower + p_upper == 1);
+        if( p_lower > 0 ) outcomes.push_back(std::make_pair(lower, p_lower));
+        if( p_upper > 0 ) outcomes.push_back(std::make_pair(upper, p_upper));
     }
 
     // POMDP virtual methods
@@ -251,6 +252,9 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
     virtual const POMDP::pomdp_t<belief_state_t>::varset_t& varset(int bid) const {
         return varsets_[0];
+    }
+    virtual int cardinality(const belief_state_t &bel) const {
+        return bel.cardinality();
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
         return new feature_t(bel);
