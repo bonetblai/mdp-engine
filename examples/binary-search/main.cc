@@ -77,6 +77,7 @@ int main(int argc, const char **argv) {
     belief_state_t::set_bitmap_mask(dim);
     pomdp_t pomdp(dim);
 
+#if 0
     belief_state_t ibel = pomdp.init();
     cout << "initial bel = " << ibel << endl;
     vector<pair<belief_state_t, float> > outcomes;
@@ -90,6 +91,7 @@ int main(int argc, const char **argv) {
             cout << "}" << endl;
         }
     }
+#endif
 
     // build requests
     vector<pair<string, Online::Policy::policy_t<belief_state_t>*> > policies;

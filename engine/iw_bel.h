@@ -49,14 +49,14 @@ template<typename T> struct node_t {
     Problem::action_t a_;
     float g_;
 
-    node_t(const T &belief, const POMDP::feature_t<T> *feature, const node_t<T> *parent = 0, Problem::action_t a = 0, float cost = 0)
+    node_t(const T &belief, const POMDP::feature_t<T> *feature, const node_t<T> *parent = 0, Problem::action_t a = Problem::noop, float cost = 0)
       : belief_(belief), feature_(feature), parent_(parent), a_(a), g_(0) {
         if( parent_ != 0 ) g_ = parent_->g_ + cost;
     }
     ~node_t() { }
 
     void print(std::ostream &os) const {
-        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",p=" << parent_ << "]";
+        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",pa=" << parent_ << "]";
     }
 };
 
@@ -128,7 +128,33 @@ template<typename T> class iw_bel_t : public policy_t<T> {
   public:
     typedef enum { MOST_LIKELY, SAMPLE } determinization_t;
     typedef enum { REWARD, TARGET } stop_criterion_t;
-    typedef enum { TOTAL, KL, KL_SYMMETRIC } divergence_t;
+    typedef enum { TOTAL, KL, KL_SYM, JS, UNKNOWN } divergence_t;
+    typedef enum { MAX, ADD } score_aggregation_t;
+
+    static divergence_t divergence_from_name(const std::string &d) {
+        if( d == "total" )
+            return TOTAL;
+        else if( d == "kl" )
+            return KL;
+        else if( d == "kl-sym" )
+            return KL_SYM;
+        else if( d == "js" )
+            return JS;
+        else
+            return UNKNOWN;
+    }
+    static std::string divergence_name(divergence_t d) {
+        if( d == TOTAL )
+            return "total";
+        else if( d == KL )
+            return "kl";
+        else if( d == KL_SYM )
+            return "kl-sym";
+        else if( d == JS )
+            return "js";
+        else
+            return "unknown";
+    }
 
   protected:
     const POMDP::pomdp_t<T> &pomdp_;
@@ -138,6 +164,8 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     stop_criterion_t stop_criterion_;
     divergence_t divergence_;
     unsigned max_expansions_;
+    score_aggregation_t score_aggregation_;
+    bool random_ties_;
 
     mutable node_hash_t<T> node_table_;
 
@@ -154,7 +182,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
              stop_criterion_t stop_criterion,
              divergence_t divergence,
              unsigned max_expansions,
-             float parameter,
+             score_aggregation_t score_aggregation,
              bool random_ties)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
@@ -162,7 +190,9 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         determinization_(determinization),
         stop_criterion_(stop_criterion),
         divergence_(divergence),
-        max_expansions_(max_expansions) {
+        max_expansions_(max_expansions),
+        score_aggregation_(score_aggregation),
+        random_ties_(random_ties) {
     }
 
   protected:
@@ -176,7 +206,9 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         determinization_(MOST_LIKELY),
         stop_criterion_(TARGET),
         divergence_(TOTAL),
-        max_expansions_(std::numeric_limits<unsigned>::max()) {
+        max_expansions_(std::numeric_limits<unsigned>::max()),
+        score_aggregation_(MAX),
+        random_ties_(true) {
     }
     virtual ~iw_bel_t() { }
     virtual policy_t<T>* clone() const {
@@ -185,17 +217,22 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     virtual std::string name() const {
         return std::string("iw-bel(") +
           std::string("width=") + std::to_string(width_) +
-          std::string(",determinization=") + std::to_string(determinization_) +
-          std::string(",stop-criterion=") + std::to_string(stop_criterion_) +
-          std::string(",divergence=") + std::to_string(divergence_) +
+          std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most_likely" : "sample") +
+          std::string(",stop-criterion=") + (stop_criterion_ == TARGET ? "target" : "reward") +
+          std::string(",divergence=") + divergence_name(divergence_) +
           std::string(",max-expansions=") + std::to_string(max_expansions_) +
+          std::string(",score-aggregation=") + (score_aggregation_ == MAX ? "max" : "add") +
+          std::string(",random_ties=") + (random_ties_ ? "true" : "false") +
           std::string(")");
     }
 
     Problem::action_t operator()(const T &bel) const {
-        std::cout << "bel=" << bel << std::endl;
-        std::cout << "cardinality=" << bel.cardinality() << std::endl;
-        std::cout << "throwing BFS for goal" << std::endl;
+#if 0
+        std::cout << std::endl
+                  << "**** REQUEST FOR ACTION ****" << std::endl
+                  << "bel=" << bel << ", cardinality=" << pomdp_.cardinality(bel) << std::endl
+                  << "throwing BFS for goal" << std::endl;
+#endif
 
         if( pomdp_.dead_end(bel) ) return Problem::noop;
 
@@ -213,17 +250,23 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                     applicable_actions.push_back(a);
                 }
             }
-            return applicable_actions.empty() ? Problem::noop : applicable_actions[Random::random(applicable_actions.size())];
+            return applicable_actions.empty() ? Problem::noop : applicable_actions[!random_ties_ ? 0 : Random::random(applicable_actions.size())];
         } else {
             // return first action in path
             const node_t<T> *node = goal;
             const node_t<T> *parent = node->parent_;
-            while( parent != 0 ) {
+            assert(parent != 0);
+            while( parent->parent_ != 0 ) {
+#if 0
+                std::cout << "ACTION=" << node->a_ << std::endl;
+#endif
                 node = parent;
                 parent = node->parent_;
             }
-            assert(node->belief_ == bel);
+            assert(node->parent_->belief_ == bel);
+#if 0
             std::cout << "BEST=" << node->a_ << std::endl;
+#endif
             return node->a_;
         }
     }
@@ -240,25 +283,27 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
         if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("determinization");
-        if( it != parameters.end() ) determinization_ = it->second == "sampling" ? SAMPLE : MOST_LIKELY;
+        if( it != parameters.end() ) determinization_ = it->second == "sample" ? SAMPLE : MOST_LIKELY;
         it = parameters.find("stop-criterion");
         if( it != parameters.end() ) stop_criterion_ = it->second == "reward" ? REWARD : TARGET;
         it = parameters.find("divergence");
-        if( it != parameters.end() ) divergence_ = it->second == "total" ? TOTAL : (it->second == "kl" ? KL : KL_SYMMETRIC);
+        if( it != parameters.end() ) divergence_ = divergence_from_name(it->second);
         it = parameters.find("max-expansions");
         if( it != parameters.end() ) max_expansions_ = strtol(it->second.c_str(), 0, 0);
-#if 0
+        it = parameters.find("score-aggregation");
+        if( it != parameters.end() ) score_aggregation_ = it->second == "max" ? MAX : ADD;
         it = parameters.find("random-ties");
         if( it != parameters.end() ) random_ties_ = it->second == "true";
-#endif
         policy_t<T>::setup_time_ = 0;
 #ifdef DEBUG
         std::cout << "debug: iw-bel(): params:"
                   << " width=" << width_
-                  << " determinization=" << determinization_
-                  << " stop-criterion=" << stop_criterion_
-                  << " divergence=" << divergence_
+                  << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
+                  << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")
+                  << " divergence=" << divergence_name(divergence_)
                   << " max-expansions=" << max_expansions_
+                  << " score-aggregation=" << (score_aggregation_ == MAX ? "max" : "add")
+                  << " random-ties=" << (random_ties_ ? "true" : "false")
                   << std::endl;
 #endif
     }
@@ -285,13 +330,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         node_table_.clear();
     }
     const node_t<T>* lookup_node(const T &belief) const {
-        std::cout << "lookup: bel=" << belief << std::flush;
         typename node_hash_t<T>::const_iterator it = node_table_.find(&belief);
-        std::cout << ", found=" << (it == node_table_.end() ? "NO" : "YES") << std::endl;
+        //std::cout << "lookup: bel=" << belief << ", found=" << (it == node_table_.end() ? "NO" : "YES") << std::endl;
         return it == node_table_.end() ? 0 : it->second;
     }
     bool insert_node(const node_t<T> *node) const {
-        std::cout << "INSERT: bel=" << node->belief_ << std::endl;
+        //std::cout << "INSERT: bel=" << node->belief_ << std::endl;
         std::pair<typename node_hash_t<T>::iterator, bool> p = node_table_.insert(std::make_pair(&node->belief_, node));
         return p.second;
     }
@@ -373,8 +417,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
                     // determinize the next belief
                     if( determinization_ == SAMPLE ) {
-                        assert(0); // CHECK: not sure how to handle copies in hash
-                        std::pair<const T, bool> p = pomdp_.sample(node->belief_, a);
+                        std::pair<const T, bool> p = pomdp_.sample_without_hidden(node->belief_, a);
                         feature = pomdp_.get_feature(p.first);
                         new_node = get_node(p.first, feature, node, a, cost);
                     } else {
@@ -404,25 +447,48 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 
     const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
-        std::cout << "hola: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
-        typename std::list<const node_t<T>*>::iterator best;
+#if 0
+        std::cout << "select: ENTRY: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
+#endif
+        std::vector<typename std::list<const node_t<T>*>::iterator> best_nodes;
         float best_score = std::numeric_limits<float>::min();
         for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
-            std::cout << "    candidate: bel=" << (*it)->belief_ << ", score=" << std::flush;
-            float max_score = std::numeric_limits<float>::min();
-            for( typename std::list<const node_t<T>*>::const_iterator jt = closed_list.begin(); jt != closed_list.end(); ++jt ) {
-                float s = score(**it, **jt);
-                if( s > max_score ) max_score = s;
+            assert(!pomdp_.dead_end((*it)->belief_));
+            float node_score = score_aggregation_ == MAX ? std::numeric_limits<float>::min() : 0;
+#if 0
+            std::cout << "    candidate: a=" << (*it)->a_ << ", bel=" << (*it)->belief_ << ", score=" << std::flush;
+#endif
+            if( pomdp_.terminal((*it)->belief_) ) {
+                node_score = std::numeric_limits<float>::infinity();
+            } else {
+                for( typename std::list<const node_t<T>*>::const_iterator jt = closed_list.begin(); jt != closed_list.end(); ++jt ) {
+                    float s = score(**it, **jt);
+                    if( score_aggregation_ == MAX ) {
+                        if( s > node_score ) node_score = s;
+                    } else {
+                        node_score += s;
+                    }
+                }
             }
-            if( (best_score == std::numeric_limits<float>::min()) || (max_score > best_score) ) {
-                best_score = max_score;
-                best = it;
+            if( best_nodes.empty() || (node_score >= best_score) ) {
+                if( node_score > best_score ) best_nodes.clear();
+                best_score = node_score;
+                best_nodes.push_back(it);
             }
-            std::cout << max_score << std::endl;
+#if 0
+            std::cout << node_score << std::endl;
+#endif
         }
+#if 0
+        std::cout << "    best: #=" << best_nodes.size() << ", score=" << best_score << std::endl,
+#endif
+        assert(!best_nodes.empty());
+        typename std::list<const node_t<T>*>::iterator best = best_nodes[!random_ties_ ? 0 : Random::random(best_nodes.size())];
         const node_t<T> *node = *best;
         open_list.erase(best);
-        std::cout << "select: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
+#if 0
+        std::cout << "select: EXIT: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
+#endif
         return node;
     }
 
@@ -441,27 +507,25 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         return max_score;
     }
     float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
-        return divergence_ == TOTAL ? score_total(d1, d2) : score_kl(d1, d2, divergence_ == KL_SYMMETRIC);
+        if( divergence_ == TOTAL )
+            return score_total(d1, d2);
+        else if( divergence_ == KL )
+            return score_kl(d1, d2, false);
+        else if( divergence_ == KL_SYM )
+            return score_kl(d1, d2, true);
+        else if( divergence_ == JS )
+            return score_js(d1, d2);
+        else
+            return 0;
     }
     float score_total(const std::vector<float> &p, const std::vector<float> &q) const {
-        assert(p.size() == q.size());
-        float score = 0;
-        for( int i = 0, isz = int(p.size()); i < isz; ++i )
-            score += fabs(p[i] - q[i]);
-        return score / 2;
+        return Random::total_divergence(p, q);
     }
     float score_kl(const std::vector<float> &p, const std::vector<float> &q, bool symmetric) const {
-        assert(p.size() == q.size());
-        float h_p = 0, h_pq = 0, h_q = 0, h_qp = 0;
-        for( int i = 0, isz = int(p.size()); i < isz; ++i ) {
-            h_p += p[i] * log2f(p[i]);
-            h_pq += p[i] * log2f(q[i]);
-            if( symmetric ) {
-                h_q += q[i] * log2f(q[i]);
-                h_qp += q[i] * log2f(p[i]);
-            }
-        }
-        return (h_p - h_pq) + (h_q - h_qp);
+        return Random::kl_divergence(p, q, symmetric);
+    }
+    float score_js(const std::vector<float> &p, const std::vector<float> &q) const {
+        return Random::js_divergence(p, q);
     }
 };
 
