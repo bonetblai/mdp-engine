@@ -131,17 +131,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     typedef enum { TOTAL, KL, KL_SYM, JS, UNKNOWN } divergence_t;
     typedef enum { MAX, ADD } score_aggregation_t;
 
-    static divergence_t divergence_from_name(const std::string &d) {
-        if( d == "total" )
-            return TOTAL;
-        else if( d == "kl" )
-            return KL;
-        else if( d == "kl-sym" )
-            return KL_SYM;
-        else if( d == "js" )
-            return JS;
-        else
-            return UNKNOWN;
+    static divergence_t divergence_from_name(const std::string &ds) {
+        for( int d = TOTAL; d < UNKNOWN; ++d ) {
+            if( ds == divergence_name(static_cast<divergence_t>(d)) )
+                return static_cast<divergence_t>(d);
+        }
+        return UNKNOWN;
     }
     static std::string divergence_name(divergence_t d) {
         if( d == TOTAL )
@@ -217,7 +212,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     virtual std::string name() const {
         return std::string("iw-bel(") +
           std::string("width=") + std::to_string(width_) +
-          std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most_likely" : "sample") +
+          std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most-likely" : "sample") +
           std::string(",stop-criterion=") + (stop_criterion_ == TARGET ? "target" : "reward") +
           std::string(",divergence=") + divergence_name(divergence_) +
           std::string(",max-expansions=") + std::to_string(max_expansions_) +
