@@ -19,10 +19,13 @@ namespace Utils {
   bool g_use_colors = true;
 };
 
-int beam_t::dim_ = 0;
+int bitmap_t::dim_ = 0;
+int bitmap_t::dim_in_words_ = 0;
+int bitmap_t::bits_in_last_word_ = 0;
+unsigned bitmap_t::last_word_mask_ = 0;
+
 int belief_state_t::dim_ = 0;
-unsigned belief_state_t::bitmap_mask_ = 0;
-std::vector<unsigned> belief_state_t::action_masks_;
+std::vector<bitmap_t> belief_state_t::action_mask_;
 
 using namespace std;
 
@@ -73,7 +76,7 @@ int main(int argc, const char **argv) {
     // build pomdp instance
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
-    beam_t::set_dimension(dim);
+    bitmap_t::set_dimension(dim);
     belief_state_t::set_bitmap_mask(dim);
     pomdp_t pomdp(dim);
 
