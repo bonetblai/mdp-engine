@@ -5,6 +5,8 @@
 #include "../binary-search/bitmap.h"
 
 #define DISCOUNT            1
+#define OBS_NOT_GOOD        0
+#define OBS_GOOD            1
 
 //#define DEBUG
 
@@ -108,7 +110,8 @@ inline std::ostream& operator<<(std::ostream &os, const loc_t &loc) {
 }
 
 struct beam_t {
-    int value_; // 0=contains only BAD, 1=contains only GOOD, 2=empty, 3=contains both
+    typedef enum { bad = 0, good = 1, empty = 2, both = 3 } value_t;
+    value_t value_; // 0=contains only BAD, 1=contains only GOOD, 2=empty, 3=contains both
 
     struct const_iterator {
         int marker_;
@@ -131,7 +134,7 @@ struct beam_t {
         }
     }; // const_iterator
 
-    beam_t(int value = 3) : value_(value) { }
+    beam_t(value_t value = both) : value_(value) { }
     ~beam_t() { }
 
     const beam_t& operator=(const beam_t &beam) {
@@ -153,18 +156,18 @@ struct beam_t {
     }
 
     virtual const_iterator begin() const {
-        return const_iterator(0);
+        return const_iterator(value_ == both ? bad : (value_ == empty ? bad : value_));
     }
     virtual const_iterator end() const {
-        return const_iterator(value_ == 3 ? 3 : (value_ == 2 ? 0 : 2));
+        return const_iterator(value_ == both ? empty : (value_ == empty ? bad : 1 + value_));
     }
 
     void print(std::ostream &os) const {
-        if( value_ == 0 )
+        if( value_ == bad )
             os << "{bad}";
-        else if( value_ == 1 )
+        else if( value_ == good )
             os << "{good}";
-        else if( value_ == 2 )
+        else if( value_ == empty )
             os << "{}";
         else
             os << "{bad,good}";
@@ -230,9 +233,13 @@ class belief_state_t {
         max_antenna_height_ = max_antenna_height;
     }
 
+    static int xdim() { return xdim_; }
+    static int ydim() { return ydim_; }
+    static int number_rocks() { return number_rocks_; }
+    static int max_antenna_height() { return max_antenna_height_; }
+
     size_t hash() const {
-        //return beam_.hash(); // CHECK: use something for strings, like jenkins
-        assert(0); // CHECK
+        return Utils::jenkins_one_at_a_time_hash(beams_);
     }
 
     const belief_state_t& operator=( const belief_state_t &bel) {
@@ -264,6 +271,9 @@ class belief_state_t {
           ((loc_ == bel.loc_) && (antenna_height_ == bel.antenna_height_) && (beams_ == bel.beams_) && (sampled_ == bel.sampled_) && (skipped_ == bel.skipped_) && (hidden_ < bel.hidden_));
     }
 
+    const loc_t& loc() const { return loc_; }
+    int antenna_height() const { return antenna_height_; }
+
     const beam_t& beam(int bid) const {
         assert(bid < beams_.size());
         return beams_[bid];
@@ -292,63 +302,63 @@ class belief_state_t {
         int number_good_rocks = 0;
         int number_unknown_rocks = 0;
         for( int r = 0; r < number_rocks_; ++r ) {
-            assert(beams_[r].value_ != 2);
+            assert(beams_[r].value_ != beam_t::empty);
             loc_t rloc(rock_locations[r], xdim_, ydim_);
             if( loc_.euclidean_distance(rloc) <= float(antenna_height_) ) {
-                if( beams_[r].value_ == 1 ) // good rock
+                if( beams_[r].value_ == beam_t::good )
                     ++number_good_rocks;
-                else if( beams_[r].value_ == 3 ) // unknown rock
+                else if( beams_[r].value_ == beam_t::both )
                     ++number_unknown_rocks;
             }
         }
 
-        if( obs == 0 ) { // there are no good rocks around current location
+        if( obs == OBS_NOT_GOOD ) { // there are no good rocks around current location
             assert(number_good_rocks == 0);
             if( number_unknown_rocks > 0 ) {
                 for( int r = 0; r < number_rocks_; ++r ) {
-                    if( beams_[r].value_ == 3 ) // unknown rock, mark it as bad rock
-                        beams_[r].value_ = 0;
+                    if( beams_[r].value_ == beam_t::both ) // unknown rock, mark it as bad rock
+                        beams_[r].value_ = beam_t::bad;
                 }
             }
         } else { // there is at leat one good rock around current location
             if( (number_good_rocks == 0) && (number_unknown_rocks == 1) ) {
                 for( int r = 0; r < number_rocks_; ++r ) {
-                    if( beams_[r].value_ == 3 ) { // unknown rock, mark it as good rock and finish
-                        beams_[r].value_ = 1;
+                    if( beams_[r].value_ == beam_t::both ) { // unknown rock, mark it as good rock and finish
+                        beams_[r].value_ = beam_t::good;
                         break;
                     }
                 }
             }
         }
     }
-    std::pair<float, float> probability_sense(const std::vector<int> &rock_locations) const {
+    std::pair<float, float> probability_sense(const std::vector<int> &rock_locations) const { // pair is (P(good), P(!good))
         int number_good_rocks = 0;
         int number_unknown_rocks = 0;
         for( int r = 0; r < number_rocks_; ++r ) {
-            assert(beams_[r].value_ != 2);
+            assert(beams_[r].value_ != beam_t::empty);
             loc_t rloc(rock_locations[r], xdim_, ydim_);
             if( loc_.euclidean_distance(rloc) <= float(antenna_height_) ) {
-                if( beams_[r].value_ == 1 ) { // good rock
+                if( beams_[r].value_ == beam_t::good ) { // good rock
                     ++number_good_rocks;
                     break;
-                } else if( beams_[r].value_ == 3 ) { // unknown rock
+                } else if( beams_[r].value_ == beam_t::both ) { // unknown rock
                     ++number_unknown_rocks;
                 }
             }
         }
-        float p = number_good_rocks > 0 ? 0.0 : (number_unknown_rocks > 0 ? powf(2.0, number_unknown_rocks) : 1.0);
-        return std::make_pair(1 - p, p);
+        float p_not_good = number_good_rocks > 0 ? 0.0 : (number_unknown_rocks > 0 ? powf(0.5, number_unknown_rocks) : 1.0);
+        return std::make_pair(1 - p_not_good, p_not_good);
     }
 
     void print(std::ostream &os) const {
         os << "[loc=" << loc_
-           << ", height=" << antenna_height_
-           << ", beams=[";
+           << ",height=" << antenna_height_
+           << ",beams=[";
         for( int i = 0; i < int(beams_.size()); ++i ) {
             os << beams_[i];
             if( i + 1 < int(beams_.size()) ) os << ",";
         }
-        os << "], hidden=" << hidden_ << "]" << std::flush;
+        os << "],sampled=" << sampled_ << ",skipped=" << skipped_ << ",hidden=" << hidden_ << "]" << std::flush;
     }
     friend class pomdp_t;
 };
@@ -360,17 +370,17 @@ inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
 
 struct feature_t : public POMDP::feature_t<belief_state_t> {
     feature_t(const belief_state_t &bel) {
-        marginals_ = std::vector<std::vector<float> >(bel.number_rocks_);
-        for( int r = 0; r < number_rocks_; ++r ) {
-            assert(bel.beams_[r].value_ != 2);
+        marginals_ = std::vector<std::vector<float> >(belief_state_t::number_rocks());
+        for( int r = 0; r < belief_state_t::number_rocks(); ++r ) {
+            assert(bel.beam(r).value_ != beam_t::empty);
             marginals_[r] = std::vector<float>(2, 0);
-            if( bel.beams_[r].value_ == 0 ) {
-                marginals_[r][0] = 1;
-            } else if( bel.beams_[r].value_ == 1 ) {
-                marginals_[r][1] = 1;
-            } else if( bel.beams_[r].value_ == 3 ) {
-                marginals_[r][0] = 0.5;
-                marginals_[r][1] = 0.5;
+            if( bel.beam(r).value_ == beam_t::bad ) {
+                marginals_[r][beam_t::bad] = 1;
+            } else if( bel.beam(r).value_ == beam_t::good ) {
+                marginals_[r][beam_t::good] = 1;
+            } else if( bel.beam(r).value_ == beam_t::both ) {
+                marginals_[r][beam_t::bad] = 0.5;
+                marginals_[r][beam_t::good] = 0.5;
             }
         }
     }
@@ -396,7 +406,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
 
     mutable belief_state_t init_tmp_;
 
-    enum { MoveNorth, MoveEast, MoveSouth, MoveWest, RaiseAntenna, LowerAntenna, Sense };
+    enum { GoNorth, GoEast, GoSouth, GoWest, RaiseAntenna, LowerAntenna, Sense };
 
   public:
     pomdp_t(int xdim, int ydim, int number_rocks, int max_antenna_height)
@@ -461,7 +471,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return false;
     }
     virtual bool applicable(const belief_state_t &bel, ::Problem::action_t a) const {
-        if( (a >= MoveNorth) && (a <= MoveWest) ) {
+        if( (a >= GoNorth) && (a <= GoWest) ) {
             return bel.antenna_height_ == 0;
         } else if( a == RaiseAntenna ) {
             return bel.antenna_height_ < max_antenna_height_;
@@ -470,15 +480,17 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         } else if( a == Sense ) {
             return true; // sensor can be activated at any time
         } else if( is_sample_action(a) ) {
-            // rock must not be sampled/skipped and it must be known to be a good rock
+            // rock must not be sampled/skipped, it must be known to be a good rock, and agent must be at rock's location
             int r = sampled_rock(a);
             assert((r >= 0) && (r < number_rocks_));
-            return bel.beams_[r].value_ == 1;
+            assert((bel.beams_[r].value_ != beam_t::good) || (bel.skipped_.bit(r) == 0));
+            return (bel.loc_ == loc_t(rock_locations_[r], xdim_, ydim_)) && (bel.beams_[r].value_ == beam_t::good) && (bel.sampled_.bit(r) == 0);
         } else if( is_skip_action(a) ) {
-            // rock must not be sampled/skipped and it must be known to be a bad rock
+            // rock must not be sampled/skipped, it must be known to be a bad rock, and agent must be at rock's location
             int r = skipped_rock(a);
             assert((r >= 0) && (r < number_rocks_));
-            return bel.beams_[r].value_ == 0;
+            assert((bel.beams_[r].value_ != beam_t::bad) || (bel.sampled_.bit(r) == 0));
+            return (bel.loc_ == loc_t(rock_locations_[r], xdim_, ydim_)) && (bel.beams_[r].value_ == beam_t::bad) && (bel.skipped_.bit(r) == 0);
         } else {
             std::cout << Utils::error() << "unknown action a=" << a << std::endl;
             return false;
@@ -502,16 +514,19 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         ++expansions_;
         outcomes.clear();
 
+#ifdef DEBUG
+        std::cout << "next: bel=" << bel << ", action=" << action_name(a) << std::endl;
+#endif
         if( a != Sense ) {
             outcomes.reserve(1);
             belief_state_t next_bel(bel);
-            if( a == MoveNorth ) {
+            if( a == GoNorth ) {
                 next_bel.loc_.move_north(xdim_, ydim_);
-            } else if( a == MoveEast ) {
+            } else if( a == GoEast ) {
                 next_bel.loc_.move_east(xdim_, ydim_);
-            } else if( a == MoveSouth ) {
+            } else if( a == GoSouth ) {
                 next_bel.loc_.move_south(xdim_, ydim_);
-            } else if( a == MoveWest ) {
+            } else if( a == GoWest ) {
                 next_bel.loc_.move_west(xdim_, ydim_);
             } else if( a == RaiseAntenna ) {
                 next_bel.raise_antenna();
@@ -528,19 +543,28 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
                 exit(-1);
             }
             outcomes.push_back(std::make_pair(next_bel, 1.0));
+#ifdef DEBUG
+            std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+#endif
         } else {
             outcomes.reserve(2);
             belief_state_t next_bel_0(bel);
-            std::pair<float, float> p = bel.probability_sense(rock_locations_);
+            std::pair<float, float> p = bel.probability_sense(rock_locations_); // pair is (P(good), P(!good))
             if( p.first > 0 ) {
                 belief_state_t next_bel(bel);
-                next_bel.apply_sense(0, rock_locations_);
+                next_bel.apply_sense(OBS_GOOD, rock_locations_);
                 outcomes.push_back(std::make_pair(next_bel, p.first));
+#ifdef DEBUG
+                std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+#endif
             }
             if( p.second > 0 ) {
                 belief_state_t next_bel(bel);
-                next_bel.apply_sense(1, rock_locations_);
+                next_bel.apply_sense(OBS_NOT_GOOD, rock_locations_);
                 outcomes.push_back(std::make_pair(next_bel, p.second));
+#ifdef DEBUG
+                std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+#endif
             }
         }
     }
@@ -553,14 +577,8 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return number_beams_;
     }
     virtual const POMDP::pomdp_t<belief_state_t>::varset_t& varset(int bid) const {
-        //return varsets_[0]; // CHECK
         assert(0); // CHECK
     }
-#if 0
-    virtual int cardinality(const belief_state_t &bel) const {
-        return bel.cardinality();
-    }
-#endif
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
         return new feature_t(bel);
     }
@@ -570,13 +588,13 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
 
     virtual void apply_action(belief_state_t &bel_a, Problem::action_t a) const {
         if( a != Sense ) {
-            if( a == MoveNorth ) {
+            if( a == GoNorth ) {
                 bel_a.loc_.move_north(xdim_, ydim_);
-            } else if( a == MoveEast ) {
+            } else if( a == GoEast ) {
                 bel_a.loc_.move_east(xdim_, ydim_);
-            } else if( a == MoveSouth ) {
+            } else if( a == GoSouth ) {
                 bel_a.loc_.move_south(xdim_, ydim_);
-            } else if( a == MoveWest ) {
+            } else if( a == GoWest ) {
                 bel_a.loc_.move_west(xdim_, ydim_);
             } else if( a == RaiseAntenna ) {
                 bel_a.raise_antenna();
@@ -603,13 +621,36 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual POMDP::observation_t sample_observation_using_hidden_state(const belief_state_t &bel, const belief_state_t &bel_a, Problem::action_t a) const {
         if( a == Sense ) {
             for( int r = 0; r < number_rocks_; ++r ) {
-                if( bel.hidden_.bit(r) == 1 )
-                    return 1;
+                if( (bel.hidden_.bit(r) == 1) && (bel.loc().euclidean_distance(loc_t(rock_locations_[r], xdim_, ydim_)) <= float(bel.antenna_height())) )
+                    return OBS_GOOD;
             }
-            return 0;
+            return OBS_NOT_GOOD;
         } else {
-            return 0;
+            return OBS_NOT_GOOD; // fixed (dummy) observation
         }
+    }
+
+    virtual std::string action_name(Problem::action_t a) const {
+        if( a == GoNorth )
+            return std::string("go-north()");
+        else if( a == GoEast )
+            return std::string("go-east()");
+        else if( a == GoSouth )
+            return std::string("go-south()");
+        else if( a == GoWest )
+            return std::string("go-west()");
+        else if( a == RaiseAntenna )
+            return std::string("raise-antenna()");
+        else if( a == LowerAntenna )
+            return std::string("lower-antenna()");
+        else if( a == Sense )
+            return std::string("sense()");
+        else if( is_sample_action(a) )
+            return std::string("sample(r=") + std::to_string(sampled_rock(a)) + std::string(")");
+        else if( is_skip_action(a) )
+            return std::string("skip(r=") + std::to_string(skipped_rock(a)) + std::string(")");
+        else
+            return std::string("unknown");
     }
 
     virtual void print(std::ostream &os) const {
