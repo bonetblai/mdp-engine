@@ -15,7 +15,7 @@ clean:
 .cc.o:
 		$(CXX) $(CCFLAGS) $(EXTRA) -c $<
 
-$(OBJS):	bs.h
+$(OBJS):	bs.h bitmap.h
 $(OBJS):	$(ENGINE)/algorithm.h
 $(OBJS):	$(ENGINE)/aot.h
 $(OBJS):	$(ENGINE)/aot_gh.h

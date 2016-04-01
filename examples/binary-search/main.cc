@@ -19,13 +19,13 @@ namespace Utils {
   bool g_use_colors = true;
 };
 
-int bitmap_t::dim_ = 0;
-int bitmap_t::dim_in_words_ = 0;
-int bitmap_t::bits_in_last_word_ = 0;
-unsigned bitmap_t::last_word_mask_ = 0;
+int Bitmap::bitmap_t::dim_ = 0;
+int Bitmap::bitmap_t::dim_in_words_ = 0;
+int Bitmap::bitmap_t::bits_in_last_word_ = 0;
+unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
 
 int belief_state_t::dim_ = 0;
-std::vector<bitmap_t> belief_state_t::action_mask_;
+std::vector<Bitmap::bitmap_t> belief_state_t::action_mask_;
 
 using namespace std;
 
@@ -65,7 +65,7 @@ int main(int argc, const char **argv) {
         }
     }
 
-    // read pomdp parameters
+    // read parameters
     if( argc == 1 ) {
         dim = strtoul(argv[0], 0, 0);
     } else {
@@ -73,10 +73,10 @@ int main(int argc, const char **argv) {
         exit(-1);
     }
 
-    // build pomdp instance
+    // build instance
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
-    bitmap_t::set_dimension(dim);
+    Bitmap::bitmap_t::set_dimension(dim);
     belief_state_t::set_bitmap_mask(dim);
     pomdp_t pomdp(dim);
 

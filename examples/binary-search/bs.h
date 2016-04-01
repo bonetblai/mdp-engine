@@ -2,230 +2,21 @@
 #include <iomanip>
 #include <strings.h>
 
+#include "bitmap.h"
+
 #define DISCOUNT            1
-#define BITS_IN_UNSIGNED    (8 * sizeof(unsigned))
 
 //#define DEBUG
 
-struct bitmap_t {
-    unsigned *bitmap_;
-
-    static int dim_;
-    static int dim_in_words_;
-    static int bits_in_last_word_;
-    static unsigned last_word_mask_;
-
-    struct const_iterator {
-        const unsigned *bitmap_;
-        int offset_;
-        int pos_;
-        int max_pos_;
-
-        enum { Begin, End }; // iterator type
-
-        void increase_pos() {
-            ++pos_;
-            offset_ = (1 + offset_ ) & 0x1f;
-            if( offset_ == 0 ) ++bitmap_;
-        }
-        int current_bit() {
-            return (*bitmap_ >> offset_) & 1;
-        }
-
-        const_iterator(const unsigned *bitmap, int dim_in_words, int bits_in_last_word, int type, int max_pos) {
-            max_pos_ = max_pos;
-            if( type == Begin ) {
-                bitmap_ = bitmap;
-                offset_ = 0;
-                pos_ = 0;
-                if( current_bit() == 0 ) ++(*this);
-            } else {
-                if( bits_in_last_word == BITS_IN_UNSIGNED ) {
-                    bitmap_ = &bitmap[dim_in_words];
-                    offset_ = 0;
-                } else {
-                    bitmap_ = &bitmap[dim_in_words - 1];
-                    offset_ = bits_in_last_word;
-                }
-                pos_ = max_pos_;
-            }
-        }
-        const_iterator(const const_iterator &it)
-          : bitmap_(it.bitmap_), offset_(it.offset_), pos_(it.pos_), max_pos_(it.max_pos_) {
-        }
-
-        bool operator==(const const_iterator &it) const {
-            return (bitmap_ == it.bitmap_) && (offset_ == it.offset_) && (pos_ == it.pos_) && (max_pos_ == it.max_pos_);
-        }
-        bool operator!=(const const_iterator &it) const {
-            return !(*this == it);
-        }
-        const const_iterator& operator++() {
-            if( pos_ < max_pos_ )
-                for( increase_pos(); (pos_ < max_pos_) && (current_bit() == 0); increase_pos() );
-            return *this;
-        }
-
-        int value() const {
-            return pos_;
-        }
-
-        void print(std::ostream &os) const {
-            os << "(ptr=" << bitmap_ << ",off=" << offset_ << ",pos=" << pos_ << ",mpos=" << max_pos_ << ")" << std::flush;
-        }
-    }; // const_iterator
-
-    bitmap_t(unsigned bitmap = unsigned(-1)) {
-        bitmap_ = new unsigned[dim_in_words_];
-        for( int i = 0; i < dim_in_words_; ++i )
-            bitmap_[i] = bitmap;
-        bitmap_[dim_in_words_ - 1] = bitmap_[dim_in_words_ - 1] & last_word_mask_;
-    }
-    bitmap_t(const bitmap_t &bitmap) {
-        bitmap_ = new unsigned[dim_in_words_];
-        *this = bitmap;
-    }
-    bitmap_t(const bitmap_t &bitmap, const bitmap_t &mask) {
-        bitmap_ = new unsigned[dim_in_words_];
-        for( int i = 0; i < dim_in_words_; ++i )
-            bitmap_[i] = bitmap[i] & mask[i];
-    }
-    bitmap_t(bitmap_t &&bitmap) {
-        bitmap_ = bitmap.bitmap_;
-        bitmap.bitmap_ = 0;
-    }
-    ~bitmap_t() {
-        delete[] bitmap_;
-    }
-
-    static void set_dimension(int dim) {
-        dim_ = dim;
-        dim_in_words_ = dim >> 5;
-        bits_in_last_word_ = dim_ - (dim_in_words_ << 5);
-        if( bits_in_last_word_ > 0 )
-            ++dim_in_words_;
-        else
-            bits_in_last_word_ = BITS_IN_UNSIGNED;
-
-        last_word_mask_ = 0;
-        for( int i = 0; i < bits_in_last_word_; ++i ) {
-            last_word_mask_ = last_word_mask_ << 1;
-            ++last_word_mask_;
-        }
-        std::cout << "bitmap_t: dim=" << dim_
-                  << ", dim_in_words=" << dim_in_words_
-                  << ", bits_in_last_word=" << bits_in_last_word_
-                  << ", last_word_mask=";
-        Utils::print_bits(std::cout, last_word_mask_, BITS_IN_UNSIGNED);
-        std::cout << std::endl;
-    }
-
-    unsigned operator[](int i) const {
-        return bitmap_[i];
-    }
-    const bitmap_t& operator=(const bitmap_t &bitmap) {
-        for( int i = 0; i < dim_in_words_; ++i )
-            bitmap_[i] = bitmap[i];
-        return *this;
-    }
-    bool operator==(const bitmap_t &bitmap) const {
-        for( int i = 0; i < dim_in_words_; ++i ) {
-            if( bitmap_[i] != bitmap[i] )
-                return false;
-        }
-        return true;
-    }
-    bool operator!=(const bitmap_t &bitmap) const {
-        return !(*this == bitmap);
-    }
-    bool operator<(const bitmap_t &bitmap) const {
-        for( int i = 0; i < dim_in_words_; ++i ) {
-            if( bitmap_[i] < bitmap[i] )
-                return true;
-            else if( bitmap_[i] > bitmap[i] )
-                return false;
-        }
-        return false;
-    }
-
-    int popcount() const {
-        int pcount = 0;
-        for( int i = 0; i < dim_in_words_; ++i )
-            pcount += __builtin_popcount(bitmap_[i]);
-        return pcount;
-    }
-
-    unsigned hash() const {
-        unsigned value = 0;
-        for( int i = 0; i < dim_in_words_; ++i )
-            value = value ^ bitmap_[i];
-        return value;
-    }
-
-    void lshift(unsigned initial_carry = 0) {
-        unsigned carry = initial_carry;
-        for( int i = 0; i < dim_in_words_; ++i ) {
-            unsigned bitmap = bitmap_[i];
-            bitmap_[i] = bitmap_[i] << 1;
-            bitmap_[i] += carry;
-            carry = bitmap >> (BITS_IN_UNSIGNED - 1);
-        }
-        bitmap_[dim_in_words_ - 1] = bitmap_[dim_in_words_ - 1] & last_word_mask_;
-    }
-    void rshift(unsigned initial_carry = (1 << (BITS_IN_UNSIGNED - 1))) {
-        unsigned carry = initial_carry;
-        for( int i = dim_in_words_ - 1; i >= 0; --i ) {
-            unsigned bitmap = bitmap_[i];
-            bitmap_[i] = bitmap_[i] >> 1;
-            bitmap_[i] += carry;
-            carry = (bitmap & 1) << (BITS_IN_UNSIGNED - 1);
-        }
-    }
-    void complement() {
-        for( int i = 0; i < dim_in_words_; ++i )
-            bitmap_[i] = ~bitmap_[i];
-        bitmap_[dim_in_words_ - 1] = bitmap_[dim_in_words_ - 1] & last_word_mask_;
-    }
-
-    const_iterator begin() const {
-        return const_iterator(bitmap_, dim_in_words_, bits_in_last_word_, const_iterator::Begin, dim_);
-    }
-    const_iterator end() const {
-        return const_iterator(bitmap_, dim_in_words_, bits_in_last_word_, const_iterator::End, dim_);
-    }
-
-    void print(std::ostream &os) const {
-        os << "[bitmap=[";
-        Utils::print_bits(os, bitmap_[dim_in_words_ - 1], bits_in_last_word_);
-        os << "]";
-        for( int i = dim_in_words_ - 2; i >= 0; --i ) {
-            os << ":[";
-            Utils::print_bits(os, bitmap_[i], BITS_IN_UNSIGNED);
-            os << "]";
-        }
-        os << "]" << std::flush;
-    }
-};
-
-inline std::ostream& operator<<(std::ostream &os, const bitmap_t &bitmap) {
-    bitmap.print(os);
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream &os, const bitmap_t::const_iterator &it) {
-    it.print(os);
-    return os;
-}
-
 struct beam_t {
-    bitmap_t bitmap_;
+    Bitmap::bitmap_t bitmap_;
 
-    struct const_iterator : public bitmap_t::const_iterator {
-        const_iterator(const bitmap_t::const_iterator &it) : bitmap_t::const_iterator(it) { }
+    struct const_iterator : public Bitmap::bitmap_t::const_iterator {
+        const_iterator(const Bitmap::bitmap_t::const_iterator &it) : Bitmap::bitmap_t::const_iterator(it) { }
     };
 
     beam_t() { }
-    beam_t(const bitmap_t &bitmap, const bitmap_t &mask)
+    beam_t(const Bitmap::bitmap_t &bitmap, const Bitmap::bitmap_t &mask)
       : bitmap_(bitmap, mask) {
     }
     ~beam_t() { }
@@ -274,12 +65,12 @@ class belief_state_t {
     int hidden_;
 
     static int dim_;
-    static std::vector<bitmap_t> action_mask_;
+    static std::vector<Bitmap::bitmap_t> action_mask_;
 
   public:
     belief_state_t(int hidden = 0) : hidden_(hidden) {
     }
-    belief_state_t(const bitmap_t &bitmap, const bitmap_t &mask, int hidden)
+    belief_state_t(const Bitmap::bitmap_t &bitmap, const Bitmap::bitmap_t &mask, int hidden)
       : beam_(bitmap, mask),
         hidden_(hidden) {
     }
@@ -296,10 +87,10 @@ class belief_state_t {
     static void set_bitmap_mask(int dim) {
         dim_ = dim;
 
-        bitmap_t lower(0);
+        Bitmap::bitmap_t lower(0);
         action_mask_.reserve(2 * (1 + dim_));
         for( int i = 0; i <= dim_; ++i ) {
-            bitmap_t upper(lower);
+            Bitmap::bitmap_t upper(lower);
             upper.complement();
             action_mask_.push_back(lower);
             action_mask_.push_back(upper);
@@ -362,10 +153,10 @@ struct feature_t : public POMDP::feature_t<belief_state_t> {
         std::cout << "marginal:";
 #endif
         marginals_ = std::vector<std::vector<float> >(1);
-        marginals_[0] = std::vector<float>(bitmap_t::dim_, 0);
+        marginals_[0] = std::vector<float>(Bitmap::bitmap_t::dim_, 0);
         float p = 1.0 / bel.cardinality();
         for( beam_t::const_iterator it = bel.beam(0).begin(); it != bel.beam(0).end(); ++it ) {
-            assert((it.value() >= 0) && (it.value() < bitmap_t::dim_));
+            assert((it.value() >= 0) && (it.value() < Bitmap::bitmap_t::dim_));
             marginals_[0][it.value()] = p;
 #  ifdef DEBUG
             std::cout << " " << p << "@" << it.value() << std::flush;
@@ -381,12 +172,20 @@ struct feature_t : public POMDP::feature_t<belief_state_t> {
 class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
   protected:
     int dim_;
+
+    int number_actions_;
+    int number_variables_;
+    int number_beams_;
+
     std::vector<POMDP::pomdp_t<belief_state_t>::varset_t> varsets_;
 
     mutable belief_state_t init_tmp_;
 
   public:
     pomdp_t(int dim) : POMDP::pomdp_t<belief_state_t>(DISCOUNT), dim_(dim) {
+        number_actions_ = 1 + dim_;
+        number_variables_ = 1;
+        number_beams_ = 1;
         POMDP::pomdp_t<belief_state_t>::varset_t varset;
         varset.push_back(0);
         varsets_.push_back(varset);
@@ -394,7 +193,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual ~pomdp_t() { }
 
     virtual Problem::action_t number_actions(const belief_state_t &bel) const {
-        return 1 + dim_;
+        return number_actions_;
     }
     virtual const belief_state_t& init() const {
         init_tmp_ = belief_state_t(Random::random(0, dim_));
@@ -415,7 +214,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return 1;
     }
     virtual int max_action_branching() const {
-        return dim_;
+        return number_actions_;
     }
     virtual int max_state_branching() const {
         return 2;
@@ -435,10 +234,10 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
 
     // POMDP virtual methods
     virtual int num_variables() const {
-        return 1;
+        return number_variables_;
     }
     virtual int num_beams() const {
-        return 1;
+        return number_beams_;
     }
     virtual const POMDP::pomdp_t<belief_state_t>::varset_t& varset(int bid) const {
         return varsets_[0];
@@ -463,6 +262,8 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     virtual void print(std::ostream &os) const {
+        os << Utils::error() << "not implemented yet" << std::endl;
+        assert(0);
     }
 };
 
