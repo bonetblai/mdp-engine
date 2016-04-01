@@ -136,6 +136,19 @@ inline void print_bits(std::ostream &os, unsigned bitmap, int n) {
     os << std::flush;
 }
 
+template<typename T> inline uint32_t jenkins_one_at_a_time_hash(const std::vector<T> &key) {
+    uint32_t hash = 0;
+    for( size_t i = 0; i < key.size(); ++i ) {
+        hash += key[i].hash();
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >> 11);
+    hash += (hash << 15);
+    return hash;
+}
+
 }; // end of namespace
 
 #undef DEBUG

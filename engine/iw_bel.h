@@ -87,7 +87,7 @@ template<typename T> struct node_map_function_t {
     }
 };
 
-#if 0
+#if 0 // CHECK
 struct data_t {
     std::vector<float> values_;
     std::vector<int> counts_;
@@ -111,7 +111,7 @@ template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T
     virtual ~node_hash_t() { }
     void print(std::ostream &os) const {
         assert(0); // CHECK
-#if 0
+#if 0 // CHECK
         for( const_iterator it = begin(); it != end(); ++it ) {
             os << "(" << it->first.first << "," << it->first.second << ")" << std::endl;
         }
@@ -222,10 +222,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 
     Problem::action_t operator()(const T &bel) const {
-#if 0
+#ifdef DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
-                  << "bel=" << bel << ", cardinality=" << pomdp_.cardinality(bel) << std::endl
+                  << "bel=" << bel << std::endl
                   << "throwing BFS for goal" << std::endl;
 #endif
 
@@ -233,36 +233,43 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
         const POMDP::feature_t<T> *feature = pomdp_.get_feature(bel);
         node_t<T> *root = get_root_node(bel, feature);
-        //const node_t<T> *goal = pruned_bfs(root);
-        const node_t<T> *goal = breadth_first_search(root);
+        const node_t<T> *node = breadth_first_search(root);
 
-        if( goal == 0 ) {
+#ifdef DEBUG
+        std::cout << "NODE=";
+        if( node == 0 )
+            std::cout << "null";
+        else
+            std::cout << *node;
+        std::cout << std::endl;
+#endif
+
+        if( node == 0 ) {
             // goal node wasn't found, return random action
             std::vector<Problem::action_t> applicable_actions;
             applicable_actions.reserve(pomdp_.number_actions(bel));
             for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
-                if( pomdp_.applicable(bel, a) ) {
+                if( pomdp_.applicable(bel, a) )
                     applicable_actions.push_back(a);
-                }
             }
             return applicable_actions.empty() ? Problem::noop : applicable_actions[!random_ties_ ? 0 : Random::random(applicable_actions.size())];
         } else {
             // return first action in path
-            const node_t<T> *node = goal;
+            const node_t<T> *n = node;
             const node_t<T> *parent = node->parent_;
             assert(parent != 0);
             while( parent->parent_ != 0 ) {
-#if 0
-                std::cout << "ACTION=" << node->a_ << std::endl;
+#ifdef DEBUG
+                std::cout << "ACTION=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
-                node = parent;
-                parent = node->parent_;
+                n = parent;
+                parent = n->parent_;
             }
-            assert(node->parent_->belief_ == bel);
-#if 0
-            std::cout << "BEST=" << node->a_ << std::endl;
+            assert(n->parent_->belief_ == bel);
+#ifdef DEBUG
+            std::cout << "BEST=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
-            return node->a_;
+            return n->a_;
         }
     }
     virtual void reset_stats() const {
@@ -335,54 +342,6 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         return p.second;
     }
 
-    // pruned breadth-first search
-    const node_t<T>* pruned_bfs(const node_t<T> *root) const {
-        priority_queue_t q;
-        std::vector<std::pair<T, float> > outcomes;
-
-        clear_feature_table();
-        clear_node_table();
-
-        insert_feature(*root->feature_);
-        insert_node(root);
-        q.push(root);
-        while( !q.empty() ) {
-            const node_t<T> *node = q.top();
-            q.pop();
-
-            // check whether we need to stop
-            if( pomdp_.terminal(node->belief_) ) {
-                return node;
-            }
-
-            // expand node
-            for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
-                if( pomdp_.applicable(node->belief_, a) ) {
-                    pomdp_.next(node->belief_, a, outcomes);
-
-                    // select best (unexpanded) successors to continue search
-                    int best = -1;
-                    for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                        if( pomdp_.dead_end(outcomes[i].first) ) continue;
-                        if( lookup_node(outcomes[i].first) != 0 ) continue;
-                        if( (best == -1) && (outcomes[i].second > outcomes[best].second) ) {
-                            best = i;
-                        }
-                    }
-
-                    // insert in queue if it is novel (CHECK: what happens if it is not novel but there is another successor that is novel?)
-                    const POMDP::feature_t<T> *feature = pomdp_.get_feature(outcomes[best].first);
-                    if( insert_feature(*feature) ) {
-                        float cost = pomdp_.cost(node->belief_, a);
-                        node_t<T> *new_node = get_node(outcomes[best].first, feature, node, a, cost);
-                        q.push(new_node);
-                    }
-                }
-            }
-        }
-        return 0;
-    }
-
     // breadth-first search
     const node_t<T>* breadth_first_search(const node_t<T> *root) const {
         std::list<const node_t<T>*> open_list, closed_list;
@@ -394,14 +353,13 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         //insert_feature(*root->feature_);
         insert_node(root);
         open_list.push_back(root);
-        for( unsigned iter = 0; !open_list.empty() && ((stop_criterion_ != TARGET) || (iter < max_expansions_)); ++iter ) {
+        for( unsigned iter = 0; !open_list.empty() && (iter < max_expansions_); ++iter ) {
             const node_t<T> *node = select_node_for_expansion(open_list, closed_list);
             closed_list.push_front(node);
 
             // check whether we need to stop
-            if( (stop_criterion_ == TARGET) && pomdp_.terminal(node->belief_) ) {
+            if( pomdp_.terminal(node->belief_) )
                 return node;
-            }
 
             // expand node
             for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
@@ -419,17 +377,20 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                         pomdp_.next(node->belief_, a, outcomes);
 
                         // select best (unexpanded) successors to continue search
-                        int best = -1;
+                        std::vector<int> best;
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
                             if( pomdp_.dead_end(outcomes[i].first) ) continue;
                             if( lookup_node(outcomes[i].first) != 0 ) continue;
-                            if( (best == -1) || (outcomes[i].second > outcomes[best].second) ) {
-                                best = i;
+                            if( best.empty() || (outcomes[i].second >= outcomes[best.back()].second) ) {
+                                if( !best.empty() && (outcomes[i].second > outcomes[best.back()].second) )
+                                    best.clear();
+                                best.push_back(i);
                             }
                         }
-                        if( best == -1 ) continue; // no new belief, continue to next action
-                        feature = pomdp_.get_feature(outcomes[best].first);
-                        new_node = get_node(outcomes[best].first, feature, node, a, cost);
+                        if( best.empty() ) continue; // no new belief, continue to next action
+                        int i = best[Random::random(0, best.size())];
+                        feature = pomdp_.get_feature(outcomes[i].first);
+                        new_node = get_node(outcomes[i].first, feature, node, a, cost);
                     }
 
                     // insert new node into open list
@@ -438,11 +399,26 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 }
             }
         }
-        return 0;
+
+        // return best node in open if stop-criterion is REWARD
+        if( stop_criterion_ == REWARD ) {
+            std::vector<const node_t<T>*> best;
+            for( typename std::list<const node_t<T>*>::const_iterator it = open_list.begin(); it != open_list.end(); ++it ) {
+                const node_t<T> *node = *it;
+                if( best.empty() || (node->g_ <= best.back()->g_) ) {
+                    if( !best.empty() && (node->g_ < best.back()->g_) )
+                        best.clear();
+                    best.push_back(*it);
+                }
+            }
+            return best.empty() ? 0 : best[Random::random(0, best.size())];
+        } else {
+            return 0;
+        }
     }
 
     const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
-#if 0
+#ifdef DEBUG
         std::cout << "select: ENTRY: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
 #endif
         std::vector<typename std::list<const node_t<T>*>::iterator> best_nodes;
@@ -450,8 +426,8 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
             assert(!pomdp_.dead_end((*it)->belief_));
             float node_score = score_aggregation_ == MAX ? std::numeric_limits<float>::min() : 0;
-#if 0
-            std::cout << "    candidate: a=" << (*it)->a_ << ", bel=" << (*it)->belief_ << ", score=" << std::flush;
+#ifdef DEBUG
+            std::cout << "    candidate: a=" << (*it)->a_ << ":" << pomdp_.action_name((*it)->a_) << ", bel=" << (*it)->belief_ << ", score=" << std::flush;
 #endif
             if( pomdp_.terminal((*it)->belief_) ) {
                 node_score = std::numeric_limits<float>::infinity();
@@ -470,18 +446,18 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 best_score = node_score;
                 best_nodes.push_back(it);
             }
-#if 0
+#ifdef DEBUG
             std::cout << node_score << std::endl;
 #endif
         }
-#if 0
+#ifdef DEBUG
         std::cout << "    best: #=" << best_nodes.size() << ", score=" << best_score << std::endl,
 #endif
         assert(!best_nodes.empty());
         typename std::list<const node_t<T>*>::iterator best = best_nodes[!random_ties_ ? 0 : Random::random(best_nodes.size())];
         const node_t<T> *node = *best;
         open_list.erase(best);
-#if 0
+#ifdef DEBUG
         std::cout << "select: EXIT: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
 #endif
         return node;

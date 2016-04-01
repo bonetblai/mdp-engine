@@ -223,6 +223,9 @@ template<typename T> class problem_t {
     }
 
     // print problem description
+    virtual std::string action_name(Problem::action_t a) const {
+        return std::to_string(a);
+    }
     virtual void print(std::ostream &os) const = 0;
 };
 
