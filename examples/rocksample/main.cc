@@ -27,6 +27,7 @@ unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
 int belief_state_t::xdim_ = 0;
 int belief_state_t::ydim_ = 0;
 int belief_state_t::number_rocks_ = 0;
+int belief_state_t::max_antenna_height_ = 0;
 
 using namespace std;
 
@@ -84,7 +85,7 @@ int main(int argc, const char **argv) {
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
     Bitmap::bitmap_t::set_dimension(number_rocks);
-    belief_state_t::set_static_members(xdim, ydim, number_rocks);
+    belief_state_t::set_static_members(xdim, ydim, number_rocks, max_antenna_height);
     pomdp_t pomdp(xdim, ydim, number_rocks, max_antenna_height);
 
     // build requests
