@@ -154,6 +154,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
   protected:
     const POMDP::pomdp_t<T> &pomdp_;
 
+    // parameters
     unsigned width_;
     determinization_t determinization_;
     stop_criterion_t stop_criterion_;
@@ -162,14 +163,17 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     score_aggregation_t score_aggregation_;
     bool random_ties_;
 
+    // hash table (dynamic memory that must be cleared after action selection)
     mutable node_hash_t<T> node_table_;
 
+#if 0
     struct min_priority_t {
         bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
             return n1->g_ > n2->g_;
         }
     };
     typedef typename std::priority_queue<const node_t<T>*, std::vector<const node_t<T>*>, min_priority_t> priority_queue_t;
+#endif
 
     iw_bel_t(const POMDP::pomdp_t<T> &pomdp,
              unsigned width,
@@ -226,6 +230,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
                   << "bel=" << bel << std::endl
+                  << "actions:";
+        for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
+            if( pomdp_.applicable(bel, a) )
+                std::cout << " " << pomdp_.action_name(a);
+        }
+        std::cout << std::endl
                   << "throwing BFS for goal" << std::endl;
 #endif
 
@@ -245,6 +255,9 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #endif
 
         if( node == 0 ) {
+            //clear_feature_table();
+            clear_node_table();
+
             // goal node wasn't found, return random action
             std::vector<Problem::action_t> applicable_actions;
             applicable_actions.reserve(pomdp_.number_actions(bel));
@@ -269,7 +282,12 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #ifdef DEBUG
             std::cout << "BEST=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
-            return n->a_;
+
+            Problem::action_t a = n->a_;
+            //clear_feature_table();
+            clear_node_table();
+
+            return a;
         }
     }
     virtual void reset_stats() const {
@@ -327,16 +345,18 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 
     void clear_node_table() const {
-        for( typename node_hash_t<T>::const_iterator it = node_table_.begin(); it != node_table_.end(); ++it )
+        for( typename node_hash_t<T>::const_iterator it = node_table_.begin(); it != node_table_.end(); ++it ) {
+            pomdp_.remove_feature(it->second->feature_);
             delete it->second;
+        }
         node_table_.clear();
     }
-    const node_t<T>* lookup_node(const T &belief) const {
+    const node_t<T>* lookup_node_in_table(const T &belief) const {
         typename node_hash_t<T>::const_iterator it = node_table_.find(&belief);
         //std::cout << "lookup: bel=" << belief << ", found=" << (it == node_table_.end() ? "NO" : "YES") << std::endl;
         return it == node_table_.end() ? 0 : it->second;
     }
-    bool insert_node(const node_t<T> *node) const {
+    bool insert_node_in_table(const node_t<T> *node) const {
         //std::cout << "INSERT: bel=" << node->belief_ << std::endl;
         std::pair<typename node_hash_t<T>::iterator, bool> p = node_table_.insert(std::make_pair(&node->belief_, node));
         return p.second;
@@ -347,11 +367,8 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         std::list<const node_t<T>*> open_list, closed_list;
         std::vector<std::pair<T, float> > outcomes;
 
-        //clear_feature_table();
-        clear_node_table();
-
         //insert_feature(*root->feature_);
-        insert_node(root);
+        insert_node_in_table(root);
         open_list.push_back(root);
         for( unsigned iter = 0; !open_list.empty() && (iter < max_expansions_); ++iter ) {
             const node_t<T> *node = select_node_for_expansion(open_list, closed_list);
@@ -380,7 +397,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                         std::vector<int> best;
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
                             if( pomdp_.dead_end(outcomes[i].first) ) continue;
-                            if( lookup_node(outcomes[i].first) != 0 ) continue;
+                            if( lookup_node_in_table(outcomes[i].first) != 0 ) continue;
                             if( best.empty() || (outcomes[i].second >= outcomes[best.back()].second) ) {
                                 if( !best.empty() && (outcomes[i].second > outcomes[best.back()].second) )
                                     best.clear();
@@ -394,16 +411,17 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                     }
 
                     // insert new node into open list
-                    insert_node(new_node);
+                    insert_node_in_table(new_node);
                     open_list.push_back(new_node);
                 }
             }
         }
 
-        // return best node in open if stop-criterion is REWARD
+        // return best node in open/closed if stop-criterion is REWARD
         if( stop_criterion_ == REWARD ) {
             std::vector<const node_t<T>*> best;
-            for( typename std::list<const node_t<T>*>::const_iterator it = open_list.begin(); it != open_list.end(); ++it ) {
+            const std::list<const node_t<T>*> *list_to_search = open_list.empty() ? &closed_list : &open_list;
+            for( typename std::list<const node_t<T>*>::const_iterator it = list_to_search->begin(); it != list_to_search->end(); ++it ) {
                 const node_t<T> *node = *it;
                 if( best.empty() || (node->g_ <= best.back()->g_) ) {
                     if( !best.empty() && (node->g_ < best.back()->g_) )
@@ -411,6 +429,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                     best.push_back(*it);
                 }
             }
+            if( best.empty() ) std::cout << "BEST IS EMPTY: OPEN.sz=" << list_to_search->size() << std::endl;
             return best.empty() ? 0 : best[Random::random(0, best.size())];
         } else {
             return 0;
@@ -418,7 +437,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 
     const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
-#ifdef DEBUG
+#if 0//def DEBUG
         std::cout << "select: ENTRY: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
 #endif
         std::vector<typename std::list<const node_t<T>*>::iterator> best_nodes;
@@ -426,7 +445,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
             assert(!pomdp_.dead_end((*it)->belief_));
             float node_score = score_aggregation_ == MAX ? std::numeric_limits<float>::min() : 0;
-#ifdef DEBUG
+#if 0//def DEBUG
             std::cout << "    candidate: a=" << (*it)->a_ << ":" << pomdp_.action_name((*it)->a_) << ", bel=" << (*it)->belief_ << ", score=" << std::flush;
 #endif
             if( pomdp_.terminal((*it)->belief_) ) {
@@ -446,18 +465,18 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 best_score = node_score;
                 best_nodes.push_back(it);
             }
-#ifdef DEBUG
+#if 0//def DEBUG
             std::cout << node_score << std::endl;
 #endif
         }
-#ifdef DEBUG
+#if 0//def DEBUG
         std::cout << "    best: #=" << best_nodes.size() << ", score=" << best_score << std::endl,
 #endif
         assert(!best_nodes.empty());
         typename std::list<const node_t<T>*>::iterator best = best_nodes[!random_ties_ ? 0 : Random::random(best_nodes.size())];
         const node_t<T> *node = *best;
         open_list.erase(best);
-#ifdef DEBUG
+#if 0//def DEBUG
         std::cout << "select: EXIT: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
 #endif
         return node;
@@ -466,16 +485,23 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     float score(const node_t<T> &n1, const node_t<T> &n2) const {
         assert(n1.feature_ != 0);
         assert(n2.feature_ != 0);
-        const std::vector<std::vector<float> > &m1 = n1.feature_->marginals_;
-        const std::vector<std::vector<float> > &m2 = n2.feature_->marginals_;
-        assert(m1.size() == m2.size());
 
-        float max_score = 0;
-        for( int i = 0, isz = int(m1.size()); i < isz; ++i ) {
-            float s = score(m1[i], m2[i]);
-            max_score = s > max_score ? s : max_score;
+        float score_on_marginals = 0;
+        assert(n1.feature_->number_marginals_ == n2.feature_->number_marginals_);
+        for( int i = 0; i < n1.feature_->number_marginals_; ++i ) {
+            float s = score(n1.feature_->marginals_[i], n2.feature_->marginals_[i]);
+            score_on_marginals = s > score_on_marginals ? s : score_on_marginals;
         }
-        return max_score;
+
+        float score_on_fixed_tuples = 0;
+        assert(n1.feature_->number_fixed_tuples_ == n2.feature_->number_fixed_tuples_);
+        for( int i = 0; i < n1.feature_->number_fixed_tuples_; ++i ) {
+            float s = score(n1.feature_->fixed_tuples_[i], n2.feature_->fixed_tuples_[i]);
+            score_on_fixed_tuples = s > score_on_fixed_tuples ? s : score_on_fixed_tuples;
+        }
+
+        //std::cout << "score-ft=" << score_on_fixed_tuples << std::endl;
+        return score_on_marginals + score_on_fixed_tuples;
     }
     float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
         if( divergence_ == TOTAL )
@@ -497,6 +523,14 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
     float score_js(const std::vector<float> &p, const std::vector<float> &q) const {
         return Random::js_divergence(p, q);
+    }
+
+    float score(const std::vector<int> &t1, const std::vector<int> &t2) const {
+        assert(t1.size() == t2.size());
+        int s = 0;
+        for( int i = 0, isz = int(t1.size()); i < isz; ++i )
+            s += t1[i] != t2[i] ? 1 : 0;
+        return float(s) / float(t1.size());
     }
 };
 

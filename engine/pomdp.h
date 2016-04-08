@@ -41,7 +41,20 @@ typedef int observation_t;
 #endif
 
 template<typename T> struct feature_t {
-    std::vector<std::vector<float> > marginals_;
+    int number_marginals_;
+    int number_fixed_tuples_;
+    int number_other_tuples_;
+    const std::vector<float> *marginals_;
+    const std::vector<int> *fixed_tuples_;
+    const std::vector<int> *other_tuples_;
+    feature_t()
+      : number_marginals_(0),
+        number_fixed_tuples_(0),
+        number_other_tuples_(0),
+        marginals_(0),
+        fixed_tuples_(0),
+        other_tuples_(0) {
+    }
     virtual ~feature_t() { }
 };
 
@@ -91,7 +104,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
 
     //virtual int cardinality(const T &bel) const = 0;
     virtual const feature_t<T> *get_feature(const T &bel) const = 0;
-    virtual void clean_feature(const feature_t<T> *feature) const = 0;
+    virtual void remove_feature(const feature_t<T> *feature) const = 0;
 
     virtual void apply_action(T &bel_a, Problem::action_t a) const = 0;
     virtual void apply_obs(T &bel_ao, Problem::action_t a, observation_t obs) const = 0;

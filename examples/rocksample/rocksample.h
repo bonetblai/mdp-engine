@@ -299,31 +299,35 @@ class belief_state_t {
     }
 
     void apply_sense(int obs, const std::vector<int> &rock_locations) {
-        int number_good_rocks = 0;
-        int number_unknown_rocks = 0;
+        int number_good_rocks_in_sensing_range = 0;
+        int number_unknown_rocks_in_sensing_range = 0;
         for( int r = 0; r < number_rocks_; ++r ) {
             assert(beams_[r].value_ != beam_t::empty);
             loc_t rloc(rock_locations[r], xdim_, ydim_);
             if( loc_.euclidean_distance(rloc) <= float(antenna_height_) ) {
                 if( beams_[r].value_ == beam_t::good )
-                    ++number_good_rocks;
+                    ++number_good_rocks_in_sensing_range;
                 else if( beams_[r].value_ == beam_t::both )
-                    ++number_unknown_rocks;
+                    ++number_unknown_rocks_in_sensing_range;
             }
         }
 
-        if( obs == OBS_NOT_GOOD ) { // there are no good rocks around current location
-            assert(number_good_rocks == 0);
-            if( number_unknown_rocks > 0 ) {
+        if( obs == OBS_NOT_GOOD ) { // no good rocks in sensing range sensed
+            assert(number_good_rocks_in_sensing_range == 0);
+            if( number_unknown_rocks_in_sensing_range > 0 ) {
                 for( int r = 0; r < number_rocks_; ++r ) {
-                    if( beams_[r].value_ == beam_t::both ) // unknown rock, mark it as bad rock
+                    loc_t rloc(rock_locations[r], xdim_, ydim_);
+                    if( loc_.euclidean_distance(rloc) > float(antenna_height_) ) continue;
+                    if( beams_[r].value_ == beam_t::both ) // unknown rock in sensing range, mark it as bad rock
                         beams_[r].value_ = beam_t::bad;
                 }
             }
-        } else { // there is at leat one good rock around current location
-            if( (number_good_rocks == 0) && (number_unknown_rocks == 1) ) {
+        } else { // a good rock in sensing range was sensed
+            if( (number_good_rocks_in_sensing_range == 0) && (number_unknown_rocks_in_sensing_range == 1) ) {
                 for( int r = 0; r < number_rocks_; ++r ) {
-                    if( beams_[r].value_ == beam_t::both ) { // unknown rock, mark it as good rock and finish
+                    loc_t rloc(rock_locations[r], xdim_, ydim_);
+                    if( loc_.euclidean_distance(rloc) > float(antenna_height_) ) continue;
+                    if( beams_[r].value_ == beam_t::both ) { // unknown rock in sensing range, mark it as good rock and finish
                         beams_[r].value_ = beam_t::good;
                         break;
                     }
@@ -361,6 +365,7 @@ class belief_state_t {
         os << "],sampled=" << sampled_ << ",skipped=" << skipped_ << ",hidden=" << hidden_ << "]" << std::flush;
     }
     friend class pomdp_t;
+    friend struct feature_t;
 };
 
 inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
@@ -370,21 +375,39 @@ inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
 
 struct feature_t : public POMDP::feature_t<belief_state_t> {
     feature_t(const belief_state_t &bel) {
-        marginals_ = std::vector<std::vector<float> >(belief_state_t::number_rocks());
+        number_marginals_ = belief_state_t::number_rocks();
+        std::vector<float> *marginals = new std::vector<float>[belief_state_t::number_rocks()];
         for( int r = 0; r < belief_state_t::number_rocks(); ++r ) {
             assert(bel.beam(r).value_ != beam_t::empty);
-            marginals_[r] = std::vector<float>(2, 0);
+            marginals[r] = std::vector<float>(2, 0);
             if( bel.beam(r).value_ == beam_t::bad ) {
-                marginals_[r][beam_t::bad] = 1;
+                marginals[r][beam_t::bad] = 1;
             } else if( bel.beam(r).value_ == beam_t::good ) {
-                marginals_[r][beam_t::good] = 1;
+                marginals[r][beam_t::good] = 1;
             } else if( bel.beam(r).value_ == beam_t::both ) {
-                marginals_[r][beam_t::bad] = 0.5;
-                marginals_[r][beam_t::good] = 0.5;
+                marginals[r][beam_t::bad] = 0.5;
+                marginals[r][beam_t::good] = 0.5;
             }
         }
+        marginals_ = marginals;
+
+        number_fixed_tuples_ = 2;
+        std::vector<int> *fixed_tuples = new std::vector<int>[2];
+        fixed_tuples[0].reserve(belief_state_t::number_rocks());
+        for( int r = 0; r < belief_state_t::number_rocks(); ++r )
+            fixed_tuples[0].push_back(bel.sampled_.bit(r));
+        fixed_tuples[1].reserve(belief_state_t::number_rocks());
+        for( int r = 0; r < belief_state_t::number_rocks(); ++r )
+            fixed_tuples[1].push_back(bel.skipped_.bit(r));
+        fixed_tuples_ = fixed_tuples;
     }
-    virtual ~feature_t() { }
+    virtual ~feature_t() {
+        assert(number_marginals_ == belief_state_t::number_rocks());
+        assert(number_fixed_tuples_ == 2);
+        assert(number_other_tuples_ == 0);
+        delete[] fixed_tuples_;
+        delete[] marginals_;
+    }
 };
 
 class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
@@ -580,9 +603,12 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         assert(0); // CHECK
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
-        return new feature_t(bel);
+        POMDP::feature_t<belief_state_t> *feature = new feature_t(bel);
+        //std::cout << feature << " GET" << std::endl;
+        return feature;
     }
-    virtual void clean_feature(const POMDP::feature_t<belief_state_t> *feature) const {
+    virtual void remove_feature(const POMDP::feature_t<belief_state_t> *feature) const {
+        //std::cout << feature << " DEL" << std::endl;
         delete feature;
     }
 
