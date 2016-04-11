@@ -69,6 +69,7 @@ template<typename T> class dispatcher_t {
         const Online::Policy::policy_t<T> *policy_;
         unsigned seed_;
 
+        unsigned policy_decisions_;
         unsigned problem_expansions_;
 
         float eval_value_;
@@ -144,6 +145,7 @@ template<typename T> class dispatcher_t {
 #include "online_rtdp.h"
 
 #include "iw_bel.h"
+#include "iw_bel2.h"
 
 //#define DEBUG
 
@@ -273,6 +275,13 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
                 return;
             }
             policy = new Online::Policy::IWBel::iw_bel_t<T>(*pomdp);
+        } else if( name == "iw-bel2" ) {
+            const POMDP::pomdp_t<T> *pomdp = dynamic_cast<const POMDP::pomdp_t<T>*>(&problem);
+            if( pomdp == 0 ) {
+                std::cout << Utils::error() << "problem must be a POMDP for instantiating iw-bel2()" << std::endl;
+                return;
+            }
+            policy = new Online::Policy::IWBel2::iw_bel2_t<T>(*pomdp);
         }
 
         if( policy != 0 ) {
@@ -361,7 +370,8 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
     result.eval_stdev_ = p.second;
     float end_time = Utils::read_time_in_seconds();
 
-    // expansions from problem
+    // decisions and expansions
+    result.policy_decisions_ = policy.decisions();
     result.problem_expansions_ = problem.expansions();
 
     // time stats
@@ -376,7 +386,8 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const e
        << " type=eval"
        << " name=" << result.name_
        << " seed=" << result.seed_
-       << " problem.expansions=" << result.problem_expansions_;
+       << " problem.expansions=" << result.problem_expansions_
+       << " policy.decisions=" << result.policy_decisions_;
 
     // stats from trials
     os << Utils::green() << " eval.value=" << result.eval_value_ << Utils::normal()
