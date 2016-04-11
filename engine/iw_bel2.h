@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef IW_BEL_H
-#define IW_BEL_H
+#ifndef IW_BEL2_H
+#define IW_BEL2_H
 
 #include <iostream>
 #include <sstream>
@@ -35,7 +35,88 @@ namespace Online {
 
 namespace Policy {
 
-namespace IWBel {
+namespace IWBel2 {
+
+////////////////////////////////////////////////
+//
+// Tuple Factory
+//
+
+class tuple_factory_t {
+  protected:
+    std::vector<int> current_;
+    std::vector<std::pair<int, int*> > pool_;
+    std::vector<std::list<int*> > free_list_;
+
+    int* fetch_tuple_from_pool(int size) {
+        for( int i = int(current_.size()) - 1; i >= 0; --i ) {
+            if( current_[i] + 1 + size <= pool_[i].first ) {
+                int *tuple = &pool_[i].second[current_[i]];
+                current_[i] += 1 + size;
+                tuple[0] = size;
+                return tuple;
+            }
+        }
+
+        // need to allocate new pool
+        int n = pool_.empty() ? 1 + size : (size > 2 * pool_.back().first ? 1 + size : 2 * pool_.back().first);
+        pool_.push_back(std::make_pair(n, new int[n]));
+        current_.push_back(1 + size);
+        pool_.back().second[0] = size;
+        return pool_.back().second;
+    }
+
+  public:
+    tuple_factory_t() { }
+    virtual ~tuple_factory_t() {
+        for( int i = 0; i < int(pool_.size()); ++i )
+            delete[] pool_[i].second;
+    }
+
+    int* get_tuple(int size) {
+        if( size >= free_list_.size() )
+            free_list_.resize(1 + size);
+
+        int *tuple = 0;
+        if( free_list_[size].empty() ) {
+            tuple = fetch_tuple_from_pool(size);
+        } else {
+            tuple = free_list_[size].front();
+            free_list_[size].pop_front();
+        }
+        assert(tuple != 0);
+        assert(tuple[0] == size);
+        return tuple;
+    }
+
+    void free_tuple(const int *tuple) {
+        if( tuple[0] >= free_list_.size() )
+            free_list_.resize(1 + tuple[0]);
+        free_list_[tuple[0]].push_front(const_cast<int *>(tuple));
+    }
+    void free_tuples(const std::vector<const int *> &tuples) {
+        for( int i = 0; i < int(tuples.size()); ++i )
+            free_tuple(tuples[i]);
+    }
+
+    void print_tuple(std::ostream &os, const int *tuple) const {
+        os << "<";
+        for( int i = 1; i <= tuple[0]; ++i ) {
+            os << tuple[i];
+            if( 1 + i <= tuple[0] ) os << ",";
+        }
+        os << ">" << std::flush;
+    }
+    void print_tuples(std::ostream &os, const std::vector<const int*> &tuples) const {
+        os << "[";
+        for( int i = 0; i < int(tuples.size()); ++i ) {
+            print_tuple(os, tuples[i]);
+            if( 1 + i < int(tuples.size()) ) os << ",";
+        }
+        os << "]" << std::flush;
+    }
+};
+
 
 ////////////////////////////////////////////////
 //
@@ -44,16 +125,23 @@ namespace IWBel {
 
 template<typename T> struct node_t {
     const T belief_;
-    const POMDP::feature_t<T> *feature_;
+    std::vector<const int*> tuples_;
     const node_t<T> *parent_;
     Problem::action_t a_;
     float g_;
 
-    node_t(const T &belief, const POMDP::feature_t<T> *feature, const node_t<T> *parent = 0, Problem::action_t a = Problem::noop, float cost = 0)
-      : belief_(belief), feature_(feature), parent_(parent), a_(a), g_(0) {
+    node_t(const T &belief, const node_t<T> *parent = 0, Problem::action_t a = Problem::noop, float cost = 0)
+      : belief_(belief), parent_(parent), a_(a), g_(0) {
         if( parent_ != 0 ) g_ = parent_->g_ + cost;
     }
     ~node_t() { }
+
+    void set_tuples(const std::vector<const int*> &tuples) {
+        tuples_ = tuples;
+    }
+    void push_tuple(const int *tuple) {
+        tuples_.push_back(tuple);
+    }
 
     void print(std::ostream &os) const {
         os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",pa=" << parent_ << "]";
@@ -65,12 +153,12 @@ template<typename T> inline std::ostream& operator<<(std::ostream &os, const nod
     return os;
 }
 
-template<typename T> inline node_t<T>* get_root_node(const T &belief, const POMDP::feature_t<T> *feature) {
-    return new node_t<T>(belief, feature);
+template<typename T> inline node_t<T>* get_root_node(const T &belief) {
+    return new node_t<T>(belief);
 }
 
-template<typename T> inline node_t<T>* get_node(const T &belief, const POMDP::feature_t<T> *feature, const node_t<T> *parent, Problem::action_t a, float cost) {
-    return new node_t<T>(belief, feature, parent, a, cost);
+template<typename T> inline node_t<T>* get_node(const T &belief, const node_t<T> *parent, Problem::action_t a, float cost) {
+    return new node_t<T>(belief, parent, a, cost);
 }
 
 ////////////////////////////////////////////////
@@ -119,24 +207,24 @@ template<typename T> class node_hash_t : public Hash::generic_hash_map_t<const T
     }
 };
 
-template<typename T> struct feature_map_function_t {
-    size_t operator()(const POMDP::feature_t<T> *feature) const {
-        return feature->hash();
+struct tuple_hash_function_t {
+    size_t operator()(const int *tuple) const {
+        return Utils::jenkins_one_at_a_time_hash(&tuple[1], tuple[0]);
     }
-    bool operator()(const POMDP::feature_t<T> *f1, const POMDP::feature_t<T> *f2) const {
-        return *f1 == *f2;
+    bool operator()(const int *t1, const int *t2) const {
+        return (t1[0] == t2[0]) && (memcmp(&t1[1], &t2[1], sizeof(int) * t1[0]) == 0);
     }
 };
 
-template<typename T> class feature_hash_t : public Hash::generic_hash_set_t<const POMDP::feature_t<T>*, feature_map_function_t<T>, feature_map_function_t<T> > {
+class tuple_hash_t : public Hash::generic_hash_set_t<const int*, tuple_hash_function_t, tuple_hash_function_t> {
   public:
-    typedef typename Hash::generic_hash_set_t<const POMDP::feature_t<T>*, feature_map_function_t<T>, feature_map_function_t<T> > base_type;
+    typedef typename Hash::generic_hash_set_t<const int*, tuple_hash_function_t, tuple_hash_function_t> base_type;
     typedef typename base_type::const_iterator const_iterator;
     typedef typename base_type::iterator iterator;
 
   public:
-    feature_hash_t() { }
-    virtual ~feature_hash_t() { }
+    tuple_hash_t() { }
+    virtual ~tuple_hash_t() { }
     void print(std::ostream &os) const {
         assert(0); // CHECK
     }
@@ -147,7 +235,7 @@ template<typename T> class feature_hash_t : public Hash::generic_hash_set_t<cons
 // Policy
 //
 
-template<typename T> class iw_bel_t : public policy_t<T> {
+template<typename T> class iw_bel2_t : public policy_t<T> {
   public:
     typedef enum { MOST_LIKELY, SAMPLE } determinization_t;
     typedef enum { REWARD, TARGET } stop_criterion_t;
@@ -179,7 +267,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
     // parameters
     unsigned width_;
-    int discretization_factor_;
+    int discretization_parameter_;
     determinization_t determinization_;
     stop_criterion_t stop_criterion_;
     divergence_t divergence_;
@@ -187,9 +275,18 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     score_aggregation_t score_aggregation_;
     bool random_ties_;
 
+    // tuples
+    mutable tuple_hash_t tuple_hash_;
+    mutable tuple_factory_t tuple_factory_;
+
+    // open and closed list
+    mutable std::list<const node_t<T>*> open_list_;
+    mutable std::list<const node_t<T>*> closed_list_;
+
+#if 0
     // hash table (dynamic memory that must be cleared after action selection)
     mutable node_hash_t<T> node_table_;
-    mutable feature_hash_t<T> feature_table_;
+#endif
 
 #if 0
     struct min_priority_t {
@@ -200,9 +297,9 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     typedef typename std::priority_queue<const node_t<T>*, std::vector<const node_t<T>*>, min_priority_t> priority_queue_t;
 #endif
 
-    iw_bel_t(const POMDP::pomdp_t<T> &pomdp,
+    iw_bel2_t(const POMDP::pomdp_t<T> &pomdp,
              unsigned width,
-             int discretization_factor,
+             int discretization_parameter,
              determinization_t determinization,
              stop_criterion_t stop_criterion,
              divergence_t divergence,
@@ -212,7 +309,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(width),
-        discretization_factor_(discretization_factor),
+        discretization_parameter_(discretization_parameter),
         determinization_(determinization),
         stop_criterion_(stop_criterion),
         divergence_(divergence),
@@ -225,11 +322,11 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
 
   public:
-    iw_bel_t(const POMDP::pomdp_t<T> &pomdp)
+    iw_bel2_t(const POMDP::pomdp_t<T> &pomdp)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(0),
-        discretization_factor_(1),
+        discretization_parameter_(1),
         determinization_(MOST_LIKELY),
         stop_criterion_(TARGET),
         divergence_(TOTAL),
@@ -237,14 +334,14 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         score_aggregation_(MAX),
         random_ties_(true) {
     }
-    virtual ~iw_bel_t() { }
+    virtual ~iw_bel2_t() { }
     virtual policy_t<T>* clone() const {
-        return new iw_bel_t(pomdp_);
+        return new iw_bel2_t(pomdp_);
     }
     virtual std::string name() const {
         return std::string("iw-bel(") +
           std::string("width=") + std::to_string(width_) +
-          std::string("discretization-factor=") + std::to_string(discretization_factor_) +
+          std::string("discretization-parameter=") + std::to_string(discretization_parameter_) +
           std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most-likely" : "sample") +
           std::string(",stop-criterion=") + (stop_criterion_ == TARGET ? "target" : "reward") +
           std::string(",divergence=") + divergence_name(divergence_) +
@@ -258,6 +355,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #ifdef DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
+                  << "stats: " << open_list_.size() << " " << closed_list_.size() << " " << tuple_hash_.size() << std::endl
                   << "ROOT=" << bel << std::endl
                   << "actions:";
         for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
@@ -271,9 +369,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         ++policy_t<T>::decisions_;
         if( pomdp_.dead_end(bel) ) return Problem::noop;
 
-        const POMDP::feature_t<T> *feature = pomdp_.get_feature(bel);
-        node_t<T> *root = get_root_node(bel, feature);
+        node_t<T> *root = get_root_node(bel);
+        fill_tuples(*root);
         const node_t<T> *node = breadth_first_search(root);
+        std::cout << "stats: " << open_list_.size() << " " << closed_list_.size() << " " << tuple_hash_.size() << std::endl;
 
 #ifdef DEBUG
         std::cout << "NODE=";
@@ -284,10 +383,8 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         std::cout << std::endl;
 #endif
 
+        Problem::action_t action = Problem::noop;
         if( node == 0 ) {
-            clear_node_table();
-            clear_feature_table();
-
             // goal node wasn't found, return random action
             std::vector<Problem::action_t> applicable_actions;
             applicable_actions.reserve(pomdp_.number_actions(bel));
@@ -295,7 +392,8 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 if( pomdp_.applicable(bel, a) )
                     applicable_actions.push_back(a);
             }
-            return applicable_actions.empty() ? Problem::noop : applicable_actions[!random_ties_ ? 0 : Random::random(applicable_actions.size())];
+            if( !applicable_actions.empty() )
+                action = applicable_actions[!random_ties_ ? 0 : Random::random(applicable_actions.size())];
         } else {
             // return first action in path
             const node_t<T> *n = node;
@@ -312,13 +410,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #ifdef DEBUG
             std::cout << "BEST=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
-
-            Problem::action_t a = n->a_;
-            clear_node_table();
-            clear_feature_table();
-
-            return a;
+            action = n->a_;
         }
+        free_resources();
+        return action;
     }
     virtual void reset_stats() const {
         pomdp_.clear_expansions();
@@ -332,10 +427,10 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
         if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
-        it = parameters.find("discretization-factor");
-        if( it != parameters.end() ) discretization_factor_ = strtol(it->second.c_str(), 0, 0);
-        it = parameters.find("df");
-        if( it != parameters.end() ) discretization_factor_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("discretization-parameter");
+        if( it != parameters.end() ) discretization_parameter_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("dp");
+        if( it != parameters.end() ) discretization_parameter_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("determinization");
         if( it != parameters.end() ) determinization_ = it->second == "sample" ? SAMPLE : MOST_LIKELY;
         it = parameters.find("stop-criterion");
@@ -352,7 +447,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 #ifdef DEBUG
         std::cout << "debug: iw-bel(): params:"
                   << " width=" << width_
-                  << " discretization-factor=" << discretization_factor_
+                  << " discretization-parameter=" << discretization_parameter_
                   << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
                   << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")
                   << " divergence=" << divergence_name(divergence_)
@@ -366,23 +461,39 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     virtual typename policy_t<T>::usage_t uses_heuristic() const { return policy_t<T>::usage_t::No; }
     virtual typename policy_t<T>::usage_t uses_algorithm() const { return policy_t<T>::usage_t::No; }
 
-    void clear_feature_table() const {
-        feature_table_.clear();
+    void fill_tuples(node_t<T> &node) const {
+        fill_tuples(node.belief_, node.tuples_);
     }
-    bool lookup_feature_in_table(const POMDP::feature_t<T> &feature) const {
-        typename feature_hash_t<T>::const_iterator it = feature_table_.find(&feature);
-        std::cout << "LOOKUP: feature="; feature.print(std::cout); std::cout << ", found=" << (it == feature_table_.end() ? "NO" : "YES") << std::endl;
-        return it != feature_table_.end();
-    }
-    bool insert_feature_in_table(const POMDP::feature_t<T> &feature) const {
-        std::cout << "INSERT: feature="; feature.print(std::cout); std::cout << std::endl;
-        std::pair<typename feature_hash_t<T>::iterator, bool> p = feature_table_.insert(&feature);
-        return p.second;
+    void fill_tuples(const T &belief, std::vector<const int*> &tuples) const {
+        int value_v0 = belief.value(0);
+        int code_v0 = value_v0 * (1 + discretization_parameter_) + discretization_parameter_;
+        assert(value_v0 != -1); // variable 0 is determined // CHECK
+
+        for( int vid = 1; vid < belief.number_variables(); ++vid ) {
+            std::vector<std::pair<int, float> > values_for_vid;
+            int dsz = belief.domain_size(vid);
+
+            belief.fill_values_for_variable(vid, values_for_vid);
+            for( int i = 0; i < int(values_for_vid.size()); ++i ) {
+                int value = values_for_vid[i].first;
+                float p = values_for_vid[i].second;
+                int dp = ceilf(p * discretization_parameter_);
+                assert(dp <= discretization_parameter_);
+                int code = (vid * dsz + value) * (1 + discretization_parameter_) + dp;
+                 
+                int *tuple = tuple_factory_.get_tuple(2);
+                assert(tuple[0] == 2);
+                tuple[1] = code_v0;
+                tuple[2] = code;
+                tuples.push_back(tuple);
+            }
+        }
+        //std::cout << "tuples="; tuple_factory_.print_tuples(std::cout, tuples); std::cout << std::endl;
     }
 
+#if 0
     void clear_node_table() const {
         for( typename node_hash_t<T>::const_iterator it = node_table_.begin(); it != node_table_.end(); ++it ) {
-            pomdp_.remove_feature(it->second->feature_);
             delete it->second;
         }
         node_table_.clear();
@@ -397,19 +508,38 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         std::pair<typename node_hash_t<T>::iterator, bool> p = node_table_.insert(std::make_pair(&node->belief_, node));
         return p.second;
     }
+#endif
 
+    void free_resources() const {
+        for( typename std::list<const node_t<T>*>::const_iterator it = open_list_.begin(); it != open_list_.end(); ++it ) {
+            const node_t<T> *node = *it;
+            tuple_factory_.free_tuples(node->tuples_);
+            delete node;
+        }
+        open_list_.clear();
+
+        for( typename std::list<const node_t<T>*>::const_iterator it = closed_list_.begin(); it != closed_list_.end(); ++it ) {
+            const node_t<T> *node = *it;
+            tuple_factory_.free_tuples(node->tuples_);
+            delete node;
+        }
+        closed_list_.clear();
+
+        tuple_hash_.clear();
+    }
+ 
     // breadth-first search
     const node_t<T>* breadth_first_search(const node_t<T> *root) const {
-        std::list<const node_t<T>*> open_list, closed_list;
         std::vector<std::pair<T, float> > outcomes;
 
-        insert_feature_in_table(*root->feature_);
         //insert_node_in_table(root);
-        open_list.push_back(root);
-        for( unsigned iter = 0; !open_list.empty() && (iter < max_expansions_); ++iter ) {
-            const node_t<T> *node = select_node_for_expansion(open_list, closed_list);
-            closed_list.push_front(node);
-//std::cout << "node=" << *node << std::endl;
+        open_list_.push_back(root);
+        for( unsigned iter = 0; !open_list_.empty() && (iter < max_expansions_); ++iter ) {
+            const node_t<T> *node = select_node_for_expansion();
+            closed_list_.push_front(node);
+            register_tuples(node->tuples_);
+            
+//std::cout << "SELECT: node=" << *node << std::endl;
 
             // check whether we need to stop
             if( pomdp_.terminal(node->belief_) )
@@ -424,22 +554,21 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                     // determinize the next belief
                     if( determinization_ == SAMPLE ) {
                         std::pair<const T, bool> p = pomdp_.sample_without_hidden(node->belief_, a);
-                        const POMDP::feature_t<T> *feature = pomdp_.get_feature(p.first);
-                        new_node = get_node(p.first, feature, node, a, cost);
+                        new_node = get_node(p.first, node, a, cost);
                     } else {
                         pomdp_.next(node->belief_, a, outcomes);
 //std::cout << "action=" << pomdp_.action_name(a) << ", outcomes.sz=" << outcomes.size() << std::endl;
 
                         // select best (unexpanded) successors to continue search
-                        std::vector<std::pair<int, const POMDP::feature_t<T>*> > best;
+                        std::vector<std::pair<int, std::vector<const int*> > > best;
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
                             if( pomdp_.dead_end(outcomes[i].first) ) continue;
 
-                            // prune node if already seen
-                            //if( lookup_node_in_table(outcomes[i].first) != 0 ) continue; // CHECK
-                            const POMDP::feature_t<T> *feature = pomdp_.get_feature(outcomes[i].first);
-                            if( lookup_feature_in_table(*feature) ) {
-                                pomdp_.remove_feature(feature);
+                            // prune node if all its tuples already seen
+                            std::vector<const int*> tuples;
+                            fill_tuples(outcomes[i].first, tuples);
+                            if( novelty(tuples) == 0 ) {
+                                tuple_factory_.free_tuples(tuples);
                                 continue;
                             }
 
@@ -447,23 +576,24 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                             if( best.empty() || (outcomes[i].second >= outcomes[best.back().first].second) ) {
                                 if( !best.empty() && (outcomes[i].second > outcomes[best.back().first].second) )
                                     clear_best_list(best);
-                                best.push_back(std::make_pair(i, feature));
+                                best.push_back(std::make_pair(i, tuples));
 //std::cout << " --> BEST" << std::flush;
+                            } else {
+                                tuple_factory_.free_tuples(tuples);
                             }
 //std::cout << std::endl;
                         }
                         if( best.empty() ) continue; // no new belief, continue to next action
-                        int i = Random::random(0, best.size());
-                        new_node = get_node(outcomes[best[i].first].first, best[i].second, node, a, cost);
+                        int i = Random::random(best.size());
+                        new_node = get_node(outcomes[best[i].first].first, node, a, cost);
+                        new_node->tuples_ = best[i].second;
                         best[i] = best.back();
                         best.pop_back();
                         clear_best_list(best);
                     }
 
                     // insert new node into open list
-                    insert_feature_in_table(*new_node->feature_);
-                    //insert_node_in_table(new_node);
-                    open_list.push_back(new_node);
+                    open_list_.push_back(new_node);
                 }
             }
         }
@@ -471,7 +601,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         // return best node in open/closed if stop-criterion is REWARD
         if( stop_criterion_ == REWARD ) {
             std::vector<const node_t<T>*> best;
-            const std::list<const node_t<T>*> *list_to_search = open_list.empty() ? &closed_list : &open_list;
+            const std::list<const node_t<T>*> *list_to_search = open_list_.empty() ? &closed_list_ : &open_list_;
             for( typename std::list<const node_t<T>*>::const_iterator it = list_to_search->begin(); it != list_to_search->end(); ++it ) {
                 const node_t<T> *node = *it;
                 if( best.empty() || (node->g_ <= best.back()->g_) ) {
@@ -481,50 +611,51 @@ template<typename T> class iw_bel_t : public policy_t<T> {
                 }
             }
             if( best.empty() ) std::cout << "BEST IS EMPTY: OPEN.sz=" << list_to_search->size() << std::endl;
-            return best.empty() ? 0 : best[Random::random(0, best.size())];
+            return best.empty() ? 0 : best[Random::random(best.size())];
         } else {
             return 0;
         }
     }
 
-    void clear_best_list(std::vector<std::pair<int, const POMDP::feature_t<T>*> > &best) const {
+    void clear_best_list(std::vector<std::pair<int, std::vector<const int*> > > &best) const {
         for( int i = 0; i < int(best.size()); ++i )
-            pomdp_.remove_feature(best[i].second);
+            tuple_factory_.free_tuples(best[i].second);
         best.clear();
     }
 
-    const node_t<T>* select_node_for_expansion(std::list<const node_t<T>*> &open_list, const std::list<const node_t<T>*> &closed_list) const {
+    void register_tuples(const std::vector<const int*> &tuples) const {
+        for( int i = 0; i < int(tuples.size()); ++i ) {
+            const int *tuple = tuples[i];
+            tuple_hash_.insert(tuple);
+        }
+    }
+
+    int novelty(const std::vector<const int*> &tuples) const {
+        int score = 0;
+        for( int i = 0; i < int(tuples.size()); ++i ) {
+            tuple_hash_t::const_iterator it = tuple_hash_.find(tuples[i]);
+            score += it == tuple_hash_.end() ? 1 : 0;
+        }
+        //std::cout << "novelty: tuples="; tuple_factory_.print_tuples(std::cout, tuples); std::cout << ", score=" << score << std::endl;
+        return score;
+    }
+
+    const node_t<T>* select_node_for_expansion() const {
+#if 0
 #if 0//def DEBUG
-        std::cout << "select: ENTRY: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << std::endl;
+        std::cout << "select: ENTRY: open.sz=" << open_list_.size() << ", closed.sz=" << closed_list_.size() << std::endl;
 #endif
         std::vector<typename std::list<const node_t<T>*>::iterator> best_nodes;
         float best_score = std::numeric_limits<float>::min();
-        for( typename std::list<const node_t<T>*>::iterator it = open_list.begin(); it != open_list.end(); ++it ) {
-            assert(!pomdp_.dead_end((*it)->belief_));
-            float node_score = score_aggregation_ == MAX ? std::numeric_limits<float>::min() : 0;
-#if 0//def DEBUG
-            std::cout << "    candidate: a=" << (*it)->a_ << ":" << pomdp_.action_name((*it)->a_) << ", bel=" << (*it)->belief_ << ", score=" << std::flush;
-#endif
-            if( pomdp_.terminal((*it)->belief_) ) {
-                node_score = std::numeric_limits<float>::infinity();
-            } else {
-                for( typename std::list<const node_t<T>*>::const_iterator jt = closed_list.begin(); jt != closed_list.end(); ++jt ) {
-                    float s = score(**it, **jt);
-                    if( score_aggregation_ == MAX ) {
-                        if( s > node_score ) node_score = s;
-                    } else {
-                        node_score += s;
-                    }
-                }
-            }
-            if( best_nodes.empty() || (node_score >= best_score) ) {
-                if( node_score > best_score ) best_nodes.clear();
-                best_score = node_score;
+        for( typename std::list<const node_t<T>*>::iterator it = open_list_.begin(); it != open_list_.end(); ++it ) {
+            const node_t<T> &node = **it;
+            assert(!pomdp_.dead_end(node.belief_));
+            int score = novelty(node.tuples_);
+            if( best_nodes.empty() || (score >= best_score) ) {
+                if( score > best_score ) best_nodes.clear();
+                best_score = score;
                 best_nodes.push_back(it);
             }
-#if 0//def DEBUG
-            std::cout << node_score << std::endl;
-#endif
         }
 #if 0//def DEBUG
         std::cout << "    best: #=" << best_nodes.size() << ", score=" << best_score << std::endl,
@@ -532,14 +663,19 @@ template<typename T> class iw_bel_t : public policy_t<T> {
         assert(!best_nodes.empty());
         typename std::list<const node_t<T>*>::iterator best = best_nodes[!random_ties_ ? 0 : Random::random(best_nodes.size())];
         const node_t<T> *node = *best;
-        open_list.erase(best);
+        open_list_.erase(best);
 #if 0//def DEBUG
-        std::cout << "select: EXIT: open.sz=" << open_list.size() << ", closed.sz=" << closed_list.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
+        std::cout << "select: EXIT: open.sz=" << open_list_.size() << ", closed.sz=" << closed_list_.size() << ", node-ptr=" << node << ", score=" << best_score << ", node=" << *node << std::endl;
 #endif
+        return node;
+#endif
+        const node_t<T> *node = open_list_.front();
+        open_list_.pop_front();
         return node;
     }
 
     float score(const node_t<T> &n1, const node_t<T> &n2) const {
+#if 0
         assert(n1.feature_ != 0);
         assert(n2.feature_ != 0);
 
@@ -559,6 +695,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
 
         //std::cout << "score-ft=" << score_on_fixed_tuples << std::endl;
         return score_on_marginals + score_on_fixed_tuples;
+#endif
     }
     float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
         if( divergence_ == TOTAL )
@@ -591,7 +728,7 @@ template<typename T> class iw_bel_t : public policy_t<T> {
     }
 };
 
-}; // namespace IWBel
+}; // namespace IWBel2
 
 }; // namespace Policy
 

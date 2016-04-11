@@ -56,6 +56,10 @@ template<typename T> struct feature_t {
         other_tuples_(0) {
     }
     virtual ~feature_t() { }
+
+    virtual size_t hash() const = 0;
+    virtual bool operator==(const feature_t &feature) const = 0;
+    virtual void print(std::ostream &os) const = 0;
 };
 
 template<typename T> class pomdp_t : public Problem::problem_t<T> {
@@ -116,7 +120,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
         apply_action(nbel, a);
         observation_t obs = sample_observation_using_hidden_state(bel, nbel, a);
         apply_obs(nbel, a, obs);
-#ifdef DEBUG
+#if 1//def DEBUG
         std::cout << "pomdp: sampling: bel=" << bel << ", a=" << a << ", obs=" << obs << ", nbel=" << nbel << std::endl;
 #endif
         return std::make_pair(nbel, true);
