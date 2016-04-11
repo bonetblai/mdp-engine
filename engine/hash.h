@@ -29,6 +29,7 @@
 
 #if __clang_major__ >= 5
 #include <unordered_map>
+#include <unordered_set>
 #else
 #include <tr1/unordered_map>
 #endif
@@ -144,7 +145,7 @@ class generic_hash_map_t : public std::unordered_map<T, D, F, P> {
 };
 
 template<typename T, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
-class generic_hash_set_t : public std::unordered_map<T, F, P> {
+class generic_hash_set_t : public std::unordered_set<T, F, P> {
 };
 #else
 template<typename T, typename D, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
@@ -152,7 +153,7 @@ class generic_hash_map_t : public std::tr1::unordered_map<T, D, F, P> {
 };
 
 template<typename T, typename F=Hash::hash_function_t<T>, typename P=std::equal_to<T> >
-class generic_hash_set_t : public std::tr1::unordered_map<T, F, P> {
+class generic_hash_set_t : public std::tr1::unordered_set<T, F, P> {
 };
 #endif
 
