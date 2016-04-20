@@ -25,6 +25,7 @@ int Bitmap::bitmap_t::bits_in_last_word_ = 0;
 unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
 
 const pomdp_t *belief_state_t::pomdp_ = 0;
+CSP::constraint_digraph_t belief_state_t::constraint_digraph_;
 
 using namespace std;
 

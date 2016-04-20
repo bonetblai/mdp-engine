@@ -4,6 +4,8 @@
 
 #include "../binary-search/bitmap.h"
 
+#include <arc_consistency.h>
+
 #define DISCOUNT            1
 #define OBS_NOT_GOOD        0
 #define OBS_GOOD            1
@@ -205,7 +207,13 @@ struct beam_t {
             ++i_;
             return *this;
         }
+        int operator*() const {
+            return value();
+        }
 
+        int index() const {
+            return i_;
+        }
         int value() const {
             return values_[i_];
         }
@@ -251,6 +259,36 @@ struct beam_t {
     }
     bool is_bad_rock(int r) const {
         return is_value_for_rock(r, 0);
+    }
+
+    bool empty() const {
+        return values_.empty();
+    }
+    int size() const {
+        return values_.size();
+    }
+    void clear() {
+        values_.clear();
+    }
+
+    void erase_ordered_indices(const std::vector<int> &indices) {
+        assert(0);
+#if 0
+        int indices_sz = indices.size();
+        if( indices_sz != 0 ) {
+            int k = indices[0];
+            for( int i = 0, j = k; j < size_; ) {
+                while( (i < indices_sz) && (j == indices[i]) ) { ++j; ++i; }
+                while( (j < size_) && ((i >= indices_sz) || (j < indices[i])) ) {
+                    vector_[k++] = vector_[j++];
+                }
+                assert((j == size_) || (i < indices_sz));
+                assert((j == size_) || (j == indices[i]));
+            }
+            assert(k == size_ - indices_sz);
+            size_ = k;
+        }
+#endif
     }
 
     const beam_t& operator=(const beam_t &beam) {
@@ -300,6 +338,29 @@ inline std::ostream& operator<<(std::ostream &os, const beam_t &beam) {
     return os;
 }
 
+class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
+  public:
+    arc_consistency_t(const CSP::constraint_digraph_t &digraph)
+      : CSP::arc_consistency_t<beam_t>(digraph) {
+    }
+    explicit arc_consistency_t(const CSP::arc_consistency_t<beam_t> &ac)
+      : CSP::arc_consistency_t<beam_t>(ac) {
+    }
+
+    virtual void arc_reduce_preprocessing_0(int var_x, int var_y) const {
+        assert(0); // CHECK
+    }
+    virtual void arc_reduce_preprocessing_1(int var_x, int val_x) const {
+        assert(0); // CHECK
+    }
+    virtual bool consistent(int var_x, int var_y, int val_x, int val_y) const {
+        assert(0); // CHECK
+    }
+    virtual void arc_reduce_postprocessing(int var_x, int var_y) const {
+        assert(0); // CHECK
+    }
+};
+
 class pomdp_t; // forward reference
 
 // known vars: loc, antenna-height, sampled rocks, skipped rocks
@@ -315,6 +376,9 @@ class belief_state_t {
     Bitmap::bitmap_t hidden_;
 
     static const pomdp_t *pomdp_;
+    static CSP::constraint_digraph_t constraint_digraph_;
+
+    arc_consistency_t csp_;
 
   public:
     belief_state_t(int loc = 0, int antenna_height = 0);
@@ -325,7 +389,8 @@ class belief_state_t {
         beams_(bel.beams_),
         sampled_(bel.sampled_),
         skipped_(bel.skipped_),
-        hidden_(bel.hidden_) {
+        hidden_(bel.hidden_),
+        csp_(bel.csp_) {
     }
     belief_state_t(belief_state_t &&bel)
       : loc_(bel.loc_),
@@ -333,12 +398,64 @@ class belief_state_t {
         beams_(std::move(bel.beams_)),
         sampled_(std::move(bel.sampled_)),
         skipped_(std::move(bel.skipped_)),
-        hidden_(bel.hidden_) {
+        hidden_(bel.hidden_),
+        csp_(std::move(bel.csp_)) {
     }
     ~belief_state_t() { }
 
     static void set_static_members(const pomdp_t *pomdp) {
         pomdp_ = pomdp;
+        std::cout << "pomdp: xdim=" << xdim() << ", ydim=" << ydim() << ", max-antenna-height=" << max_antenna_height() << std::endl;
+        set_constraint_digraph();
+    }
+    static void set_constraint_digraph() {
+        // there is one beam for each cell and antenna height
+        constraint_digraph_.create_empty_graph(xdim() * ydim() * (1 + max_antenna_height()));
+
+        // constraint graph must have edge (loc1,d1) -- (loc2,d2) iff there is
+        // rock r such that dist(loc1,loc(r)) <= d1 and dist(loc2,loc(r)) <= d2
+
+        // for each rock r, calculate beams (loc,d) that contain r
+        std::vector<std::vector<std::pair<int, int> > > beams_for_rocks(number_rocks());
+        for( int r = 0; r < number_rocks(); ++r ) {
+            const loc_t &rloc = rock_location(r);
+            for( int l = 0; l < xdim() * ydim(); ++l ) {
+                loc_t loc(l, xdim(), ydim());
+                for( int d = 0; d <= max_antenna_height(); ++d ) {
+                    if( loc.euclidean_distance(rloc) <= d )
+                        beams_for_rocks[r].push_back(std::make_pair(l, d));
+                }
+            }
+        }
+
+        // for each rock r, and pair of beams (l1,d1) and (l2,d2) where r belongs,
+        // add edge (l1,d1) -- (l2,d2) if edge has not been created yet
+        std::set<std::pair<int, int> > edges;
+        for( int r = 0; r < number_rocks(); ++r ) {
+            const std::vector<std::pair<int, int> > &beams = beams_for_rocks[r];
+            for( int i = 0; i < int(beams.size()); ++i ) {
+                const std::pair<int, int> &p1 = beams[i];
+                int index1 = p1.first * (1 + max_antenna_height()) + p1.second;
+                for( int j = i + 1; j < int(beams.size()); ++j ) {
+                    const std::pair<int, int> &p2 = beams[j];
+                    int index2 = p2.first * (1 + max_antenna_height()) + p2.second;
+                    assert(index1 < index2);
+                    std::pair<int, int> edge(index1, index2);
+                    if( edges.find(edge) == edges.end() ) {
+                        constraint_digraph_.add_edge(index1, index2);
+                        constraint_digraph_.add_edge(index2, index1);
+#if 1//def DEBUG
+                        std::cout << "constraint digraph: add edge "
+                                  << "(" << loc_t(p1.first, xdim(), ydim()) << "," << p1.second << ")"
+                                  << " <--> "
+                                  << "(" << loc_t(p2.first, xdim(), ydim()) << "," << p2.second << ")"
+                                  << " because of rock r=" << r
+                                  << std::endl;
+#endif
+                    }
+                }
+            }
+        }
     }
 
     static int xdim();
@@ -358,6 +475,7 @@ class belief_state_t {
         sampled_ = bel.sampled_;
         skipped_ = bel.skipped_;
         hidden_ = bel.hidden_;
+        csp_ = bel.csp_;
         return *this;
     }
     bool operator==(const belief_state_t &bel) const {
@@ -520,7 +638,27 @@ class belief_state_t {
         } 
         return std::make_pair(p_good, 1 - p_good);
     }
-    bool restore_consistency(int seed) {
+    bool restore_consistency(int seed_var) {
+        // restore consistency using AC3
+        assert(csp_.nvars() == beams_.size());
+        assert(seed_var < csp_.nvars());
+        assert(csp_.domain(seed_var) != 0);
+
+        std::cout << "=====================================================" << std::endl;
+        std::cout << "BELIEF BEFORE AC3: seed_var=(" << loc_t(seed_var / (1 + max_antenna_height()), xdim(), ydim()) << "," << seed_var % (1 + max_antenna_height()) << ")" << std::endl;
+        print(std::cout);
+        std::cout << std::endl;
+
+        std::vector<int> revised_vars;
+        csp_.add_to_worklist(seed_var);
+        csp_.ac3(revised_vars); // CHECK: inverse_check is off
+
+        std::cout << "=====================================================" << std::endl;
+        std::cout << "BELIEF AFTER AC3: seed_var=(" << loc_t(seed_var / (1 + max_antenna_height()), xdim(), ydim()) << "," << seed_var % (1 + max_antenna_height()) << ")" << std::endl;
+        print(std::cout);
+        std::cout << std::endl;
+        std::cout << "=====================================================" << std::endl;
+
         assert(0); // DOUBLE-CHECK
     }
 
@@ -922,7 +1060,8 @@ inline belief_state_t::belief_state_t(int loc, int antenna_height)
   : loc_(loc, xdim(), ydim()),
     antenna_height_(antenna_height),
     sampled_(0),
-    skipped_(0) {
+    skipped_(0),
+    csp_(constraint_digraph_) {
 }
 
 inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap::bitmap_t &hidden)
@@ -930,7 +1069,8 @@ inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap:
     antenna_height_(antenna_height),
     sampled_(0),
     skipped_(0),
-    hidden_(hidden) {
+    hidden_(hidden),
+    csp_(constraint_digraph_) {
     beams_.reserve(xdim() * ydim());
     for( int l = 0; l < xdim() * ydim(); ++l ) {
         loc_t bloc(l, xdim(), ydim());
@@ -941,6 +1081,7 @@ inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap:
                     beams_.back().push_rock(r);
             }
             beams_.back().set_initial_values();
+            csp_.set_domain(l * (1 + max_antenna_height()) + d, &beams_.back());
             std::cout << "beam(loc=" << bloc << ",d=" << d << ")=" << beams_.back() << std::endl;
         }
     }
