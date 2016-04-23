@@ -24,8 +24,8 @@ int Bitmap::bitmap_t::dim_in_words_ = 0;
 int Bitmap::bitmap_t::bits_in_last_word_ = 0;
 unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
 
+const pomdp_t *arc_consistency_t::pomdp_ = 0;
 const pomdp_t *belief_state_t::pomdp_ = 0;
-CSP::constraint_digraph_t belief_state_t::constraint_digraph_;
 
 using namespace std;
 
@@ -84,6 +84,7 @@ int main(int argc, const char **argv) {
     Random::set_seed(Algorithm::g_seed);
     Bitmap::bitmap_t::set_dimension(number_rocks);
     pomdp_t pomdp(xdim, ydim, number_rocks, max_antenna_height);
+    arc_consistency_t::set_static_members(&pomdp);
     belief_state_t::set_static_members(&pomdp);
 
     // build requests
@@ -92,9 +93,9 @@ int main(int argc, const char **argv) {
     Dispatcher::dispatcher_t<belief_state_t> dispatcher;
     for( int i = 0; i < int(requests.size()); ++i ) {
         const string &request_str = requests[i];
-        std::multimap<std::string, std::string> request;
+        multimap<string, string> request;
         if( !Utils::tokenize(request_str, request) ) continue;
-        for( std::multimap<std::string, std::string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
+        for( multimap<string, string>::const_iterator it = request.begin(); it != request.end(); ++it ) {
             dispatcher.create_request(pomdp, it->first, it->second);
             if( it->first == "algorithm" ) {
                 Algorithm::algorithm_t<belief_state_t> *algorithm = dispatcher.fetch_algorithm(it->second);
