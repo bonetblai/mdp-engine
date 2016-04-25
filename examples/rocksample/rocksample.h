@@ -12,62 +12,6 @@
 
 //#define DEBUG
 
-/*
- * Parameters
- *
- * xdim, ydim, max-antenna-height, number-rocks -- grid dimensions
- *
- * Sensor detects good rocks at euclidean distance <= n when antenna is at height h_n
- *
- * Actions
- *
- *  (:action move
- *      :parameters (?p ?q - location)
- *      :precondition (and (agent-at ?p) (adj ?p ?q) (antenna-height h0) (not (need-start)))
- *      :effect (and (agent-at ?q) (not (agent-at ?p)))
- *  )
- *  (:action sample
- *      :parameters (?r - rock ?p - location)
- *      :precondition (and (agent-at ?p) (rock-at ?r ?p) (good ?r) (not (need-start)))
- *      :effect (finished ?r)
- *  )
- *  (:action skip
- *      :parameters (?r - rock)
- *      :precondition (and (not (good ?r)) (not (need-start)))
- *      :effect (finished ?r)
- *  )
- *  (:action raise-antenna
- *      :precondition (not (need-start))
- *      :effect
- *          (forall (?h1 ?h2 - height)
- *              (when (and (antenna-height ?h1) (next-height ?h1 ?h2)) (and (not (antenna-height ?h1)) (antenna-height ?h2)))
- *          )
- *  )
- *  (:action lower-antenna
- *      :precondition (not (need-start))
- *      :effect
- *          (forall (?h1 ?h2 - height)
- *              (when (and (antenna-height ?h1) (next-height ?h2 ?h1)) (and (not (antenna-height ?h1)) (antenna-height ?h2)))
- *          )
- *  )
- *  (:action activate-sensor
- *      :parameters (?p - location ?h - height)
- *      :precondition (and (agent-at ?p) (antenna-height ?h) (not (need-start)))
- *      :sensing
- *          (model-for (rocks-in-range ?h ?p)
- *                     (good-rocks-in-sensing-range ?h ?p)
- *                     (exists (?r - rock ?q - location) (and (rock-at ?r ?q) (in-sensing-range ?h ?p ?q) (not (finished ?r)) (good ?r)))
- *          )
- *          (model-for (rocks-in-range ?h ?p)
- *                     (not (good-rocks-in-sensing-range ?h ?p))
- *                     (forall (?r - rock ?q - location)
- *                         (or (not (rock-at ?r ?q)) (not (in-sensing-range ?h ?p ?q)) (finished ?r) (not (good ?r)))
- *                     )
- *          )
- *  )
- *
- */
-
 struct loc_t {
     int r_, c_;
 
@@ -115,79 +59,10 @@ inline std::ostream& operator<<(std::ostream &os, const loc_t &loc) {
     return os;
 }
 
-struct simple_beam_t {
-    typedef enum { bad = 0, good = 1, empty = 2, both = 3 } value_t;
-    value_t value_; // 0=contains only BAD, 1=contains only GOOD, 2=empty, 3=contains both
-
-    struct const_iterator {
-        int marker_;
-
-        const_iterator(int marker) : marker_(marker) { }
-
-        bool operator==(const const_iterator &it) const {
-            return marker_ == it.marker_;
-        }
-        bool operator!=(const const_iterator &it) const {
-            return !(*this == it);
-        }
-        const const_iterator& operator++() {
-            ++marker_;
-            return *this;
-        }
-
-        int value() const {
-            return marker_;
-        }
-    }; // const_iterator
-
-    simple_beam_t(value_t value = both) : value_(value) { }
-    ~simple_beam_t() { }
-
-    const simple_beam_t& operator=(const simple_beam_t &beam) {
-        value_ = beam.value_;
-        return *this;
-    }
-    bool operator==(const simple_beam_t &beam) const {
-        return value_ == beam.value_;
-    }
-    bool operator!=(const simple_beam_t &beam) const {
-        return !(*this == beam);
-    }
-    bool operator<(const simple_beam_t &beam) const {
-        return value_ < beam.value_;
-    }
-
-    unsigned hash() const {
-        return value_;
-    }
-
-    virtual const_iterator begin() const {
-        return const_iterator(value_ == both ? bad : (value_ == empty ? bad : value_));
-    }
-    virtual const_iterator end() const {
-        return const_iterator(value_ == both ? empty : (value_ == empty ? bad : 1 + value_));
-    }
-
-    void print(std::ostream &os) const {
-        if( value_ == bad )
-            os << "{bad}";
-        else if( value_ == good )
-            os << "{good}";
-        else if( value_ == empty )
-            os << "{}";
-        else
-            os << "{bad,good}";
-    }
-};
-
-inline std::ostream& operator<<(std::ostream &os, const simple_beam_t &beam) {
-    beam.print(os);
-    return os;
-}
 
 struct beam_t {
     const loc_t loc_;
-    const int d_;
+    const int range_;
     std::map<int, int> rocks_;
     std::vector<int> values_;
 
@@ -220,20 +95,23 @@ struct beam_t {
         }
     }; // const_iterator
 
-    beam_t(loc_t loc, int d) : loc_(loc), d_(d) { }
+    beam_t(loc_t loc, int range) : loc_(loc), range_(range) { }
     beam_t(const beam_t &beam)
       : loc_(beam.loc_),
-        d_(beam.d_),
+        range_(beam.range_),
         rocks_(beam.rocks_),
         values_(beam.values_) {
+        //std::cout << "beam_t: copy ctor called" << std::endl;
     }
+#if 0 // CHECK
     beam_t(beam_t &&beam)
       : loc_(beam.loc_),
-        d_(beam.d_),
         rocks_(std::move(beam.rocks_)),
         values_(std::move(beam.values_)) {
+        //std::cout << "beam_t: move ctor called" << std::endl;
     }
-    ~beam_t() { }
+#endif
+    virtual ~beam_t() { }
 
     void push_rock(int r) {
         rocks_.insert(std::make_pair(r, rocks_.size()));
@@ -245,14 +123,14 @@ struct beam_t {
             values_.push_back(i);
     }
 
-    static int rock_value(int rock_index, int value) {
-        return (value >> rock_index) & 0x1;
+    static int rock_value(int rock_index, int valuation) {
+        return (valuation >> rock_index) & 0x1;
     }
-    bool is_value_for_rock(int r, int v) const {
+    bool is_value_for_rock(int r, int value) const {
         assert(rocks_.find(r) != rocks_.end());
-        int index = rocks_.at(r);
+        int rock_index = rocks_.at(r);
         for( int i = 0; i < int(values_.size()); ++i ) {
-            if( beam_t::rock_value(index, values_[i]) != v )
+            if( beam_t::rock_value(rock_index, values_[i]) != value )
                 return false;
         }
         return true;
@@ -275,13 +153,6 @@ struct beam_t {
     }
 
     void erase_ordered_indices(const std::vector<int> &indices) {
-#if 0 // REMOVE // CHECK
-        std::cout << "XXX: erase_ordered_indices:";
-        for( int i = 0; i < int(indices.size()); ++i )
-            std::cout << " " << indices[i];
-        std::cout << std::endl;
-        if( indices.empty() ) return;
-#endif
         if( !indices.empty() ) {
             int indices_sz = indices.size();
             int k = indices[0];
@@ -299,7 +170,7 @@ struct beam_t {
     }
 
     const beam_t& operator=(const beam_t &beam) {
-        //loc_ = beam.loc_;
+        assert(loc_ == beam.loc_);
         rocks_ = beam.rocks_;
         values_ = beam.values_;
         return *this;
@@ -328,7 +199,7 @@ struct beam_t {
     }
 
     void print(std::ostream &os) const {
-        os << "[loc=" << loc_ << ",d=" << d_ << ",rocks={";
+        os << "[loc=" << loc_ << ",range=" << range_ << ",rocks={";
         for( std::map<int, int>::const_iterator it = rocks_.begin(); it != rocks_.end(); ++it )
             os << it->first << ",";
         os << "},values={";
@@ -357,13 +228,48 @@ class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
   public:
     arc_consistency_t(const CSP::constraint_digraph_t &digraph)
       : CSP::arc_consistency_t<beam_t>(digraph), common_rocks_(0) {
+        //std::cout << "arc_consistency_t: ctor called" << std::endl;
     }
-    explicit arc_consistency_t(const CSP::arc_consistency_t<beam_t> &ac)
+    arc_consistency_t(const arc_consistency_t &ac)
       : CSP::arc_consistency_t<beam_t>(ac), common_rocks_(0) {
+        for( int i = 0; i < nvars_; ++i )
+            set_domain(i, new beam_t(*ac.domain(i)));
+        //std::cout << "arc_consistency_t: copy ctor called" << std::endl;
+    }
+#if 0
+    arc_consistency_t(arc_consistency_t &&ac)
+      : CSP::arc_consistency_t<beam_t>(std::move(ac)) {
+        //std::cout << "arc_consistency_t: move ctor called" << std::endl;
+        ac.clear();
+    }
+#endif
+    virtual ~arc_consistency_t() {
+        delete_domains_and_clear();
+        //std::cout << "arc_consistency_t: dtor called" << std::endl;
     }
 
     static void set_static_members(const pomdp_t *pomdp) {
         pomdp_ = pomdp;
+    }
+
+    const arc_consistency_t& operator=(const arc_consistency_t &ac) {
+        delete_domains_and_clear();
+        static_cast<CSP::arc_consistency_t<beam_t>&>(*this) = ac;
+        for( int i = 0; i < nvars(); ++i )
+            set_domain(i, new beam_t(*ac.domain(i)));
+        return *this;
+    }
+    bool operator==(const arc_consistency_t &ac) const {
+        if( nvars() != ac.nvars() ) return false;
+        for( int i = 0; i < nvars(); ++i ) {
+            if( (domain(i) == 0) && (ac.domain(i) == 0) )
+                continue;
+            if( (domain(i) == 0) || (ac.domain(i) == 0) )
+                return false;
+            if( *domain(i) != *ac.domain(i) )
+                return false;
+        }
+        return true;
     }
 
     virtual void arc_reduce_preprocessing_0(int var_x, int var_y) const; // defined below
@@ -376,8 +282,8 @@ class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
         }
     }
     virtual bool consistent(int var_x, int var_y, int val_x, int val_y) const {
-        assert(common_rocks_ != 0);
         //std::cout << "consistent(var_x=" << var_x << ",var_y=" << var_y << ",val_x=" << val_x << ",val_y=" << val_y << ")=" << std::flush;
+        assert(common_rocks_ != 0);
         for( int i = 0; i < int(common_rocks_->size()); ++i ) {
             const std::pair<int, int> &p = (*common_rocks_)[i].second;
             if( rock_values_[i] != beam_t::rock_value(p.second, val_y) ) {
@@ -399,7 +305,6 @@ class belief_state_t {
   protected:
     loc_t loc_;
     int antenna_height_;
-    //std::vector<beam_t> beams_;
     Bitmap::bitmap_t sampled_;
     Bitmap::bitmap_t skipped_;
     Bitmap::bitmap_t hidden_;
@@ -414,22 +319,26 @@ class belief_state_t {
     belief_state_t(const belief_state_t &bel)
       : loc_(bel.loc_),
         antenna_height_(bel.antenna_height_),
-        //beams_(bel.beams_),
         sampled_(bel.sampled_),
         skipped_(bel.skipped_),
         hidden_(bel.hidden_),
         csp_(bel.csp_) {
+        //std::cout << "belief_state_t: copy ctor called" << std::endl;
     }
+#if 0
     belief_state_t(belief_state_t &&bel)
       : loc_(bel.loc_),
         antenna_height_(bel.antenna_height_),
-        //beams_(std::move(bel.beams_)),
         sampled_(std::move(bel.sampled_)),
         skipped_(std::move(bel.skipped_)),
         hidden_(bel.hidden_),
         csp_(std::move(bel.csp_)) {
+        //std::cout << "belief_state_t: move ctor called" << std::endl;
     }
-    ~belief_state_t() { }
+#endif
+    virtual ~belief_state_t() {
+        //std::cout << "belief_state_t: dtor called" << std::endl;
+    }
 
     static void set_static_members(const pomdp_t *pomdp) {
         pomdp_ = pomdp;
@@ -444,14 +353,13 @@ class belief_state_t {
 
     size_t hash() const {
         std::cout << "warning: hash value is zero!" << std::endl;
-        return 0;
+        return 0; // CHECK
         //return Utils::jenkins_one_at_a_time_hash(beams_);
     }
 
     const belief_state_t& operator=(const belief_state_t &bel) {
         loc_ = bel.loc_;
         antenna_height_ = bel.antenna_height_;
-        //beams_ = bel.beams_;
         sampled_ = bel.sampled_;
         skipped_ = bel.skipped_;
         hidden_ = bel.hidden_;
@@ -461,10 +369,10 @@ class belief_state_t {
     bool operator==(const belief_state_t &bel) const {
         return (loc_ == bel.loc_) &&
           (antenna_height_ == bel.antenna_height_) &&
-          //(beams_ == bel.beams_) &&
           (sampled_ == bel.sampled_) &&
           (skipped_ == bel.skipped_) &&
-          (hidden_ == bel.hidden_);
+          (hidden_ == bel.hidden_) &&
+          (csp_ == bel.csp_);
     }
     bool operator!=(const belief_state_t &bel) const {
         return !(*this == bel);
@@ -511,9 +419,10 @@ class belief_state_t {
             int beam_index = rock_location(r).as_integer(xdim(), ydim());;
             const beam_t &beam = get_beam(beam_index);
             assert(beam.loc_ == rock_location(r));
+            int rock_index = beam.rocks_.at(r);
             int rock_values[] = { 0, 0 };
             for( int i = 0; i < beam.values_.size(); ++i ) {
-                int rvalue = beam_t::rock_value(r, beam.values_[i]);
+                int rvalue = beam_t::rock_value(rock_index, beam.values_[i]);
                 assert((rvalue == 0) || (rvalue == 1));
                 ++rock_values[rvalue];
             }
@@ -521,6 +430,8 @@ class belief_state_t {
                 values.push_back(std::make_pair(0, float(rock_values[0]) / float(beam.values_.size())));
             if( rock_values[1] != 0 )
                 values.push_back(std::make_pair(1, float(rock_values[1]) / float(beam.values_.size())));
+            //std::cout << "fill-values: rock=" << r << ", beam-index=" << beam_index << ", rock-index=" << rock_index << ", beam.sz=" << beam.values_.size() << ", sz=" << values.size() << ", values={(" << values[0].first << "," << values[0].second << ")";
+            //if( values.size() > 1 ) std::cout << ",(" << values[1].first << "," << values[1].second << ")}" << std::endl;
         }
     }
     int value(int vid) const {
@@ -577,26 +488,47 @@ class belief_state_t {
     }
 
     bool apply_sense(int obs, const std::vector<loc_t> &rock_locations) {
-std::cout << "apply_sense: obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
+        //std::cout << "apply_sense: obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
         int index = loc_.as_integer(xdim(), ydim());
         beam_t &beam = get_beam(index);
 
         // if beam has no rocks, obs must be OBS_NOT_GOOD and there is nothing to do
-        if( beam.values_.empty() ) {
-//std::cout << "apply_sense(EXIT0): nothing done!" << std::endl;
+        if( beam.rocks_.empty() ) {
+            //std::cout << "apply_sense(EXIT0): nothing done!" << std::endl;
             assert(obs == OBS_NOT_GOOD);
             return false;
         }
 
-        // must remove all valuations not compatible with observation and restore consistency across beams using AC3
+        // calculate rocks within sensor range
+        std::vector<int> indices_for_rocks_within_sensor_range;
+        for( std::map<int, int>::const_iterator it = beam.rocks_.begin(); it != beam.rocks_.end(); ++it ) {
+            if( beam.loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
+                indices_for_rocks_within_sensor_range.push_back(it->second);
+        }
+
+        // remove all valuations not compatible with observation and restore consistency across beams using AC3
         std::vector<int> indices_to_erase;
         for( int i = 0; i < int(beam.values_.size()); ++i ) {
             int value = beam.values_[i];
-            if( (obs == OBS_GOOD) && (value == 0) ) {
-                indices_to_erase.push_back(i);
-                break;
-            } else if( (obs == OBS_NOT_GOOD) && (value != 0) ) {
-                indices_to_erase.push_back(i);
+            if( obs == OBS_GOOD ) {
+                bool all_rocks_within_sensor_range_are_bad = true;
+                for( int j = 0; j < int(indices_for_rocks_within_sensor_range.size()); ++j ) {
+                    int rock_index = indices_for_rocks_within_sensor_range[j];
+                    if( beam_t::rock_value(rock_index, value) == 1 ) {
+                        all_rocks_within_sensor_range_are_bad = false;
+                        break;
+                    }
+                }
+                if( all_rocks_within_sensor_range_are_bad )
+                    indices_to_erase.push_back(i);
+            } else {
+                for( int j = 0; j < int(indices_for_rocks_within_sensor_range.size()); ++j ) {
+                    int rock_index = indices_for_rocks_within_sensor_range[j];
+                    if( beam_t::rock_value(rock_index, value) == 1 ) {
+                        indices_to_erase.push_back(i);
+                        break;
+                    }
+                }
             }
         }
 
@@ -609,13 +541,14 @@ std::cout << "apply_sense: obs=" << obs << ", bel="; print(std::cout); std::cout
         // restore consistency across beams
         if( something_removed ) {
             restore_consistency(index);
-std::cout << "apply_sense(EXIT1): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
+            //std::cout << "apply_sense(EXIT1): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
             return true;
         } else {
-std::cout << "apply_sense(EXIT2): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
+            //std::cout << "apply_sense(EXIT2): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
             return false;
         }
     }
+
     std::pair<float, float> probability_sense(const std::vector<loc_t> &rock_locations) const { // pair is (P(good), P(!good))
         int index = loc_.as_integer(xdim(), ydim());
         const beam_t &beam = get_beam(index);
@@ -624,45 +557,47 @@ std::cout << "apply_sense(EXIT2): obs=" << obs << ", bel="; print(std::cout); st
         if( beam.values_.empty() ) {
             p_good = 0;
         } else {
-            // calculate rocks within antenna range
-            std::vector<int> indices_for_rocks_within_range;
+            // calculate rocks within sensor range
+            std::vector<int> indices_for_rocks_within_sensor_range;
             for( std::map<int, int>::const_iterator it = beam.rocks_.begin(); it != beam.rocks_.end(); ++it ) {
                 if( beam.loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
-                    indices_for_rocks_within_range.push_back(it->second);
+                    indices_for_rocks_within_sensor_range.push_back(it->second);
             }
 
-            // calculate # valuations that contain rocks within antenna rage that are good
-            int number_valuations_with_good_rocks_within_range = 0;
+            // calculate # valuations that contain rocks within sensor rage that are good
+            int number_valuations_with_good_rocks_within_sensor_range = 0;
             for( int i = 0; i < beam.values_.size(); ++i ) {
                 int value = beam.values_[i];
-                for( int j = 0; j < int(indices_for_rocks_within_range.size()); ++j ) {
-                    int rindex = indices_for_rocks_within_range[j];
-                    if( beam_t::rock_value(rindex, value) == 1 )
-                        ++number_valuations_with_good_rocks_within_range;
+                for( int j = 0; j < int(indices_for_rocks_within_sensor_range.size()); ++j ) {
+                    int rock_index = indices_for_rocks_within_sensor_range[j];
+                    if( beam_t::rock_value(rock_index, value) == 1 )
+                        ++number_valuations_with_good_rocks_within_sensor_range;
                 }
             }
 
-            // P(good) = # valuations that contain good rocks within antenna range / total # valuations
-            p_good = float(number_valuations_with_good_rocks_within_range) / float(beam.values_.size());
+            // P(good) = # valuations that contain good rocks within sensor range / total # valuations
+            p_good = float(number_valuations_with_good_rocks_within_sensor_range) / float(beam.values_.size());
         } 
         return std::make_pair(p_good, 1 - p_good);
     }
     bool restore_consistency(int seed_var) {
         // restore consistency using AC3
-        std::cout << "=====================================================" << std::endl;
-        std::cout << "BELIEF BEFORE AC3: seed_loc=" << loc_t(seed_var, xdim(), ydim()) << std::endl;
-        print(std::cout);
-        std::cout << std::endl;
+        //std::cout << "=====================================================" << std::endl;
+        //std::cout << "BELIEF BEFORE AC3: seed_loc=" << loc_t(seed_var, xdim(), ydim()) << std::endl;
+        //print(std::cout);
+        //std::cout << std::endl;
 
         std::vector<int> revised_vars;
         csp_.add_to_worklist(seed_var);
-        csp_.ac3(revised_vars); // CHECK: inverse_check is off
+        bool something_removed = csp_.ac3(revised_vars); // CHECK: inverse_check is off
 
-        std::cout << "=====================================================" << std::endl;
-        std::cout << "BELIEF AFTER AC3: seed_loc=" << loc_t(seed_var, xdim(), ydim()) << std::endl;
-        print(std::cout);
-        std::cout << std::endl;
-        std::cout << "=====================================================" << std::endl;
+        //std::cout << "=====================================================" << std::endl;
+        //std::cout << "BELIEF AFTER AC3: seed_loc=" << loc_t(seed_var, xdim(), ydim()) << std::endl;
+        //print(std::cout);
+        //std::cout << std::endl;
+        //std::cout << "=====================================================" << std::endl;
+
+        return something_removed;
     }
 
     void print(std::ostream &os) const {
@@ -848,7 +783,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
                         constraint_digraph_.add_edge(l1, l2);
                         constraint_digraph_.add_edge(l2, l1);
                         edges.insert(std::make_pair(l1, l2));
-#if 1//def DEBUG
+#ifdef DEBUG
                         std::cout << "constraint digraph: add edge "
                                   << loc_t(l1, xdim_, ydim_) << " <--> " << loc_t(l2, xdim_, ydim_)
                                   << " because of rock r=" << r
@@ -876,10 +811,12 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
                     int index2 = beam2.rocks_.at(r);
                     common_rocks_[l1 * xdim_ * ydim_ + l2].push_back(std::make_pair(r, std::make_pair(index1, index2)));
                     common_rocks_[l2 * xdim_ * ydim_ + l1].push_back(std::make_pair(r, std::make_pair(index2, index1)));
+#ifdef DEBUG
                     std::cout << "rock " << r << " is common to beams ["
                               << l1 << "=" << loc_t(l1, xdim_, ydim_) << "," << l2 << "=" << loc_t(l2, xdim_, ydim_) << "]"
                               << "=(" << index1 << "," << index2 << ")"
                               << std::endl;
+#endif
                 }
             }
         }
@@ -888,15 +825,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     const std::vector<std::pair<int, std::pair<int, int> > >& common_rocks(int beam_index1, int beam_index2) const {
         assert((beam_index1 >= 0) && (beam_index2 >= 0));
         assert((beam_index1 < xdim_ * ydim_) && (beam_index2 < xdim_ * ydim_));
-#if 0
-        assert(beam_index1 != beam_index2);
-        if( beam_index1 > beam_index2 ) {
-            int tmp = beam_index1;
-            beam_index1 = beam_index2;
-            beam_index2 = tmp;
-        }
-        assert(beam_index1 * xdim_ * ydim_ + beam_index1 < int(common_rocks_.size()));
-#endif
         return common_rocks_[beam_index1 * xdim_ * ydim_ + beam_index2];
     }
 
@@ -933,7 +861,9 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             locations[i] = locations.back();
             locations.pop_back();
             rock_locations_.push_back(loc_t(loc, xdim_, ydim_));
+#ifdef DEBUG
             std::cout << "rock: r=" << r << " --> loc=" << loc_t(loc, xdim_, ydim_) << std::endl;
+#endif
         }
 
         // we now create a new belief state and
@@ -952,7 +882,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         // after creating initial belief, where all rocks are placed, calculate
         // for each pair of beams the common rocks to them, together with their
         // indices (this is used when filtering)
-        std::cout << "init=" << std::flush << *init_ << std::endl;
         populate_common_rocks_between_beams(init_);
         return *init_;
     }
@@ -995,6 +924,12 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual float cost(const belief_state_t &bel, Problem::action_t a) const {
         if( is_sample_action(a) || is_skip_action(a) )
             return -10;
+        else if( a == Sense )
+            return 5;
+#if 0 // CHECK
+        else if( (a == RaiseAntenna) || (a == LowerAntenna) )
+            return .05;
+#endif
         else
             return 1;
     }
@@ -1012,52 +947,49 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         std::cout << "next: bel=" << bel << ", action=" << action_name(a) << std::endl;
 #endif
         if( a != Sense ) {
-            outcomes.reserve(1);
-            belief_state_t next_bel(bel);
+            outcomes.push_back(std::make_pair(belief_state_t(bel), 1.0));
             if( a == GoNorth ) {
-                next_bel.loc_.move_north(xdim_, ydim_);
+                outcomes.back().first.loc_.move_north(xdim_, ydim_);
             } else if( a == GoEast ) {
-                next_bel.loc_.move_east(xdim_, ydim_);
+                outcomes.back().first.loc_.move_east(xdim_, ydim_);
             } else if( a == GoSouth ) {
-                next_bel.loc_.move_south(xdim_, ydim_);
+                outcomes.back().first.loc_.move_south(xdim_, ydim_);
             } else if( a == GoWest ) {
-                next_bel.loc_.move_west(xdim_, ydim_);
+                outcomes.back().first.loc_.move_west(xdim_, ydim_);
             } else if( a == RaiseAntenna ) {
-                next_bel.raise_antenna();
+                outcomes.back().first.raise_antenna();
             } else if( a == LowerAntenna ) {
-                next_bel.lower_antenna();
+                outcomes.back().first.lower_antenna();
             } else if( is_sample_action(a) ) {
                 int r = sampled_rock(a);
-                next_bel.sample_rock(r);
+                outcomes.back().first.sample_rock(r);
             } else if( is_skip_action(a) ) {
                 int r = skipped_rock(a);
-                next_bel.skip_rock(r);
+                outcomes.back().first.skip_rock(r);
             } else {
                 std::cout << Utils::error() << "unknown action a=" << a << std::endl;
                 exit(-1);
             }
-            outcomes.push_back(std::make_pair(next_bel, 1.0));
 #ifdef DEBUG
-            std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+            std::cout << "    " << outcomes.size() << ". next-bel=" << outcomes.back().first << std::endl;
 #endif
         } else {
             outcomes.reserve(2);
-            belief_state_t next_bel_0(bel);
+            //std::cout << "PROBABILITY-SENSE.0" << std::endl;
             std::pair<float, float> p = bel.probability_sense(rock_locations_); // pair is (P(good), P(!good))
+            //std::cout << "PROBABILITY-SENSE.1: p: " << p.first << " " << p.second << std::endl;
             if( p.first > 0 ) {
-                belief_state_t next_bel(bel);
-                next_bel.apply_sense(OBS_GOOD, rock_locations_);
-                outcomes.push_back(std::make_pair(next_bel, p.first));
+                outcomes.push_back(std::make_pair(belief_state_t(bel), p.first));
+                outcomes.back().first.apply_sense(OBS_GOOD, rock_locations_);
 #ifdef DEBUG
-                std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+                std::cout << "    " << outcomes.size() << ". next-bel=" << outcomes.back().first << std::endl;
 #endif
             }
             if( p.second > 0 ) {
-                belief_state_t next_bel(bel);
-                next_bel.apply_sense(OBS_NOT_GOOD, rock_locations_);
-                outcomes.push_back(std::make_pair(next_bel, p.second));
+                outcomes.push_back(std::make_pair(belief_state_t(bel), p.second));
+                outcomes.back().first.apply_sense(OBS_NOT_GOOD, rock_locations_);
 #ifdef DEBUG
-                std::cout << "    " << outcomes.size() << ". next-bel=" << next_bel << std::endl;
+                std::cout << "    " << outcomes.size() << ". next-bel=" << outcomes.back().first << std::endl;
 #endif
             }
         }
@@ -1074,10 +1006,11 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         assert(0); // CHECK
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
+        POMDP::feature_t<belief_state_t> *feature = 0;
 #if 0 // RESTORE // CHECK
-        POMDP::feature_t<belief_state_t> *feature = new feature_t(bel);
-        return feature;
+I       feature = new feature_t(bel);
 #endif
+        return feature;
     }
     virtual void remove_feature(const POMDP::feature_t<belief_state_t> *feature) const {
         delete feature;
@@ -1184,7 +1117,6 @@ inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap:
     hidden_(hidden),
     csp_(pomdp_->constraint_digraph_) {
     assert(csp_.nvars() == xdim() * ydim());
-    //beams_.reserve(xdim() * ydim());
     for( int l = 0; l < xdim() * ydim(); ++l ) {
         loc_t bloc(l, xdim(), ydim());
         int d = max_antenna_height();
@@ -1195,7 +1127,9 @@ inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap:
                 beam->push_rock(r);
         }
         beam->set_initial_values();
+#ifdef DEBUG
         std::cout << "beam(loc=" << bloc << ",d=" << d << ")=" << *beam << std::endl;
+#endif
     }
 }
  
