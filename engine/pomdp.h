@@ -120,7 +120,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
         apply_action(nbel, a);
         observation_t obs = sample_observation_using_hidden_state(bel, nbel, a);
         apply_obs(nbel, a, obs);
-#if 1//def DEBUG
+#ifdef DEBUG
         std::cout << "pomdp: sampling: bel=" << bel << ", a=" << a << ", obs=" << obs << ", nbel=" << nbel << std::endl;
 #endif
         return std::make_pair(nbel, true);

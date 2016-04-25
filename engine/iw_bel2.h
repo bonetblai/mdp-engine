@@ -29,7 +29,7 @@
 
 #include "pomdp.h"
 
-#define DEBUG
+//#define DEBUG
 
 namespace Online {
 
@@ -44,15 +44,21 @@ namespace IWBel2 {
 
 class tuple_factory_t {
   protected:
-    std::vector<int> current_;
-    std::vector<std::pair<int, int*> > pool_;
-    std::vector<std::list<int*> > free_list_;
+    std::vector<int> pool_pointers_;           // contains offsets into pools pointing to next available space in pool
+    std::vector<std::pair<int, int*> > pool_;  // pools: each pool is stored as (pool-sz, pointer)
+    std::vector<std::list<int*> > free_list_;  // free lists: allocation is always tried first on free list. Indexed by size.
+
+    int space_in_use_;
+    int tuples_in_use_;
+    int allocated_space_;
+    int space_in_free_list_;
+    int tuples_in_free_list_;
 
     int* fetch_tuple_from_pool(int size) {
-        for( int i = int(current_.size()) - 1; i >= 0; --i ) {
-            if( current_[i] + 1 + size <= pool_[i].first ) {
-                int *tuple = &pool_[i].second[current_[i]];
-                current_[i] += 1 + size;
+        for( int i = int(pool_pointers_.size()) - 1; i >= 0; --i ) {
+            if( pool_pointers_[i] + 1 + size <= pool_[i].first ) {
+                int *tuple = &pool_[i].second[pool_pointers_[i]];
+                pool_pointers_[i] += 1 + size;
                 tuple[0] = size;
                 return tuple;
             }
@@ -60,14 +66,24 @@ class tuple_factory_t {
 
         // need to allocate new pool
         int n = pool_.empty() ? 1 + size : (size > 2 * pool_.back().first ? 1 + size : 2 * pool_.back().first);
+#ifdef DEBUG
+        std::cout << "tuple_factory_t: new pool: index=" << pool_.size() << ", size=" << n << std::endl;
+#endif
         pool_.push_back(std::make_pair(n, new int[n]));
-        current_.push_back(1 + size);
+        pool_pointers_.push_back(1 + size);
         pool_.back().second[0] = size;
+        allocated_space_ += n;
         return pool_.back().second;
     }
 
   public:
-    tuple_factory_t() { }
+    tuple_factory_t()
+      : space_in_use_(0),
+        tuples_in_use_(0),
+        allocated_space_(0),
+        space_in_free_list_(0),
+        tuples_in_free_list_(0) {
+    }
     virtual ~tuple_factory_t() {
         for( int i = 0; i < int(pool_.size()); ++i )
             delete[] pool_[i].second;
@@ -83,9 +99,13 @@ class tuple_factory_t {
         } else {
             tuple = free_list_[size].front();
             free_list_[size].pop_front();
+            space_in_free_list_ -= size;
+            --tuples_in_free_list_;
         }
         assert(tuple != 0);
         assert(tuple[0] == size);
+        space_in_use_ += size;
+        ++tuples_in_use_;
         return tuple;
     }
 
@@ -93,12 +113,27 @@ class tuple_factory_t {
         if( tuple[0] >= free_list_.size() )
             free_list_.resize(1 + tuple[0]);
         free_list_[tuple[0]].push_front(const_cast<int *>(tuple));
+        space_in_use_ -= tuple[0];
+        --tuples_in_use_;
+        space_in_free_list_ += tuple[0];
+        ++tuples_in_free_list_;
+        assert(space_in_use_ >= 0);
+        assert(tuples_in_use_ >= 0);
     }
     void free_tuples(const std::vector<const int *> &tuples) {
         for( int i = 0; i < int(tuples.size()); ++i )
             free_tuple(tuples[i]);
     }
 
+    void print_stats(std::ostream &os) const {
+        os << "tuple_factory_t: stats:"
+           << " space-in-use=" << space_in_use_
+           << ", tuples-in-use=" << tuples_in_use_
+           << ", allocated-space=" << allocated_space_
+           << ", space-in-free-list=" << space_in_free_list_
+           << ", tuples-in-free-list=" << tuples_in_free_list_
+           << std::endl;
+    }
     void print_tuple(std::ostream &os, const int *tuple) const {
         os << "<";
         for( int i = 1; i <= tuple[0]; ++i ) {
@@ -352,12 +387,14 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
 
     Problem::action_t operator()(const T &bel) const {
-#ifdef DEBUG
+        assert(open_list_.empty());
+        assert(closed_list_.empty());
+        assert(tuple_hash_.empty());
+#if 0//def DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
-                  << "stats: " << open_list_.size() << " " << closed_list_.size() << " " << tuple_hash_.size() << std::endl
-                  << "ROOT=" << bel << std::endl
-                  << "actions:";
+                  << "root=" << bel << std::endl
+                  << "available actions:";
         for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
             if( pomdp_.applicable(bel, a) )
                 std::cout << " " << pomdp_.action_name(a);
@@ -372,10 +409,10 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
         const node_t<T> *node = breadth_first_search(root);
-        std::cout << "stats: " << open_list_.size() << " " << closed_list_.size() << " " << tuple_hash_.size() << std::endl;
 
-#ifdef DEBUG
-        std::cout << "NODE=";
+#if 0//def DEBUG
+        print_stats(std::cout);
+        std::cout << "node=";
         if( node == 0 )
             std::cout << "null";
         else
@@ -400,19 +437,23 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             const node_t<T> *parent = node->parent_;
             assert(parent != 0);
             while( parent->parent_ != 0 ) {
-#ifdef DEBUG
-                std::cout << "ACTION=" << pomdp_.action_name(n->a_) << std::endl;
+#if 0//def DEBUG
+                std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
                 n = parent;
                 parent = n->parent_;
             }
             assert(n->parent_->belief_ == bel);
-#ifdef DEBUG
-            std::cout << "BEST=" << pomdp_.action_name(n->a_) << std::endl;
+#if 0//def DEBUG
+            std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
             action = n->a_;
         }
         free_resources();
+#if 0//def DEBUG
+        print_stats(std::cout);
+        std::cout << "BEST ACTION=" << pomdp_.action_name(action) << std::endl;
+#endif
         return action;
     }
     virtual void reset_stats() const {
@@ -466,21 +507,20 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
     void fill_tuples(const T &belief, std::vector<const int*> &tuples) const {
         int value_v0 = belief.value(0);
-        int code_v0 = value_v0 * (1 + discretization_parameter_) + discretization_parameter_;
         assert(value_v0 != -1); // variable 0 is determined // CHECK
+        int dp_v0 = discretization_parameter_;
+        int code_v0 = (value_v0 * (1 + discretization_parameter_) + dp_v0) * belief.number_variables() + 0;
 
         for( int vid = 1; vid < belief.number_variables(); ++vid ) {
+            //int dsz = belief.domain_size(vid);
             std::vector<std::pair<int, float> > values_for_vid;
-            int dsz = belief.domain_size(vid);
-
             belief.fill_values_for_variable(vid, values_for_vid);
             for( int i = 0; i < int(values_for_vid.size()); ++i ) {
                 int value = values_for_vid[i].first;
                 float p = values_for_vid[i].second;
                 int dp = ceilf(p * discretization_parameter_);
                 assert(dp <= discretization_parameter_);
-                int code = (vid * dsz + value) * (1 + discretization_parameter_) + dp;
-                 
+                int code = (value * (1 + discretization_parameter_) + dp) * belief.number_variables() + vid;
                 int *tuple = tuple_factory_.get_tuple(2);
                 assert(tuple[0] == 2);
                 tuple[1] = code_v0;
@@ -488,7 +528,30 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                 tuples.push_back(tuple);
             }
         }
-        //std::cout << "tuples="; tuple_factory_.print_tuples(std::cout, tuples); std::cout << std::endl;
+
+#ifdef DEBUG
+        std::cout << "[tuples={";
+        for( int i = 0; i < int(tuples.size()); ++i ) {
+            const int *tuple = tuples[i];
+            assert(tuple[0] == 2); // this tuple is a pair
+
+            int code_v0 = tuple[1];
+            int vid_v0 = code_v0 % belief.number_variables();
+            int value_v0 = (code_v0 / belief.number_variables()) / (1 + discretization_parameter_);
+            int dp_v0 = (code_v0 / belief.number_variables()) % (1 + discretization_parameter_);
+            assert(vid_v0 == 0);
+            assert(dp_v0 == discretization_parameter_); // prob. of (v0=value_v0) = 1
+
+            int code_v1 = tuple[2];
+            int vid_v1 = code_v1 % belief.number_variables();
+            int value_v1 = (code_v1 / belief.number_variables()) / (1 + discretization_parameter_);
+            int dp_v1 = (code_v1 / belief.number_variables()) % (1 + discretization_parameter_);
+
+            std::cout << "<(v" << vid_v0 << "," << value_v0 << "," << dp_v0 << "),(v" << vid_v1 << "," << value_v1 << "," << dp_v1 << ")>";
+            if( i + 1 < int(tuples.size()) ) std::cout << ",";
+        }
+        std::cout << "}]" << std::endl;
+#endif
     }
 
 #if 0
@@ -510,6 +573,10 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
 #endif
 
+    void print_stats(std::ostream &os) const {
+        os << "stats: open.sz=" << open_list_.size() << " closed.sz=" << closed_list_.size() << " tuples.sz=" << tuple_hash_.size() << std::endl;
+        tuple_factory_.print_stats(os);
+    }
     void free_resources() const {
         for( typename std::list<const node_t<T>*>::const_iterator it = open_list_.begin(); it != open_list_.end(); ++it ) {
             const node_t<T> *node = *it;
@@ -542,8 +609,12 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 //std::cout << "SELECT: node=" << *node << std::endl;
 
             // check whether we need to stop
-            if( pomdp_.terminal(node->belief_) )
+            if( pomdp_.terminal(node->belief_) ) {
+#if 0//def DEBUG
+                std::cout << "TERMINAL FOUND: bel=" << node->belief_ << std::endl;
+#endif
                 return node;
+            }
 
             // expand node
             for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
@@ -562,26 +633,32 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                         // select best (unexpanded) successors to continue search
                         std::vector<std::pair<int, std::vector<const int*> > > best;
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
-                            if( pomdp_.dead_end(outcomes[i].first) ) continue;
+//std::cout << "    considering outcome " << i << std::flush;
+                            if( pomdp_.dead_end(outcomes[i].first) ) {
+//std::cout << " --> DEAD" << std::endl;
+                                continue;
+                            }
 
                             // prune node if all its tuples already seen
                             std::vector<const int*> tuples;
                             fill_tuples(outcomes[i].first, tuples);
-                            if( novelty(tuples) == 0 ) {
+                            int outcome_novelty = novelty(tuples);
+                            if( outcome_novelty == 0 ) {
                                 tuple_factory_.free_tuples(tuples);
+//std::cout << " --> NOVELTY = 0" << std::endl;
                                 continue;
                             }
+//std::cout << " (novelty=" << outcome_novelty << ")" << std::flush;
 
-//std::cout << "    considering outcome " << i << std::flush;
                             if( best.empty() || (outcomes[i].second >= outcomes[best.back().first].second) ) {
                                 if( !best.empty() && (outcomes[i].second > outcomes[best.back().first].second) )
                                     clear_best_list(best);
                                 best.push_back(std::make_pair(i, tuples));
-//std::cout << " --> BEST" << std::flush;
+//std::cout << " --> BEST (p=" << outcomes[i].second << ")" << std::endl;
                             } else {
                                 tuple_factory_.free_tuples(tuples);
+//std::cout << " --> NOT-BEST (p=" << outcomes[i].second << ")" << std::endl;
                             }
-//std::cout << std::endl;
                         }
                         if( best.empty() ) continue; // no new belief, continue to next action
                         int i = Random::random(best.size());
