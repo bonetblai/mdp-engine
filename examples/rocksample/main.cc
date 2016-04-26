@@ -68,6 +68,8 @@ int main(int argc, const char **argv) {
         }
     }
 
+    //requests.push_back("policy=iw-bel2(determinization=most-likely,dp=5,stop-criterion=reward,max-expansions=30,random-ties=true,prune-threshold=2)");
+
     // read parameters
     if( argc == 4 ) {
         xdim = strtoul(argv[0], 0, 0);
@@ -83,7 +85,7 @@ int main(int argc, const char **argv) {
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
     Bitmap::bitmap_t::set_dimension(number_rocks);
-    pomdp_t pomdp(xdim, ydim, number_rocks, max_antenna_height);
+    pomdp_t pomdp(xdim, ydim, number_rocks, max_antenna_height, true);
     arc_consistency_t::set_static_members(&pomdp);
     belief_state_t::set_static_members(&pomdp);
 

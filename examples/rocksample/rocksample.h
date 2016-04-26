@@ -10,6 +10,7 @@
 #define OBS_NOT_GOOD        0
 #define OBS_GOOD            1
 
+//#define DEBUG_CTOR_DTOR
 //#define DEBUG
 
 struct loc_t {
@@ -101,14 +102,19 @@ struct beam_t {
         range_(beam.range_),
         rocks_(beam.rocks_),
         values_(beam.values_) {
-        //std::cout << "beam_t: copy ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: copy ctor called" << std::endl;
+#endif
     }
-#if 0 // CHECK
+#if 1 // CHECK
     beam_t(beam_t &&beam)
       : loc_(beam.loc_),
+        range_(beam.range_),
         rocks_(std::move(beam.rocks_)),
         values_(std::move(beam.values_)) {
-        //std::cout << "beam_t: move ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: move ctor called" << std::endl;
+#endif
     }
 #endif
     virtual ~beam_t() { }
@@ -228,24 +234,32 @@ class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
   public:
     arc_consistency_t(const CSP::constraint_digraph_t &digraph)
       : CSP::arc_consistency_t<beam_t>(digraph), common_rocks_(0) {
-        //std::cout << "arc_consistency_t: ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "arc_consistency_t: ctor called" << std::endl;
+#endif
     }
     arc_consistency_t(const arc_consistency_t &ac)
       : CSP::arc_consistency_t<beam_t>(ac), common_rocks_(0) {
         for( int i = 0; i < nvars_; ++i )
             set_domain(i, new beam_t(*ac.domain(i)));
-        //std::cout << "arc_consistency_t: copy ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "arc_consistency_t: copy ctor called" << std::endl;
+#endif
     }
-#if 0
+#if 1
     arc_consistency_t(arc_consistency_t &&ac)
       : CSP::arc_consistency_t<beam_t>(std::move(ac)) {
-        //std::cout << "arc_consistency_t: move ctor called" << std::endl;
         ac.clear();
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "arc_consistency_t: move ctor called" << std::endl;
+#endif
     }
 #endif
     virtual ~arc_consistency_t() {
         delete_domains_and_clear();
-        //std::cout << "arc_consistency_t: dtor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "arc_consistency_t: dtor called" << std::endl;
+#endif
     }
 
     static void set_static_members(const pomdp_t *pomdp) {
@@ -323,21 +337,27 @@ class belief_state_t {
         skipped_(bel.skipped_),
         hidden_(bel.hidden_),
         csp_(bel.csp_) {
-        //std::cout << "belief_state_t: copy ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: copy ctor called" << std::endl;
+#endif
     }
-#if 0
+#if 1
     belief_state_t(belief_state_t &&bel)
       : loc_(bel.loc_),
         antenna_height_(bel.antenna_height_),
         sampled_(std::move(bel.sampled_)),
         skipped_(std::move(bel.skipped_)),
-        hidden_(bel.hidden_),
+        hidden_(std::move(bel.hidden_)),
         csp_(std::move(bel.csp_)) {
-        //std::cout << "belief_state_t: move ctor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: move ctor called" << std::endl;
+#endif
     }
 #endif
     virtual ~belief_state_t() {
-        //std::cout << "belief_state_t: dtor called" << std::endl;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: dtor called" << std::endl;
+#endif
     }
 
     static void set_static_members(const pomdp_t *pomdp) {
@@ -710,6 +730,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     int ydim_;
     int number_rocks_;
     int max_antenna_height_;
+    bool sample_rock_locations_with_init_;
 
     // There is 1 binary (hidden) variable for status of each rock. There are known
     // variables for location of agent and height of antenna.
@@ -733,16 +754,19 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     enum { GoNorth, GoEast, GoSouth, GoWest, RaiseAntenna, LowerAntenna, Sense };
 
   public:
-    pomdp_t(int xdim, int ydim, int number_rocks, int max_antenna_height)
+    pomdp_t(int xdim, int ydim, int number_rocks, int max_antenna_height, bool sample_rock_locations_with_init)
       : POMDP::pomdp_t<belief_state_t>(DISCOUNT),
         xdim_(xdim),
         ydim_(ydim),
         number_rocks_(number_rocks),
         max_antenna_height_(max_antenna_height),
+        sample_rock_locations_with_init_(sample_rock_locations_with_init),
         init_(0) {
         number_variables_ = 2 + number_rocks_;
         number_actions_ = 7 + 2 * number_rocks_;
         number_beams_ = number_rocks_;
+        if( !sample_rock_locations_with_init_ )
+            sample_rock_locations();
     }
     virtual ~pomdp_t() {
         delete init_;
@@ -795,6 +819,24 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         }
     }
 
+    void sample_rock_locations() const {
+        std::vector<int> locations(xdim_ * ydim_);
+        for( int i = 0; i < xdim_ * ydim_; ++i )
+            locations[i] = i;
+
+        rock_locations_.reserve(number_rocks_);
+        for( int r = 0; r < number_rocks_; ++r ) {
+            int i = Random::random(0, locations.size());
+            int loc = locations[i];
+            locations[i] = locations.back();
+            locations.pop_back();
+            rock_locations_.push_back(loc_t(loc, xdim_, ydim_));
+#ifdef DEBUG
+            std::cout << "rock: r=" << r << " --> loc=" << loc_t(loc, xdim_, ydim_) << std::endl;
+#endif
+        }
+    }
+ 
     void populate_common_rocks_between_beams(const belief_state_t *belief) const {
         assert(belief != 0);
         common_rocks_ = std::vector<std::vector<std::pair<int, std::pair<int, int> > > >(xdim_ * ydim_ * xdim_ * ydim_);
@@ -847,24 +889,11 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return number_actions_;
     }
     virtual const belief_state_t& init() const {
-        // We first sample different locations for the rocks.
-        // These are sampled but remain fixed and thus don't
-        // require variable/beams for them.
-        std::vector<int> locations(xdim_ * ydim_);
-        for( int i = 0; i < xdim_ * ydim_; ++i )
-            locations[i] = i;
-
-        rock_locations_.reserve(number_rocks_);
-        for( int r = 0; r < number_rocks_; ++r ) {
-            int i = Random::random(0, locations.size());
-            int loc = locations[i];
-            locations[i] = locations.back();
-            locations.pop_back();
-            rock_locations_.push_back(loc_t(loc, xdim_, ydim_));
-#if 1//def DEBUG
-            std::cout << "rock: r=" << r << " --> loc=" << loc_t(loc, xdim_, ydim_) << std::endl;
-#endif
-        }
+        // if requested, we first sample different locations for
+        // the rocks. These are sampled but remain fixed and thus
+        // don't require variable/beams for them.
+        if( sample_rock_locations_with_init_ )
+            sample_rock_locations();
 
         // we now create a new belief state and
         // sample status for each rock
@@ -970,7 +999,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
                 std::cout << Utils::error() << "unknown action a=" << a << std::endl;
                 exit(-1);
             }
-#ifdef DEBUG
+#if 0//def DEBUG
             std::cout << "    " << outcomes.size() << ". next-bel=" << outcomes.back().first << std::endl;
 #endif
         } else {
