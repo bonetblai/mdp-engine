@@ -106,7 +106,6 @@ struct beam_t {
         std::cout << "beam_t: copy ctor called" << std::endl;
 #endif
     }
-#if 1 // CHECK
     beam_t(beam_t &&beam)
       : loc_(beam.loc_),
         range_(beam.range_),
@@ -116,8 +115,11 @@ struct beam_t {
         std::cout << "beam_t: move ctor called" << std::endl;
 #endif
     }
+    virtual ~beam_t() {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: dtor called" << std::endl;
 #endif
-    virtual ~beam_t() { }
+    }
 
     void push_rock(int r) {
         rocks_.insert(std::make_pair(r, rocks_.size()));
@@ -246,7 +248,6 @@ class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
         std::cout << "arc_consistency_t: copy ctor called" << std::endl;
 #endif
     }
-#if 1
     arc_consistency_t(arc_consistency_t &&ac)
       : CSP::arc_consistency_t<beam_t>(std::move(ac)) {
         ac.clear();
@@ -254,7 +255,6 @@ class arc_consistency_t : public CSP::arc_consistency_t<beam_t> {
         std::cout << "arc_consistency_t: move ctor called" << std::endl;
 #endif
     }
-#endif
     virtual ~arc_consistency_t() {
         delete_domains_and_clear();
 #ifdef DEBUG_CTOR_DTOR
@@ -341,7 +341,6 @@ class belief_state_t {
         std::cout << "belief_state_t: copy ctor called" << std::endl;
 #endif
     }
-#if 1
     belief_state_t(belief_state_t &&bel)
       : loc_(bel.loc_),
         antenna_height_(bel.antenna_height_),
@@ -353,7 +352,6 @@ class belief_state_t {
         std::cout << "belief_state_t: move ctor called" << std::endl;
 #endif
     }
-#endif
     virtual ~belief_state_t() {
 #ifdef DEBUG_CTOR_DTOR
         std::cout << "belief_state_t: dtor called" << std::endl;
@@ -367,6 +365,7 @@ class belief_state_t {
 
     static int xdim();                         // defined below
     static int ydim();                         // defined below
+    static int number_variables();             // defined below
     static int number_rocks();                 // defined below
     static int max_antenna_height();           // defined below
     static const loc_t& rock_location(int r);  // defined below
@@ -409,10 +408,6 @@ class belief_state_t {
 #endif
     }
 
-    // vars: loc (1), antenna (1), sampled (#rocks), skipped (#rocks), rock status (#rock)
-    int number_variables() const {
-        return 1 + 1 + number_rocks() + number_rocks() + number_rocks(); // 2 + 3 * #rocks
-    }
     int domain_size(int vid) const {
         if( vid == 0 ) {
             return xdim() * ydim();
@@ -738,8 +733,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     int number_actions_;   // 4 for movements, 2 for antenna, 1 for sense, nrocks for sample, nrocks for skip
     int number_beams_;     // 1 for each rock, each containing gthe status of the rock
 
-    std::vector<POMDP::pomdp_t<belief_state_t>::varset_t> varsets_;
-
     // The following are set when creating a new initial belief state.
     // At that time, rocks are placed in the grid, status of rocks are
     // determined, and the constraint graph and beams are constructed.
@@ -762,7 +755,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         max_antenna_height_(max_antenna_height),
         sample_rock_locations_with_init_(sample_rock_locations_with_init),
         init_(0) {
-        number_variables_ = 2 + number_rocks_;
+        number_variables_ = 2 + 3 * number_rocks_; // vars: loc (1), antenna (1), sampled (#rocks), skipped (#rocks), rock status (#rock)
         number_actions_ = 7 + 2 * number_rocks_;
         number_beams_ = number_rocks_;
         if( !sample_rock_locations_with_init_ )
@@ -1025,15 +1018,18 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     // POMDP virtual methods
-    virtual int num_variables() const {
+    virtual int number_variables() const {
         return number_variables_;
     }
-    virtual int num_beams() const {
+    virtual int number_beams() const {
         return number_beams_;
     }
-    virtual const POMDP::pomdp_t<belief_state_t>::varset_t& varset(int bid) const {
+
+    virtual bool determined(int vid) const {
         assert(0); // CHECK
     }
+
+#if 0 // CHECK
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
         POMDP::feature_t<belief_state_t> *feature = 0;
 #if 0 // RESTORE // CHECK
@@ -1044,6 +1040,7 @@ I       feature = new feature_t(bel);
     virtual void remove_feature(const POMDP::feature_t<belief_state_t> *feature) const {
         delete feature;
     }
+#endif
 
     virtual void apply_action(belief_state_t &bel_a, Problem::action_t a) const {
         if( a != Sense ) {
@@ -1170,6 +1167,11 @@ inline int belief_state_t::xdim() {
 inline int belief_state_t::ydim() {
     assert(pomdp_ != 0);
     return pomdp_->ydim_;
+}
+
+inline int belief_state_t::number_variables() {
+    assert(pomdp_ != 0);
+    return pomdp_->number_variables();
 }
 
 inline int belief_state_t::number_rocks() {
