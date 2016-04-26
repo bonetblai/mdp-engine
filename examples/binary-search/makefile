@@ -1,7 +1,7 @@
 ENGINE	=	../../engine
 CXX	=	g++
-#CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I$(ENGINE) -DNDEBUG
-CCFLAGS	=	-Wall -O3 -g -ffloat-store -ffast-math -msse -I$(ENGINE)
+#CCFLAGS	=	-Wall -O3 -ffloat-store -ffast-math -msse -I $(ENGINE) -I $(BELIEF_TRACKING)/engine -DNDEBUG
+CCFLAGS	=	-Wall -O3 -g -ffloat-store -ffast-math -msse -I $(ENGINE) -I $(BELIEF_TRACKING)/engine
 EXTRA	=	-std=c++11
 OBJS	=	main.o
 TARGET	=	bs
@@ -29,6 +29,7 @@ $(OBJS):	$(ENGINE)/hdp.h
 $(OBJS):	$(ENGINE)/heuristic.h
 $(OBJS):	$(ENGINE)/improved_lao.h
 $(OBJS):	$(ENGINE)/iw_bel.h
+$(OBJS):	$(ENGINE)/iw_bel2.h
 $(OBJS):	$(ENGINE)/ldfs.h
 $(OBJS):	$(ENGINE)/lrtdp.h
 $(OBJS):	$(ENGINE)/makefile

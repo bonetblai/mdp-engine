@@ -6,6 +6,7 @@
 
 #define DISCOUNT            1
 
+//#define DEBUG_CTOR_DTOR
 //#define DEBUG
 
 struct beam_t {
@@ -15,11 +16,32 @@ struct beam_t {
         const_iterator(const Bitmap::bitmap_t::const_iterator &it) : Bitmap::bitmap_t::const_iterator(it) { }
     };
 
-    beam_t() { }
+    beam_t() {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: ctor called" << std::endl;
+#endif
+    }
+    beam_t(const Bitmap::bitmap_t &bitmap) : bitmap_(bitmap) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: copy ctor called" << std::endl;
+#endif
+    }
+    beam_t(Bitmap::bitmap_t &&bitmap) : bitmap_(std::move(bitmap)) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: move ctor called" << std::endl;
+#endif
+    }
     beam_t(const Bitmap::bitmap_t &bitmap, const Bitmap::bitmap_t &mask)
       : bitmap_(bitmap, mask) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: copy ctor w/ mask called" << std::endl;
+#endif
     }
-    ~beam_t() { }
+    virtual ~beam_t() {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "beam_t: dtor called" << std::endl;
+#endif
+    }
 
     const beam_t& operator=(const beam_t &beam) {
         bitmap_ = beam.bitmap_;
@@ -69,24 +91,39 @@ class belief_state_t {
 
   public:
     belief_state_t(int hidden = 0) : hidden_(hidden) {
-    }
-    belief_state_t(const Bitmap::bitmap_t &bitmap, const Bitmap::bitmap_t &mask, int hidden)
-      : beam_(bitmap, mask),
-        hidden_(hidden) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: ctor called" << std::endl;
+#endif
     }
     belief_state_t(const belief_state_t &bel)
       : beam_(bel.beam_),
         hidden_(bel.hidden_) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: copy ctor called" << std::endl;
+#endif
     }
     belief_state_t(belief_state_t &&bel)
       : beam_(std::move(bel.beam_)),
         hidden_(bel.hidden_) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: move ctor called" << std::endl;
+#endif
     }
-    ~belief_state_t() { }
+    belief_state_t(const Bitmap::bitmap_t &bitmap, const Bitmap::bitmap_t &mask, int hidden)
+      : beam_(bitmap, mask),
+        hidden_(hidden) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: copy ctor w/ mask called" << std::endl;
+#endif
+    }
+    ~belief_state_t() {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: dtor called" << std::endl;
+#endif
+    }
 
     static void set_bitmap_mask(int dim) {
         dim_ = dim;
-
         Bitmap::bitmap_t lower(0);
         action_mask_.reserve(2 * (1 + dim_));
         for( int i = 0; i <= dim_; ++i ) {
@@ -126,6 +163,20 @@ class belief_state_t {
         return (beam_ < bel.beam_) || ((beam_ == bel.beam_) && (hidden_ < bel.hidden_));
     }
 
+    void fill_values_for_variable(int vid, std::vector<std::pair<int, float> > &values) const {
+        assert(vid == 0);
+        values.clear();
+        values.reserve(cardinality());
+        float p = 1.0 / float(cardinality());
+        for( beam_t::const_iterator it = beam_.begin(); it != beam_.end(); ++it )
+            values.push_back(std::make_pair(*it, p));
+    }
+    int value(int vid) const {
+        assert(vid == 0);
+        int v = cardinality() > 1 ? -1 : *beam_.begin();
+        return v;
+    }
+
     const beam_t& beam(int bid) const {
         assert(bid == 0);
         return beam_;
@@ -146,6 +197,7 @@ inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
     return os;
 }
 
+#if 0 // CHECK
 struct feature_t : public POMDP::feature_t<belief_state_t> {
     feature_t(const belief_state_t &bel) {
 #ifdef DEBUG
@@ -168,6 +220,7 @@ struct feature_t : public POMDP::feature_t<belief_state_t> {
     }
     virtual ~feature_t() { }
 };
+#endif
 
 class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
   protected:
@@ -177,7 +230,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     int number_variables_;
     int number_beams_;
 
-    std::vector<POMDP::pomdp_t<belief_state_t>::varset_t> varsets_;
+    //std::vector<POMDP::pomdp_t<belief_state_t>::varset_t> varsets_; // CHECK
 
     mutable belief_state_t init_tmp_;
 
@@ -186,9 +239,11 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         number_actions_ = 1 + dim_;
         number_variables_ = 1;
         number_beams_ = 1;
+#if 0 // CHECK
         POMDP::pomdp_t<belief_state_t>::varset_t varset;
         varset.push_back(0);
         varsets_.push_back(varset);
+#endif
     }
     virtual ~pomdp_t() { }
 
@@ -233,12 +288,18 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     // POMDP virtual methods
-    virtual int num_variables() const {
+    virtual int number_variables() const {
         return number_variables_;
     }
-    virtual int num_beams() const {
+    virtual int number_beams() const {
         return number_beams_;
     }
+
+    virtual bool determined(int vid) const {
+        assert(0); // CHECK
+    }
+
+#if 0 // CHECK
     virtual const POMDP::pomdp_t<belief_state_t>::varset_t& varset(int bid) const {
         return varsets_[0];
     }
@@ -246,11 +307,12 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return bel.cardinality();
     }
     virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
-        return new feature_t(bel);
+        return new feature_t(bel); // CHECK
     }
-    virtual void clean_feature(const POMDP::feature_t<belief_state_t> *feature) const {
+    virtual void remove_feature(const POMDP::feature_t<belief_state_t> *feature) const {
         delete feature;
     }
+#endif
 
     virtual void apply_action(belief_state_t &bel_a, Problem::action_t a) const { /* real work is done below */ }
     virtual void apply_obs(belief_state_t &bel_ao, Problem::action_t a, POMDP::observation_t obs) const {
