@@ -67,6 +67,9 @@ struct bitmap_t {
                 for( increase_pos(); (pos_ < max_pos_) && (current_bit() == 0); increase_pos() );
             return *this;
         }
+        int operator*() const {
+            return pos_;
+        }
 
         int value() const {
             return pos_;
