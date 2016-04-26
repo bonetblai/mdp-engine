@@ -144,7 +144,7 @@ template<typename T> class dispatcher_t {
 #include "aot_path.h"
 #include "online_rtdp.h"
 
-#include "iw_bel.h"
+//#include "iw_bel.h" // CHECK
 #include "iw_bel2.h"
 
 //#define DEBUG
@@ -268,6 +268,7 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
             policy = new Online::Policy::RTDP::finite_horizon_lrtdp_t<T>(problem);
 
         // POMDP-specific policies
+#if 0 // CHECK
         if( name == "iw-bel" ) {
             const POMDP::pomdp_t<T> *pomdp = dynamic_cast<const POMDP::pomdp_t<T>*>(&problem);
             if( pomdp == 0 ) {
@@ -276,6 +277,8 @@ template<typename T> void dispatcher_t<T>::create_request(const Problem::problem
             }
             policy = new Online::Policy::IWBel::iw_bel_t<T>(*pomdp);
         } else if( name == "iw-bel2" ) {
+#endif
+        if( name == "iw-bel2" ) {
             const POMDP::pomdp_t<T> *pomdp = dynamic_cast<const POMDP::pomdp_t<T>*>(&problem);
             if( pomdp == 0 ) {
                 std::cout << Utils::error() << "problem must be a POMDP for instantiating iw-bel2()" << std::endl;
