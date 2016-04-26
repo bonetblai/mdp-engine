@@ -155,8 +155,7 @@ inline std::pair<float, float>
         values.push_back(evaluation_trial(policy, policy.problem().init(), max_depth));
         sum += values.back();
         if( verbose ) {
-            std::cout << "(" << std::setprecision(1) << sum/(1+trial) << ")"
-                      << std::flush;
+            std::cout << "(" << std::setprecision(1) << sum / (1 + trial) << ")" << std::flush;
         }
     }
     if( verbose ) std::cout << std::endl;

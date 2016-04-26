@@ -4,6 +4,7 @@
 
 #define BITS_IN_UNSIGNED    (8 * sizeof(unsigned))
 
+//#define DEBUG_CTOR_DTOR
 //#define DEBUG
 
 namespace Bitmap {
@@ -81,22 +82,37 @@ struct bitmap_t {
         for( int i = 0; i < dim_in_words_; ++i )
             bitmap_[i] = bitmap;
         bitmap_[dim_in_words_ - 1] = bitmap_[dim_in_words_ - 1] & last_word_mask_;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "bitmap_t: ctor called" << std::endl;
+#endif
     }
     bitmap_t(const bitmap_t &bitmap) {
         bitmap_ = new unsigned[dim_in_words_];
         *this = bitmap;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "bitmap_t: copy ctor called" << std::endl;
+#endif
     }
     bitmap_t(const bitmap_t &bitmap, const bitmap_t &mask) {
         bitmap_ = new unsigned[dim_in_words_];
         for( int i = 0; i < dim_in_words_; ++i )
             bitmap_[i] = bitmap.bitmap_[i] & mask.bitmap_[i];
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "bitmap_t: copy ctor with mask called" << std::endl;
+#endif
     }
     bitmap_t(bitmap_t &&bitmap) {
         bitmap_ = bitmap.bitmap_;
         bitmap.bitmap_ = 0;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "bitmap_t: move ctor called" << std::endl;
+#endif
     }
     ~bitmap_t() {
         delete[] bitmap_;
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "bitmap_t: dtor called" << std::endl;
+#endif
     }
 
     static void set_dimension(int dim) {
