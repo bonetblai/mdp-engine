@@ -24,11 +24,13 @@
 #include <iomanip>
 #include <cassert>
 #include <limits>
+#include <queue>
 #include <vector>
 #include <math.h>
 
 #include "pomdp.h"
 
+//#define EASY
 //#define DEBUG
 
 namespace Online {
@@ -160,13 +162,14 @@ class tuple_factory_t {
 
 template<typename T> struct node_t {
     const T belief_;
-    std::vector<const int*> tuples_;
     const node_t<T> *parent_;
     Problem::action_t a_;
     float g_;
+    std::vector<const int*> tuples_;
+    int novelty_;
 
     node_t(const T &belief, const node_t<T> *parent = 0, Problem::action_t a = Problem::noop, float cost = 0)
-      : belief_(belief), parent_(parent), a_(a), g_(0) {
+      : belief_(belief), parent_(parent), a_(a), g_(0), novelty_(0) {
         if( parent_ != 0 ) g_ = parent_->g_ + cost;
     }
     ~node_t() { }
@@ -179,7 +182,7 @@ template<typename T> struct node_t {
     }
 
     void print(std::ostream &os) const {
-        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",pa=" << parent_ << "]";
+        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",novelty=" << novelty_ << ",pa=" << parent_ << "]";
     }
 };
 
@@ -194,6 +197,17 @@ template<typename T> inline node_t<T>* get_root_node(const T &belief) {
 
 template<typename T> inline node_t<T>* get_node(const T &belief, const node_t<T> *parent, Problem::action_t a, float cost) {
     return new node_t<T>(belief, parent, a, cost);
+}
+
+
+template <typename T, typename S, typename C>
+inline const S& Container(const std::priority_queue<T, S, C> &q) {
+    struct HackedQueue : private std::priority_queue<T, S, C> {
+        static const S& Container(const std::priority_queue<T, S, C> &q) {
+            return q.*&HackedQueue::c;
+        }
+    };
+    return HackedQueue::Container(q);
 }
 
 ////////////////////////////////////////////////
@@ -296,12 +310,20 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         else
             return "unknown";
     }
+  protected:
+    struct min_priority_t {
+        bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
+            return n1->g_ > n2->g_;
+        }
+    };
+    typedef typename std::priority_queue<const node_t<T>*, std::vector<const node_t<T>*>, min_priority_t> priority_queue_t;
 
   protected:
     const POMDP::pomdp_t<T> &pomdp_;
 
     // parameters
     unsigned width_;
+    int prune_threshold_;
     int discretization_parameter_;
     determinization_t determinization_;
     stop_criterion_t stop_criterion_;
@@ -311,12 +333,13 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     bool random_ties_;
 
     // tuples
-    mutable tuple_hash_t tuple_hash_;
+    mutable std::vector<tuple_hash_t> tuple_hash_;
     mutable tuple_factory_t tuple_factory_;
 
     // open and closed list
-    mutable std::list<const node_t<T>*> open_list_;
+    mutable std::vector<priority_queue_t> open_lists_;
     mutable std::list<const node_t<T>*> closed_list_;
+    //mutable std::list<const node_t<T>*> open_list_; // CHECK: REMOVE
 
 #if 0
     // hash table (dynamic memory that must be cleared after action selection)
@@ -334,6 +357,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
     iw_bel2_t(const POMDP::pomdp_t<T> &pomdp,
              unsigned width,
+             int prune_threshold,
              int discretization_parameter,
              determinization_t determinization,
              stop_criterion_t stop_criterion,
@@ -344,6 +368,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(width),
+        prune_threshold_(prune_threshold),
         discretization_parameter_(discretization_parameter),
         determinization_(determinization),
         stop_criterion_(stop_criterion),
@@ -351,6 +376,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         max_expansions_(max_expansions),
         score_aggregation_(score_aggregation),
         random_ties_(random_ties) {
+        allocate_open_lists_and_tuple_hash();
     }
 
   protected:
@@ -361,6 +387,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(0),
+        prune_threshold_(1),
         discretization_parameter_(1),
         determinization_(MOST_LIKELY),
         stop_criterion_(TARGET),
@@ -368,6 +395,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         max_expansions_(std::numeric_limits<unsigned>::max()),
         score_aggregation_(MAX),
         random_ties_(true) {
+        allocate_open_lists_and_tuple_hash();
     }
     virtual ~iw_bel2_t() { }
     virtual policy_t<T>* clone() const {
@@ -376,6 +404,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     virtual std::string name() const {
         return std::string("iw-bel(") +
           std::string("width=") + std::to_string(width_) +
+          std::string("prune-threshold=") + std::to_string(prune_threshold_) +
           std::string("discretization-parameter=") + std::to_string(discretization_parameter_) +
           std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most-likely" : "sample") +
           std::string(",stop-criterion=") + (stop_criterion_ == TARGET ? "target" : "reward") +
@@ -387,10 +416,10 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
 
     Problem::action_t operator()(const T &bel) const {
-        assert(open_list_.empty());
+        assert(open_lists_are_empty());
+        assert(tuple_hash_is_empty());
         assert(closed_list_.empty());
-        assert(tuple_hash_.empty());
-#if 0//def DEBUG
+#if 0//def EASY//def DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
                   << "root=" << bel << std::endl
@@ -408,9 +437,10 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
+        root->novelty_ = 1;
         const node_t<T> *node = breadth_first_search(root);
 
-#if 0//def DEBUG
+#ifdef EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "node=";
         if( node == 0 )
@@ -437,20 +467,20 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             const node_t<T> *parent = node->parent_;
             assert(parent != 0);
             while( parent->parent_ != 0 ) {
-#if 0//def DEBUG
+#if 0//def EASY//def DEBUG
                 std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
                 n = parent;
                 parent = n->parent_;
             }
             assert(n->parent_->belief_ == bel);
-#if 0//def DEBUG
+#if 0//def EASY//def DEBUG
             std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
             action = n->a_;
         }
         free_resources();
-#if 0//def DEBUG
+#if 1//def EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "BEST ACTION=" << pomdp_.action_name(action) << std::endl;
 #endif
@@ -468,6 +498,11 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     virtual void set_parameters(const std::multimap<std::string, std::string> &parameters, Dispatcher::dispatcher_t<T> &dispatcher) {
         std::multimap<std::string, std::string>::const_iterator it = parameters.find("width");
         if( it != parameters.end() ) width_ = strtol(it->second.c_str(), 0, 0);
+        it = parameters.find("prune-threshold");
+        if( it != parameters.end() ) {
+            prune_threshold_ = strtol(it->second.c_str(), 0, 0);
+            allocate_open_lists_and_tuple_hash();
+        }
         it = parameters.find("discretization-parameter");
         if( it != parameters.end() ) discretization_parameter_ = strtol(it->second.c_str(), 0, 0);
         it = parameters.find("dp");
@@ -488,6 +523,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #ifdef DEBUG
         std::cout << "debug: iw-bel(): params:"
                   << " width=" << width_
+                  << " prune-threshold=" << prune-threshold_
                   << " discretization-parameter=" << discretization_parameter_
                   << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
                   << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")
@@ -506,11 +542,30 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         fill_tuples(node.belief_, node.tuples_);
     }
     void fill_tuples(const T &belief, std::vector<const int*> &tuples) const {
+        // fill tuples of size 1
+        if( prune_threshold_ < 1 ) return;
+        for( int vid = 0; vid < belief.number_variables(); ++vid ) {
+            std::vector<std::pair<int, float> > values_for_vid;
+            belief.fill_values_for_variable(vid, values_for_vid);
+            for( int i = 0; i < int(values_for_vid.size()); ++i ) {
+                int value = values_for_vid[i].first;
+                float p = values_for_vid[i].second;
+                int dp = ceilf(p * discretization_parameter_);
+                assert(dp <= discretization_parameter_);
+                int code = (value * (1 + discretization_parameter_) + dp) * belief.number_variables() + vid;
+                int *tuple = tuple_factory_.get_tuple(1);
+                assert(tuple[0] == 1);
+                tuple[1] = code;
+                tuples.push_back(tuple);
+            }
+        }
+
+        // fill tuples of size 2
+        if( prune_threshold_ < 2 ) return;
         int value_v0 = belief.value(0);
         assert(value_v0 != -1); // variable 0 is determined // CHECK
         int dp_v0 = discretization_parameter_;
         int code_v0 = (value_v0 * (1 + discretization_parameter_) + dp_v0) * belief.number_variables() + 0;
-
         for( int vid = 1; vid < belief.number_variables(); ++vid ) {
             //int dsz = belief.domain_size(vid);
             std::vector<std::pair<int, float> > values_for_vid;
@@ -574,16 +629,29 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #endif
 
     void print_stats(std::ostream &os) const {
-        os << "stats: open.sz=" << open_list_.size() << " closed.sz=" << closed_list_.size() << " tuples.sz=" << tuple_hash_.size() << std::endl;
+        os << "stats: open.sz[" << open_lists_.size() << "]=[";
+        for( int i = 0; i < int(open_lists_.size()); ++i ) {
+            os << open_lists_[i].size();
+            if( 1 + i < int(open_lists_.size()) ) os << ",";
+        }
+        os << "], closed.sz=" << closed_list_.size() << ", tuples.sz=[";
+        for( int i = 0; i < int(tuple_hash_.size()); ++i ) {
+            os << tuple_hash_[i].size();
+            if( 1 + i < int(tuple_hash_.size()) ) os << ",";
+        }
+        os << "]" << std::endl;
         tuple_factory_.print_stats(os);
     }
     void free_resources() const {
-        for( typename std::list<const node_t<T>*>::const_iterator it = open_list_.begin(); it != open_list_.end(); ++it ) {
-            const node_t<T> *node = *it;
-            tuple_factory_.free_tuples(node->tuples_);
-            delete node;
+        for( int i = 0; i < int(open_lists_.size()); ++i ) {
+            priority_queue_t &open_list = open_lists_[i];
+            while( !open_list.empty() ) {
+                const node_t<T> *node = open_list.top();
+                open_list.pop();
+                tuple_factory_.free_tuples(node->tuples_);
+                delete node;
+            }
         }
-        open_list_.clear();
 
         for( typename std::list<const node_t<T>*>::const_iterator it = closed_list_.begin(); it != closed_list_.end(); ++it ) {
             const node_t<T> *node = *it;
@@ -592,7 +660,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         }
         closed_list_.clear();
 
-        tuple_hash_.clear();
+        for( int i = 0; i < int(tuple_hash_.size()); ++i )
+            tuple_hash_[i].clear();
     }
  
     // breadth-first search
@@ -600,13 +669,15 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         std::vector<std::pair<T, float> > outcomes;
 
         //insert_node_in_table(root);
-        open_list_.push_back(root);
-        for( unsigned iter = 0; !open_list_.empty() && (iter < max_expansions_); ++iter ) {
+        push_node(root);
+        for( unsigned iter = 0; !open_lists_are_empty() && (iter < max_expansions_); ++iter ) {
             const node_t<T> *node = select_node_for_expansion();
             closed_list_.push_front(node);
             register_tuples(node->tuples_);
             
-//std::cout << "SELECT: node=" << *node << std::endl;
+#ifdef EASY
+            std::cout << "SELECT: node=" << *node << std::endl;
+#endif
 
             // check whether we need to stop
             if( pomdp_.terminal(node->belief_) ) {
@@ -617,60 +688,114 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             }
 
             // expand node
+            std::vector<std::pair<int, std::pair<int, std::vector<const int*> > > > candidates;
             for( Problem::action_t a = 0; a < pomdp_.number_actions(node->belief_); ++a ) {
                 if( pomdp_.applicable(node->belief_, a) ) {
-                    node_t<T> *new_node = 0;
-                    float cost = pomdp_.cost(node->belief_, a);
-
-                    // determinize the next belief
+                    // expand node
+                    pomdp_.next(node->belief_, a, outcomes);
+#ifdef EASY
+                    std::cout << "action=" << pomdp_.action_name(a) << ", outcomes.sz=" << outcomes.size() << std::endl;
+#endif
                     if( determinization_ == SAMPLE ) {
-                        std::pair<const T, bool> p = pomdp_.sample_without_hidden(node->belief_, a);
-                        new_node = get_node(p.first, node, a, cost);
-                    } else {
-                        pomdp_.next(node->belief_, a, outcomes);
-//std::cout << "action=" << pomdp_.action_name(a) << ", outcomes.sz=" << outcomes.size() << std::endl;
-
-                        // select best (unexpanded) successors to continue search
-                        std::vector<std::pair<int, std::vector<const int*> > > best;
                         for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
-//std::cout << "    considering outcome " << i << std::flush;
+#ifdef EASY
+                            std::cout << "    considering outcome " << i << std::flush;
+#endif
                             if( pomdp_.dead_end(outcomes[i].first) ) {
-//std::cout << " --> DEAD" << std::endl;
+#ifdef EASY
+                                std::cout << " --> DEAD" << std::endl;
+#endif
                                 continue;
                             }
 
                             // prune node if all its tuples already seen
                             std::vector<const int*> tuples;
                             fill_tuples(outcomes[i].first, tuples);
-                            int outcome_novelty = novelty(tuples);
-                            if( outcome_novelty == 0 ) {
+                            int novelty = compute_novelty(tuples);
+#ifdef EASY
+                            std::cout << " (novelty=" << novelty << ")" << std::flush;
+#endif
+                            if( novelty > prune_threshold_ ) {
                                 tuple_factory_.free_tuples(tuples);
-//std::cout << " --> NOVELTY = 0" << std::endl;
+#ifdef EASY
+                                std::cout << " --> PRUNED: NOVELTY > threshold (" << prune_threshold_ << ")" << std::endl;
+#endif
                                 continue;
                             }
-//std::cout << " (novelty=" << outcome_novelty << ")" << std::flush;
 
-                            if( best.empty() || (outcomes[i].second >= outcomes[best.back().first].second) ) {
-                                if( !best.empty() && (outcomes[i].second > outcomes[best.back().first].second) )
-                                    clear_best_list(best);
-                                best.push_back(std::make_pair(i, tuples));
-//std::cout << " --> BEST (p=" << outcomes[i].second << ")" << std::endl;
+                            // save candidate
+                            candidates.push_back(std::make_pair(i, std::make_pair(novelty, std::move(tuples))));
+                        }
+                    } else {
+                        for( int i = 0, isz = outcomes.size(); i < isz; ++i ) {
+#ifdef EASY
+                            std::cout << "    considering outcome " << i << std::flush;
+#endif
+                            if( pomdp_.dead_end(outcomes[i].first) ) {
+#ifdef EASY
+                                std::cout << " --> DEAD" << std::endl;
+#endif
+                                continue;
+                            }
+
+                            // prune node if all its tuples already seen
+                            std::vector<const int*> tuples;
+                            fill_tuples(outcomes[i].first, tuples);
+                            int novelty = compute_novelty(tuples);
+#ifdef EASY
+                            std::cout << " (novelty=" << novelty << ")" << std::flush;
+#endif
+                            if( novelty > prune_threshold_ ) {
+                                tuple_factory_.free_tuples(tuples);
+#ifdef EASY
+                                std::cout << " --> NOVELTY > threshold (" << prune_threshold_ << ")" << std::endl;
+#endif
+                                continue;
+                            }
+
+                            // check if this outcome is most probable (best candidate)
+                            if( candidates.empty() || (outcomes[i].second >= outcomes[candidates.back().first].second) ) {
+                                if( !candidates.empty() && (outcomes[i].second > outcomes[candidates.back().first].second) )
+                                    clear_candidate_list(candidates);
+                                candidates.push_back(std::make_pair(i, std::make_pair(novelty, std::move(tuples))));
+#ifdef EASY
+                                std::cout << " --> CURRENT BEST (p=" << outcomes[i].second << ")" << std::endl;
+#endif
                             } else {
                                 tuple_factory_.free_tuples(tuples);
-//std::cout << " --> NOT-BEST (p=" << outcomes[i].second << ")" << std::endl;
+#ifdef EASY
+                                std::cout << " --> NOT BEST (p=" << outcomes[i].second << ")" << std::endl;
+#endif
                             }
                         }
-                        if( best.empty() ) continue; // no new belief, continue to next action
-                        int i = Random::random(best.size());
-                        new_node = get_node(outcomes[best[i].first].first, node, a, cost);
-                        new_node->tuples_ = best[i].second;
-                        best[i] = best.back();
-                        best.pop_back();
-                        clear_best_list(best);
                     }
 
-                    // insert new node into open list
-                    open_list_.push_back(new_node);
+                    if( !candidates.empty() ) {
+                        // compute cdf of candidates for sampling
+                        std::vector<float> cdf(candidates.size(), 0);
+                        for( int i = 0; i < int(candidates.size()); ++i ) {
+                            cdf[i] = i == 0 ? 0 : cdf[i - 1];
+                            if( determinization_ == SAMPLE )
+                                cdf[i] += outcomes[candidates[i].first].second;
+                            else
+                                cdf[i] += 1.0 / float(candidates.size());
+                        }
+                        for( int i = 0; i < int(cdf.size()); ++i )
+                            cdf[i] /= cdf.back();
+
+                        // sample from cdf and create new node
+                        float cost = pomdp_.cost(node->belief_, a);
+                        int sampled = Random::sample_from_distribution(cdf.size(), &cdf[0]);
+                        node_t<T> *new_node = get_node(outcomes[candidates[sampled].first].first, node, a, cost);
+                        new_node->novelty_ = candidates[sampled].second.first;
+                        new_node->tuples_ = candidates[sampled].second.second;
+                        push_node(new_node);
+
+                        // clear non selected tuples 
+                        candidates[sampled] = candidates.back();
+                        candidates.pop_back();
+                        clear_candidate_list(candidates);
+                    }
                 }
             }
         }
@@ -678,6 +803,32 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         // return best node in open/closed if stop-criterion is REWARD
         if( stop_criterion_ == REWARD ) {
             std::vector<const node_t<T>*> best;
+            for( int i = 0; i < int(open_lists_.size()); ++i ) {
+                const priority_queue_t &open_list = open_lists_[i];
+                const std::vector<const node_t<T>*> &container = Container(open_list);
+                for( int j = 0; j < int(container.size()); ++j ) {
+                    const node_t<T> *node = container[j];
+                    if( best.empty() || (node->g_ <= best.back()->g_) ) {
+                        if( !best.empty() && (node->g_ < best.back()->g_) )
+                            best.clear();
+                        best.push_back(node);
+                    }
+                }
+            }
+
+            // search closed list when all open-lists are empty
+            if( best.empty() ) {
+                assert(open_lists_are_empty());
+                for( typename std::list<const node_t<T>*>::const_iterator it = closed_list_.begin(); it != closed_list_.end(); ++it ) {
+                    const node_t<T> *node = *it;
+                    if( best.empty() || (node->g_ <= best.back()->g_) ) {
+                        if( !best.empty() && (node->g_ < best.back()->g_) )
+                            best.clear();
+                        best.push_back(*it);
+                    }
+                }
+            }
+#if 0
             const std::list<const node_t<T>*> *list_to_search = open_list_.empty() ? &closed_list_ : &open_list_;
             for( typename std::list<const node_t<T>*>::const_iterator it = list_to_search->begin(); it != list_to_search->end(); ++it ) {
                 const node_t<T> *node = *it;
@@ -687,36 +838,74 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                     best.push_back(*it);
                 }
             }
-            if( best.empty() ) std::cout << "BEST IS EMPTY: OPEN.sz=" << list_to_search->size() << std::endl;
+#endif
+            if( best.empty() ) std::cout << "**** BEST IS EMPTY" << std::endl;
             return best.empty() ? 0 : best[Random::random(best.size())];
         } else {
             return 0;
         }
     }
 
-    void clear_best_list(std::vector<std::pair<int, std::vector<const int*> > > &best) const {
-        for( int i = 0; i < int(best.size()); ++i )
-            tuple_factory_.free_tuples(best[i].second);
-        best.clear();
+    void clear_candidate_list(std::vector<std::pair<int, std::pair<int, std::vector<const int*> > > > &candidates) const {
+        for( int i = 0; i < int(candidates.size()); ++i )
+            tuple_factory_.free_tuples(candidates[i].second.second);
+        candidates.clear();
     }
 
+    bool tuple_hash_is_empty() const {
+        for( int i = 0; i < int(tuple_hash_.size()); ++i ) {
+            if( !tuple_hash_[i].empty() )
+                return false;
+        }
+        return true;
+    }
     void register_tuples(const std::vector<const int*> &tuples) const {
         for( int i = 0; i < int(tuples.size()); ++i ) {
             const int *tuple = tuples[i];
-            tuple_hash_.insert(tuple);
+            assert((tuple[0] > 0) && (tuple[0] < int(tuple_hash_.size())));
+            tuple_hash_[tuple[0]].insert(tuple);
         }
     }
 
-    int novelty(const std::vector<const int*> &tuples) const {
-        int score = 0;
+    int compute_novelty(const std::vector<const int*> &tuples) const {
+        int novelty = std::numeric_limits<int>::max();
         for( int i = 0; i < int(tuples.size()); ++i ) {
-            tuple_hash_t::const_iterator it = tuple_hash_.find(tuples[i]);
-            score += it == tuple_hash_.end() ? 1 : 0;
+            const int *tuple = tuples[i];
+            assert((tuple[0] > 0) && (tuple[0] < int(tuple_hash_.size())));
+            tuple_hash_t::const_iterator it = tuple_hash_[tuple[0]].find(tuple);
+            if( it == tuple_hash_[tuple[0]].end() )
+                novelty = tuple[0] < novelty ? tuple[0] : novelty;
         }
-        //std::cout << "novelty: tuples="; tuple_factory_.print_tuples(std::cout, tuples); std::cout << ", score=" << score << std::endl;
-        return score;
+        return novelty;
     }
 
+    void allocate_open_lists_and_tuple_hash() {
+        open_lists_.clear();
+        open_lists_.reserve(1 + prune_threshold_);
+        for( int i = 0; i <= prune_threshold_; ++i )
+            open_lists_.push_back(priority_queue_t(min_priority_t()));
+
+        tuple_hash_.reserve(1 + prune_threshold_);
+        for( int i = 0; i <= prune_threshold_; ++i )
+            tuple_hash_.push_back(tuple_hash_t());
+    }
+    bool open_lists_are_empty() const {
+        for( int i = 0; i < int(open_lists_.size()); ++i ) {
+            if( !open_lists_[i].empty() )
+                return false;
+        }
+        return true;
+    }
+    bool push_node(const node_t<T> *node) const {
+        assert(node->novelty_ >= 1);
+        if( node->novelty_ < int(open_lists_.size()) ) {
+            open_lists_[node->novelty_].push(node);
+            return true;
+        } else {
+            delete node;
+            return false;
+        }
+    }
     const node_t<T>* select_node_for_expansion() const {
 #if 0
 #if 0//def DEBUG
@@ -727,7 +916,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         for( typename std::list<const node_t<T>*>::iterator it = open_list_.begin(); it != open_list_.end(); ++it ) {
             const node_t<T> &node = **it;
             assert(!pomdp_.dead_end(node.belief_));
-            int score = novelty(node.tuples_);
+            int score = compute_novelty(node.tuples_);
             if( best_nodes.empty() || (score >= best_score) ) {
                 if( score > best_score ) best_nodes.clear();
                 best_score = score;
@@ -746,9 +935,21 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #endif
         return node;
 #endif
+
+#if 0
         const node_t<T> *node = open_list_.front();
         open_list_.pop_front();
         return node;
+#endif
+
+        for( int i = 0; i < int(open_lists_.size()); ++i ) {
+            if( !open_lists_[i].empty() ) {
+                const node_t<T> *node = open_lists_[i].top();
+                open_lists_[i].pop();
+                return node;
+            }
+        }
+        return 0;
     }
 
     float score(const node_t<T> &n1, const node_t<T> &n2) const {

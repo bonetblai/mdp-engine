@@ -861,7 +861,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             locations[i] = locations.back();
             locations.pop_back();
             rock_locations_.push_back(loc_t(loc, xdim_, ydim_));
-#ifdef DEBUG
+#if 1//def DEBUG
             std::cout << "rock: r=" << r << " --> loc=" << loc_t(loc, xdim_, ydim_) << std::endl;
 #endif
         }
