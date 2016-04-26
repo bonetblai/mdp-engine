@@ -40,6 +40,7 @@ namespace POMDP {
 typedef int observation_t;
 #endif
 
+#if 0 // CHECK
 template<typename T> struct feature_t {
     int number_marginals_;
     int number_fixed_tuples_;
@@ -61,6 +62,7 @@ template<typename T> struct feature_t {
     virtual bool operator==(const feature_t &feature) const = 0;
     virtual void print(std::ostream &os) const = 0;
 };
+#endif
 
 template<typename T> class pomdp_t : public Problem::problem_t<T> {
   protected:
@@ -70,7 +72,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     using Problem::problem_t<T>::next;
     typedef std::vector<int> varset_t;
 
-#if 0
+#if 0 // CHECK
     struct beam_t {
         struct const_iterator {
             virtual bool operator==(const const_iterator &it) const = 0;
@@ -100,22 +102,24 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
         belief_expansions_ = 0;
     }
 
-
-    virtual int num_variables() const = 0;
-    virtual int num_beams() const = 0;
-    virtual const varset_t& varset(int bid) const = 0;
+    virtual int number_variables() const = 0;
+    virtual int number_beams() const = 0;
+    virtual bool determined(int vid) const = 0;
+#if 0 // CHECK
+    //virtual const varset_t& varset(int bid) const = 0;
     //virtual const beam_t& beam(const T &bel, int bid) const = 0;
 
     //virtual int cardinality(const T &bel) const = 0;
-    virtual const feature_t<T> *get_feature(const T &bel) const = 0;
-    virtual void remove_feature(const feature_t<T> *feature) const = 0;
+    //virtual const feature_t<T> *get_feature(const T &bel) const = 0;
+    //virtual void remove_feature(const feature_t<T> *feature) const = 0;
+#endif
 
     virtual void apply_action(T &bel_a, Problem::action_t a) const = 0;
     virtual void apply_obs(T &bel_ao, Problem::action_t a, observation_t obs) const = 0;
     virtual observation_t sample_observation_using_hidden_state(const T &bel, const T &bel_a, Problem::action_t a) const = 0;
 
     // sample next state given action using problem's dynamics
-    virtual std::pair<T, bool> sample(const T &bel, Problem::action_t a) const {
+    virtual std::pair<T, bool> sample(const T &bel, Problem::action_t a) const { // CHECK
         T nbel = bel;
         apply_action(nbel, a);
         observation_t obs = sample_observation_using_hidden_state(bel, nbel, a);
@@ -125,7 +129,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
 #endif
         return std::make_pair(nbel, true);
     }
-    virtual std::pair<T, bool> sample_without_hidden(const T &bel, Problem::action_t a) const {
+    virtual std::pair<T, bool> sample_without_hidden(const T &bel, Problem::action_t a) const { // CHECK
         std::vector<std::pair<T, float> > outcomes;
         next(bel, a, outcomes);
         unsigned osize = outcomes.size();
