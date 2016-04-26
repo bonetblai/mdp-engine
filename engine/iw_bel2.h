@@ -33,6 +33,8 @@
 //#define EASY
 //#define DEBUG
 
+#define MAGIC_NUMBER    117
+
 namespace Online {
 
 namespace Policy {
@@ -408,7 +410,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         return new iw_bel2_t(pomdp_);
     }
     virtual std::string name() const {
-        return std::string("iw-bel(") +
+        return std::string("iw-bel2(") +
           std::string("width=") + std::to_string(width_) +
           std::string("prune-threshold=") + std::to_string(prune_threshold_) +
           std::string("discretization-parameter=") + std::to_string(discretization_parameter_) +
@@ -527,7 +529,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         if( it != parameters.end() ) random_ties_ = it->second == "true";
         policy_t<T>::setup_time_ = 0;
 #ifdef DEBUG
-        std::cout << "debug: iw-bel(): params:"
+        std::cout << "debug: iw-bel2(): params:"
                   << " width=" << width_
                   << " prune-threshold=" << prune-threshold_
                   << " discretization-parameter=" << discretization_parameter_
@@ -558,9 +560,9 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         // tuples of novelty 0: singletos of form (X,dp) that refers
         // belief satisfies p = max_x P(X=x) and discret(p) = dp
 
-        // tuples of novelty 1: singletons of form (X,x,dp) that
-        // refers belief satisfies p = P(X=x), and discret(p) = dp
-        for( int vid = 0; vid < belief.number_variables(); ++vid ) {
+        // tuples of novelty 1: singletons of form (X,x,dp) that refers
+        // belief satisfies p = P(X=x) with p > 0, and discret(p) = dp
+        for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
             float max_p = 0;
             std::vector<std::pair<int, float> > values_for_vid;
             belief.fill_values_for_variable(vid, values_for_vid);
@@ -572,10 +574,10 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                     // tuple of novelty 1
                     int dp = ceilf(p * discretization_parameter_);
                     assert(dp <= discretization_parameter_);
-                    int code = (value * (1 + discretization_parameter_) + dp) * belief.number_variables() + vid;
+                    int code = (value * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + vid;
                     int *tuple = tuple_factory_.get_tuple(2);
                     assert(tuple[0] == 2);
-                    tuple[1] = 117; // magic number
+                    tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 (with magic number) to simplify code
                     tuple[2] = code;
                     tuples.push_back(tuple);
                 }
@@ -583,7 +585,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             // tuple of novelty 0
             int dp = ceilf(max_p * discretization_parameter_);
             assert(dp <= discretization_parameter_);
-            int code = dp * belief.number_variables() + vid;
+            int code = dp * pomdp_.number_variables() + vid;
             int *tuple = tuple_factory_.get_tuple(1);
             assert(tuple[0] == 1);
             tuple[1] = code;
@@ -592,14 +594,13 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
         // tuples of novelty 2: pairs of form <(X,x,dp),(Y,y,dq)>
         // that refers belief satisfies p = P(X=x), q = P(Y=y),
-        // discret(p) = dp, and discret(q) = dq
+        // p, q > 0, discret(p) = dp, and discret(q) = dq
         if( prune_threshold_ < 2 ) return;
         int value_v0 = belief.value(0);
-        assert(value_v0 != -1); // variable 0 is determined // CHECK
+        //assert(value_v0 != -1); // variable 0 is determined // CHECK
         int dp_v0 = discretization_parameter_;
-        int code_v0 = (value_v0 * (1 + discretization_parameter_) + dp_v0) * belief.number_variables() + 0;
-        for( int vid = 1; vid < belief.number_variables(); ++vid ) {
-            //int dsz = belief.domain_size(vid);
+        int code_v0 = (value_v0 * (1 + discretization_parameter_) + dp_v0) * pomdp_.number_variables() + 0;
+        for( int vid = 1; vid < pomdp_.number_variables(); ++vid ) {
             std::vector<std::pair<int, float> > values_for_vid;
             belief.fill_values_for_variable(vid, values_for_vid);
             for( int i = 0; i < int(values_for_vid.size()); ++i ) {
@@ -608,39 +609,53 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                 float p = values_for_vid[i].second;
                 int dp = ceilf(p * discretization_parameter_);
                 assert(dp <= discretization_parameter_);
-                int code = (value * (1 + discretization_parameter_) + dp) * belief.number_variables() + vid;
+                int code = (value * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + vid;
                 int *tuple = tuple_factory_.get_tuple(3);
                 assert(tuple[0] == 3);
-                tuple[1] = 117; // magic number
+                tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 (with magic number) to simplify code
                 tuple[2] = code_v0;
                 tuple[3] = code;
                 tuples.push_back(tuple);
             }
         }
 
-#ifdef DEBUG
-        std::cout << "[tuples={";
+#if 0//def DEBUG
+        std::cout << "[tuples=";
+        print_tuples(std::cout, tuples);
+        std::cout << "]" << std::endl;
+#endif
+    }
+
+    void print_tuples(std::ostream &os, const std::vector<const int*> &tuples) const {
+        os << "{";
         for( int i = 0; i < int(tuples.size()); ++i ) {
             const int *tuple = tuples[i];
-            assert(tuple[0] == 2); // this tuple is a pair
-
-            int code_v0 = tuple[1];
-            int vid_v0 = code_v0 % belief.number_variables();
-            int value_v0 = (code_v0 / belief.number_variables()) / (1 + discretization_parameter_);
-            int dp_v0 = (code_v0 / belief.number_variables()) % (1 + discretization_parameter_);
-            assert(vid_v0 == 0);
-            assert(dp_v0 == discretization_parameter_); // prob. of (v0=value_v0) = 1
-
-            int code_v1 = tuple[2];
-            int vid_v1 = code_v1 % belief.number_variables();
-            int value_v1 = (code_v1 / belief.number_variables()) / (1 + discretization_parameter_);
-            int dp_v1 = (code_v1 / belief.number_variables()) % (1 + discretization_parameter_);
-
-            std::cout << "<(v" << vid_v0 << "," << value_v0 << "," << dp_v0 << "),(v" << vid_v1 << "," << value_v1 << "," << dp_v1 << ")>";
-            if( i + 1 < int(tuples.size()) ) std::cout << ",";
+            print_tuple(os, tuple);
+            if( i + 1 < int(tuples.size()) ) os << ",";
         }
-        std::cout << "}]" << std::endl;
-#endif
+        os << "}";
+    }
+    void print_tuple(std::ostream &os, const int *tuple) const {
+        if( tuple[0] == 1 ) {
+            // this is a novelty 0 tuple
+            int code = tuple[1];
+            int vid = code % pomdp_.number_variables();
+            int dp = code / pomdp_.number_variables();
+            os << "0=(X" << vid << "," << dp << ")" << std::flush;
+        } else if( tuple[0] == 2 ) {
+            // this is a novelty 1 tuple
+            assert(tuple[1] == MAGIC_NUMBER);
+            int code = tuple[2];
+            int vid = code % pomdp_.number_variables();
+            code = code / pomdp_.number_variables();
+            int dp = code % (1 + discretization_parameter_);
+            int value = code / (1 + discretization_parameter_);
+            os << "1=(X" << vid << "," << value << "," << dp << ")" << std::flush;
+        } else if( tuple[0] == 3 ) {
+            // this is a novelty 2 tuple
+            assert(tuple[1] == MAGIC_NUMBER);
+            assert(0);
+        }
     }
 
 #if 0
@@ -790,7 +805,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                                 tuple_factory_.free_tuples(*tuples);
                                 delete tuples;
 #ifdef EASY
-                                std::cout << " --> NOVELTY > threshold (" << prune_threshold_ << ")" << std::endl;
+                                std::cout << " --> PRUNED: NOVELTY > threshold (" << prune_threshold_ << ")" << std::endl;
 #endif
                                 continue;
                             }
