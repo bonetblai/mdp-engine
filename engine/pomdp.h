@@ -104,7 +104,13 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
 
     virtual int number_variables() const = 0;
     virtual int number_beams() const = 0;
+
     virtual bool determined(int vid) const = 0;
+    virtual int domain_size(int vid) const = 0;
+    virtual int value(const T &bel, int vid) const = 0;
+    virtual void fill_values_for_variable(const T &bel, int vid, std::vector<float> &probabilities) const = 0;
+    virtual void fill_values_for_variable(const T &bel, int vid, std::vector<std::pair<int, float> > &values) const = 0;
+
 #if 0 // CHECK
     //virtual const varset_t& varset(int bid) const = 0;
     //virtual const beam_t& beam(const T &bel, int bid) const = 0;
