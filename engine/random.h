@@ -139,6 +139,15 @@ inline void stochastic_universal_sampling(int n, const float *cdf, int k, std::v
     assert(k == int(indices.size()));
 }
 
+// entropy
+inline float entropy(const std::vector<float> &p) {
+    float e = 0;
+    for( int i = 0, isz = int(p.size()); i < isz; ++i ) {
+        if( p[i] > 0 ) e += p[i] * log2f(p[i]);
+    }
+    return -e;
+}
+
 // total divergence
 inline float total_divergence(const std::vector<float> &p, const std::vector<float> &q) {
     assert(p.size() == q.size());
