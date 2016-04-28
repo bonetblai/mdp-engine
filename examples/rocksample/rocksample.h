@@ -408,16 +408,68 @@ class belief_state_t {
 #endif
     }
 
-    int domain_size(int vid) const {
+    int value(int vid) const {
+        assert((vid >= 0) && (vid < number_variables()));
         if( vid == 0 ) {
-            return xdim() * ydim();
+            return loc_.as_integer(xdim(), ydim());
         } else if( vid == 1 ) {
-            return 1 + max_antenna_height();
+            return antenna_height_;
+        } else if( vid - 2 < number_rocks() ) {
+            int r = vid - 2;
+            return sampled_.bit(r);
+        } else if( vid - 2 - number_rocks() < number_rocks() ) {
+            int r = vid - 2 - number_rocks();
+            return skipped_.bit(r);
         } else {
-            return 2;
+            assert(0); // CHECK
+            int index = vid - 2 - 2 * number_rocks();
+            const beam_t &beam = get_beam(index);
+            assert(!beam.values_.empty());
+            return beam.values_.size() > 1 ? -1 : beam.values_[0];
+        }
+    }
+    void fill_values_for_variable(int vid, std::vector<float> &probabilities) const {
+        assert((vid >= 0) && (vid < number_variables()));
+        if( vid == 0 ) {
+            probabilities = std::vector<float>(xdim() * ydim(), 0);
+            int value = loc_.as_integer(xdim(), ydim());
+            probabilities[value] = 1;
+        } else if( vid == 1 ) {
+            probabilities = std::vector<float>(1 + max_antenna_height(), 0);
+            probabilities[antenna_height_] = 1;
+        } else if( vid - 2 < number_rocks() ) {
+            probabilities = std::vector<float>(2, 0);
+            int r = vid - 2;
+            probabilities[sampled_.bit(r)] = 1;
+        } else if( vid - 2 - number_rocks() < number_rocks() ) {
+            probabilities = std::vector<float>(2, 0);
+            int r = vid - 2 - number_rocks();
+            probabilities[skipped_.bit(r)] = 1;
+        } else {
+            probabilities = std::vector<float>(2, 0);
+            int r = vid - 2 - 2 * number_rocks();
+            int beam_index = rock_location(r).as_integer(xdim(), ydim());;
+            const beam_t &beam = get_beam(beam_index);
+            assert(beam.loc_ == rock_location(r));
+            int rock_index = beam.rocks_.at(r);
+            for( int i = 0; i < beam.values_.size(); ++i ) {
+                int rvalue = beam_t::rock_value(rock_index, beam.values_[i]);
+                assert((rvalue == 0) || (rvalue == 1));
+                ++probabilities[rvalue];
+            }
+            probabilities[0] /= float(beam.values_.size());
+            probabilities[1] /= float(beam.values_.size());
         }
     }
     void fill_values_for_variable(int vid, std::vector<std::pair<int, float> > &values) const {
+        std::vector<float> probabilities;
+        fill_values_for_variable(vid, probabilities);
+        values.reserve(probabilities.size());
+        for( int i = 0; i < int(probabilities.size()); ++i ) {
+            if( probabilities[i] != 0 )
+                values.push_back(std::make_pair(i, probabilities[i]));
+        }
+#if 0 // CHECK
         assert((vid >= 0) && (vid < number_variables()));
         if( vid == 0 ) {
             values.push_back(std::make_pair(loc_.as_integer(xdim(), ydim()), 1));
@@ -448,25 +500,7 @@ class belief_state_t {
             //std::cout << "fill-values: rock=" << r << ", beam-index=" << beam_index << ", rock-index=" << rock_index << ", beam.sz=" << beam.values_.size() << ", sz=" << values.size() << ", values={(" << values[0].first << "," << values[0].second << ")";
             //if( values.size() > 1 ) std::cout << ",(" << values[1].first << "," << values[1].second << ")}" << std::endl;
         }
-    }
-    int value(int vid) const {
-        if( vid == 0 ) {
-            return loc_.as_integer(xdim(), ydim());
-        } else if( vid == 1 ) {
-            return antenna_height_;
-        } else if( vid - 2 < number_rocks() ) {
-            int r = vid - 2;
-            return sampled_.bit(r);
-        } else if( vid - 2 - number_rocks() < number_rocks() ) {
-            int r = vid - 2 - number_rocks();
-            return skipped_.bit(r);
-        } else {
-            assert(0); // CHECK
-            int index = vid - 2 - 2 * number_rocks();
-            const beam_t &beam = get_beam(index);
-            assert(!beam.values_.empty());
-            return beam.values_.size() > 1 ? -1 : beam.values_[0];
-        }
+#endif
     }
 
     const loc_t& loc() const { return loc_; }
@@ -824,7 +858,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             locations[i] = locations.back();
             locations.pop_back();
             rock_locations_.push_back(loc_t(loc, xdim_, ydim_));
-#ifdef DEBUG
+#if 1//def DEBUG
             std::cout << "rock: r=" << r << " --> loc=" << loc_t(loc, xdim_, ydim_) << std::endl;
 #endif
         }
@@ -1026,7 +1060,25 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     virtual bool determined(int vid) const {
+        return vid < 2;
+    }
+    virtual int domain_size(int vid) const {
+        if( vid == 0 ) {
+            return xdim_ * ydim_;
+        } else if( vid == 1 ) {
+            return 1 + max_antenna_height_;
+        } else {
+            return 2;
+        }
+    }
+    virtual int value(const belief_state_t &belief_state, int vid) const {
         assert(0); // CHECK
+    }
+    virtual void fill_values_for_variable(const belief_state_t &belief, int vid, std::vector<float> &probabilities) const {
+        belief.fill_values_for_variable(vid, probabilities);
+    }
+    virtual void fill_values_for_variable(const belief_state_t &belief, int vid, std::vector<std::pair<int, float> > &values) const {
+        belief.fill_values_for_variable(vid, values);
     }
 
 #if 0 // CHECK

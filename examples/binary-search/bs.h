@@ -163,6 +163,20 @@ class belief_state_t {
         return (beam_ < bel.beam_) || ((beam_ == bel.beam_) && (hidden_ < bel.hidden_));
     }
 
+    int value(int vid) const {
+        assert(vid == 0);
+        int v = cardinality() > 1 ? -1 : *beam_.begin();
+        return v;
+    }
+    void fill_values_for_variable(int vid, std::vector<float> &probabilities) const {
+        assert(vid == 0);
+        probabilities = std::vector<float>(dim_, 0);
+        float p = 1.0 / float(cardinality());
+        for( beam_t::const_iterator it = beam_.begin(); it != beam_.end(); ++it ) {
+            assert((*it >= 0) && (*it < probabilities.size()));
+            probabilities[*it] = p;
+        }
+    }
     void fill_values_for_variable(int vid, std::vector<std::pair<int, float> > &values) const {
         assert(vid == 0);
         values.clear();
@@ -170,11 +184,6 @@ class belief_state_t {
         float p = 1.0 / float(cardinality());
         for( beam_t::const_iterator it = beam_.begin(); it != beam_.end(); ++it )
             values.push_back(std::make_pair(*it, p));
-    }
-    int value(int vid) const {
-        assert(vid == 0);
-        int v = cardinality() > 1 ? -1 : *beam_.begin();
-        return v;
     }
 
     const beam_t& beam(int bid) const {
@@ -296,7 +305,24 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     virtual bool determined(int vid) const {
-        assert(0); // CHECK
+        assert(vid == 0);
+        return false;
+    }
+    virtual int domain_size(int vid) const {
+        assert(vid == 0);
+        return dim_;
+    }
+    virtual int value(const belief_state_t &belief, int vid) const {
+        assert(vid == 0);
+        return belief.value(vid);
+    }
+    virtual void fill_values_for_variable(const belief_state_t &belief, int vid, std::vector<float> &probabilities) const {
+        assert(vid == 0);
+        belief.fill_values_for_variable(vid, probabilities);
+    }
+    virtual void fill_values_for_variable(const belief_state_t &belief, int vid, std::vector<std::pair<int, float> > &values) const {
+        assert(vid == 0);
+        belief.fill_values_for_variable(vid, values);
     }
 
 #if 0 // CHECK
