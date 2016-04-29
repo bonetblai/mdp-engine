@@ -1052,15 +1052,18 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     }
 
     // POMDP virtual methods
-    virtual int number_variables() const {
-        return number_variables_;
-    }
     virtual int number_beams() const {
         return number_beams_;
     }
+    virtual int number_variables() const {
+        return number_variables_;
+    }
+    virtual int number_determined_variables() const {
+        return 2 + 2 * number_rocks_;
+    }
 
     virtual bool determined(int vid) const {
-        return vid < 2;
+        return vid < 2; // CHECK: there are more determined variables
     }
     virtual int domain_size(int vid) const {
         if( vid == 0 ) {

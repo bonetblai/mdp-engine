@@ -102,8 +102,9 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
         belief_expansions_ = 0;
     }
 
-    virtual int number_variables() const = 0;
     virtual int number_beams() const = 0;
+    virtual int number_variables() const = 0;
+    virtual int number_determined_variables() const = 0;
 
     virtual bool determined(int vid) const = 0;
     virtual int domain_size(int vid) const = 0;
