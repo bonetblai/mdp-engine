@@ -72,8 +72,10 @@ template<typename T> class dispatcher_t {
         unsigned policy_decisions_;
         unsigned problem_expansions_;
 
-        float eval_value_;
-        float eval_stdev_;
+        float eval_steps_avg_;
+        float eval_steps_stdev_;
+        float eval_value_avg_;
+        float eval_value_stdev_;
 
         float time_raw_;
         float time_policy_;
@@ -119,7 +121,7 @@ template<typename T> class dispatcher_t {
     void create_request(const Problem::problem_t<T> &problem, const std::string &type, const std::string &request);
     void solve(const std::string &name, const Algorithm::algorithm_t<T> &algorithm, solve_result_t &result) const;
     void print_stats(std::ostream &os, const solve_result_t &result) const;
-    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const;
+    void evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_steps, bool verbose) const;
     void print_stats(std::ostream &os, const evaluate_result_t &result) const;
 };
 
@@ -357,7 +359,7 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const s
        << std::endl;
 }
 
-template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_depth, bool verbose) const {
+template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, const Online::Policy::policy_t<T> &policy, evaluate_result_t &result, unsigned num_trials, unsigned max_evaluation_steps, bool verbose) const {
     std::cout << "dispatcher: evaluate: " << name << std::endl;
     const Problem::problem_t<T> &problem = policy.problem();
     policy.reset_stats();
@@ -368,9 +370,11 @@ template<typename T> void dispatcher_t<T>::evaluate(const std::string &name, con
     Random::set_seed(result.seed_);
 
     float start_time = Utils::read_time_in_seconds();
-    std::pair<float, float> p = Online::Evaluation::evaluation_with_stdev(policy, num_trials, max_evaluation_depth, verbose);
-    result.eval_value_ = p.first;
-    result.eval_stdev_ = p.second;
+    std::pair<std::pair<float, float>, std::pair<float, float> > p = Online::Evaluation::evaluation_with_stdev(policy, num_trials, max_evaluation_steps, verbose);
+    result.eval_steps_avg_ = p.first.first;
+    result.eval_steps_stdev_ = p.first.second;
+    result.eval_value_avg_ = p.second.first;
+    result.eval_value_stdev_ = p.second.second;
     float end_time = Utils::read_time_in_seconds();
 
     // decisions and expansions
@@ -393,8 +397,8 @@ template<typename T> void dispatcher_t<T>::print_stats(std::ostream &os, const e
        << " policy.decisions=" << result.policy_decisions_;
 
     // stats from trials
-    os << Utils::green() << " eval.value=" << result.eval_value_ << Utils::normal()
-       << " eval.stdev=" << result.eval_stdev_;
+    os << Utils::green() << " eval.value.avg=" << result.eval_value_avg_ << Utils::normal() << " eval.value.stdev=" << result.eval_value_stdev_
+       << Utils::green() << " eval.steps.avg=" << result.eval_steps_avg_ << Utils::normal() << " eval.steps.stdev=" << result.eval_steps_stdev_;
 
     // time stats
     os << " time.raw=" << result.time_raw_

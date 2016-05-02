@@ -101,79 +101,100 @@ template<typename T> class improvement_t : public policy_t<T> {
 namespace Evaluation {
 
 template<typename T>
-inline float evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned max_depth) {
+inline std::pair<size_t, float> evaluation_trial(const Policy::policy_t<T> &policy, const T &s, unsigned max_steps) {
     T state = s;
     size_t steps = 0;
     float cost = 0;
     float discount = 1;
-    if( policy.problem().dead_end(state) ) return policy.problem().dead_end_value();
-    while( (steps < max_depth) && !policy.problem().terminal(state) ) {
-        //std::cout << "evaluation_trial: " << state << std::flush;
-        Problem::action_t action = policy(state);
-        //std::cout << ", a=" << action << std::endl;
-        if( action == Problem::noop ) {
-            //std::cout << "no applicable action" << std::endl;
-            return cost + policy.problem().dead_end_value();
+    if( policy.problem().dead_end(state) ) {
+        return std::make_pair(0, policy.problem().dead_end_value());
+    } else {
+        while( (steps < max_steps) && !policy.problem().terminal(state) ) {
+            //std::cout << "evaluation_trial: " << state << std::flush;
+            Problem::action_t action = policy(state);
+            //std::cout << ", a=" << action << std::endl;
+            if( action == Problem::noop ) {
+                std::cout << "error: policy returned non-applicable action '" << policy.problem().action_name(action) << "'" << std::endl;
+                return std::make_pair(steps, cost + policy.problem().dead_end_value());
+            }
+            //std::cout << " BEFORE APPLICATION=" << state << std::endl;
+            assert(policy.problem().applicable(state, action));
+            std::pair<T, bool> p = policy.problem().sample(state, action);
+            cost += discount * policy.problem().cost(state, action);
+            discount *= policy.problem().discount();
+            state = p.first;
+            //std::cout << "SAMPLED APPLICATION=" << state << std::endl;
+            ++steps;
+            if( policy.problem().dead_end(state) ) {
+                std::cout << "warning: dead-end state reached" << std::endl;
+                return std::make_pair(steps, cost + policy.problem().dead_end_value());
+            }
         }
-        assert(policy.problem().applicable(state, action));
-        std::pair<T, bool> p = policy.problem().sample(state, action);
-        cost += discount * policy.problem().cost(state, action);
-        discount *= policy.problem().discount();
-        state = p.first;
-        ++steps;
-        if( policy.problem().dead_end(state) ) {
-            return cost + policy.problem().dead_end_value();
-        }
+        return std::make_pair(steps, cost);
     }
-    return cost;
 }
 
 template<typename T>
-inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_depth, bool verbose = false) {
+inline float evaluation(const Policy::policy_t<T> &policy, const T &s, unsigned number_trials, unsigned max_steps, bool verbose = false) {
+    size_t steps = 0;
     float value = 0;
     if( verbose ) std::cout << "#trials=" << number_trials << ":";
     for( unsigned i = 0; i < number_trials; ++i ) {
         if( verbose ) std::cout << " " << i << std::flush;
-        value += evaluation_trial(policy, s, max_depth);
+        std::pair<size_t, float> p = evaluation_trial(policy, s, max_steps);
+        steps += p.first;
+        value += p.second;
+        if( verbose ) std::cout << " (" << p.first << " " << std::setprecision(1) << p.second << ")" << std::flush;
     }
     if( verbose ) std::cout << std::endl;
     return value / number_trials;
 }
 
 template<typename T>
-inline std::pair<float, float>
+inline std::pair<std::pair<float, float>, std::pair<float, float> >
   evaluation_with_stdev(const Policy::policy_t<T> &policy,
                         unsigned number_trials,
-                        unsigned max_depth,
+                        unsigned max_steps,
                         bool verbose = false) {
-    float sum = 0;
+    size_t steps_sum = 0;
+    float cost_sum = 0;
+    std::vector<size_t> steps;
     std::vector<float> values;
     values.reserve(number_trials);
     if( verbose ) std::cout << "#trials=" << number_trials << ":";
     for( unsigned trial = 0; trial < number_trials; ++trial ) {
         if( verbose ) std::cout << " " << trial << std::flush;
-        values.push_back(evaluation_trial(policy, policy.problem().init(), max_depth));
-        sum += values.back();
+        std::pair<size_t, float> p = evaluation_trial(policy, policy.problem().init(), max_steps);
+        steps.push_back(p.first);
+        steps_sum += p.first;
+        values.push_back(p.second);
+        cost_sum += p.second;
         if( verbose ) {
-            std::cout << "(" << std::setprecision(1) << sum / (1 + trial) << ")" << std::flush;
+            std::cout << " (" << p.first << " " << std::setprecision(1) << p.second << " " << std::setprecision(1) << cost_sum / (1 + trial) << ")" << std::flush;
         }
     }
     if( verbose ) std::cout << std::endl;
 
-    // compute average
-    float avg = 0;
+    // compute average per trial
+    float steps_avg = 0;
+    float values_avg = 0;
     for( unsigned i = 0; i < number_trials; ++i ) {
-        avg += values[i];
+        steps_avg += steps[i];
+        values_avg += values[i];
     }
-    avg /= number_trials;
+    steps_avg /= number_trials;
+    values_avg /= number_trials;
 
-    // compute stdev
-    float stdev = 0;
+    // compute stdev per trial
+    float steps_stdev = 0;
+    float values_stdev = 0;
     for( unsigned i = 0; i < number_trials; ++i ) {
-        stdev += (avg - values[i]) * (avg - values[i]);
+        steps_stdev += (steps_avg - steps[i]) * (steps_avg - steps[i]);
+        values_stdev += (values_avg - values[i]) * (values_avg - values[i]);
     }
-    stdev = sqrt(stdev) / (number_trials - 1);
-    return std::make_pair(avg, stdev);
+    steps_stdev = sqrt(steps_stdev) / (number_trials - 1);
+    values_stdev = sqrt(values_stdev) / (number_trials - 1);
+    return std::make_pair(std::make_pair(steps_avg, steps_stdev), std::make_pair(values_avg, values_stdev));
 }
 
 }; // namespace Evaluation
