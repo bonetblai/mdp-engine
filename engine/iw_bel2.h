@@ -454,7 +454,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         assert(open_lists_are_empty());
         assert(tuple_hash_is_empty());
         assert(closed_list_.empty());
-#if 1//def EASY//def DEBUG
+#ifdef EASY//def DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
                   << "root=" << bel << std::endl
@@ -475,7 +475,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         root->novelty_ = 1;
         const node_t<T> *node = breadth_first_search(root);
 
-#if 1//def EASY//def DEBUG
+#ifdef EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "node=";
         if( node == 0 )
@@ -502,20 +502,20 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             const node_t<T> *parent = node->parent_;
             assert(parent != 0);
             while( parent->parent_ != 0 ) {
-#if 1//def EASY//def DEBUG
+#ifdef EASY//def DEBUG
                 std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
                 n = parent;
                 parent = n->parent_;
             }
             assert(n->parent_->belief_ == bel);
-#if 1//def EASY//def DEBUG
+#ifdef EASY//def DEBUG
             std::cout << "action=" << pomdp_.action_name(n->a_) << std::endl;
 #endif
             action = n->a_;
         }
         free_resources();
-#if 1//def EASY//def DEBUG
+#ifdef EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "BEST ACTION=" << pomdp_.action_name(action) << std::endl;
 #endif
@@ -929,6 +929,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                         }
                         for( int i = 0; i < int(cdf.size()); ++i )
                             cdf[i] /= cdf.back();
+                        //if( candidates.size() > 1 ) { std::cout << "candidates="; for( int i = 0; i < int(cdf.size()); ++i ) std::cout << cdf[i] << " "; std::cout << std::endl; }
 
                         // sample from cdf and create new node
                         float cost = pomdp_.cost(node->belief_, a);
@@ -969,7 +970,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             }
 
             // search closed list when all open-lists are empty
-            if( best.empty() ) {
+            if( false && best.empty() ) { // CHECK
                 assert(open_lists_are_empty());
                 for( typename std::list<const node_t<T>*>::const_iterator it = closed_list_.begin(); it != closed_list_.end(); ++it ) {
                     const node_t<T> *node = *it;
