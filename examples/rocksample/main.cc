@@ -40,6 +40,7 @@ int main(int argc, const char **argv) {
     int max_antenna_height = 0;
 
     unsigned num_trials = 1;
+    unsigned max_steps = 100;
     vector<string> requests;
 
     float start_time = Utils::read_time_in_seconds();
@@ -47,7 +48,11 @@ int main(int argc, const char **argv) {
 
     // parse arguments
     for( ++argv, --argc; (argc > 1) && (**argv == '-'); ++argv, --argc ) {
-        if( string(*argv) == "--no-colors" ) {
+        if( string(*argv) == "--max-steps" ) {
+            max_steps = strtol(argv[1], 0, 0);
+            ++argv;
+            --argc;
+        } else if( string(*argv) == "--no-colors" ) {
             Utils::g_use_colors = false;
         } else if( ((*argv)[1] == 'r') || (string(*argv) == "--request") ) {
             requests.push_back(argv[1]);
@@ -62,6 +67,9 @@ int main(int argc, const char **argv) {
             num_trials = strtoul(argv[1], 0, 0);
             ++argv;
             --argc;
+        } else if( string(*argv, 3) == "--X" ) {
+            // we use --X<something else> to ignode <something else> without raising usage() error
+            // do nothing
         } else {
             usage(cout);
             exit(-1);
@@ -131,7 +139,7 @@ int main(int argc, const char **argv) {
         const string &request = policies[i].first;
         const Online::Policy::policy_t<belief_state_t> &policy = *policies[i].second;
         Dispatcher::dispatcher_t<belief_state_t>::evaluate_result_t result;
-        dispatcher.evaluate(request, policy, result, num_trials, 100, true);
+        dispatcher.evaluate(request, policy, result, num_trials, max_steps, true);
         evaluate_results.push_back(result);
     }
 
