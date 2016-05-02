@@ -9,7 +9,7 @@
 #define OBS_GOOD            1
 
 //#define DEBUG_CTOR_DTOR
-#define DEBUG
+//#define DEBUG
 
 struct loc_t {
     int r_, c_;
@@ -313,12 +313,12 @@ class belief_state_t {
 
     void sample(int r) {
         // need to set rock at current location as bad
-        sampled_.set_bit(r, 0);
+        sampled_.set_bit(r, 1);
     }
 
     void apply_sense(int obs, int r, float alpha) {
         assert((r >= 0) && (r < int(beams_.size())));
-        assert(sampled_.bit(r) == 0); // CHECK
+        assert(sampled_.bit(r) == 0);
         const loc_t &rloc = rock_location(r);
         float d = rloc.euclidean_distance(loc_);
         float efficiency = expf(-d * alpha);
@@ -343,7 +343,7 @@ class belief_state_t {
 
     std::pair<float, float> probability_sense(int r, float alpha) const { // pair is (P(good), P(!good))
         assert((r >= 0) && (r < int(beams_.size())));
-        assert(sampled_.bit(r) == 0); // CHECK
+        assert(sampled_.bit(r) == 0);
         std::pair<float, float> p(0, 0);
         if( sampled_.bit(r) ) {
             p.second = 1;
@@ -361,8 +361,8 @@ class belief_state_t {
             p.first += beams_[r].dist_[0] * (1 - probability_correct_reading);
 
             // obs = not good
-            p.second = beams_[r].dist_[0] * probability_correct_reading;
             p.second = beams_[r].dist_[1] * (1 - probability_correct_reading);
+            p.second = beams_[r].dist_[0] * probability_correct_reading;
 
             // normalize
             float m = p.first + p.second;
@@ -483,13 +483,21 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             int status = Random::random(0, 2);
             rocks.set_bit(r, status);
         }
+#if 1//def DEBUG
+        std::cout << "rock status: " << rocks << std::endl;
+#endif
 
         // we must create constraint graph before any belief state is created
         init_ = new belief_state_t(0, rocks);
         return *init_;
     }
     virtual bool terminal(const belief_state_t &bel) const {
-        return false;
+        bool is_terminal = true;
+        for( int r = 0; is_terminal && (r < number_rocks_); ++r ) {
+            if( (bel.sampled_.bit(r) == 0) && (bel.beams_[r].dist_[1] > 0) )
+                is_terminal = false;
+        }
+        return is_terminal;
     }
     virtual bool dead_end(const belief_state_t &bel) const {
         return false;
@@ -508,7 +516,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         } else {
             assert(is_sense_action(a));
             int r = sensed_rock(a);
-            return bel.sampled_.bit(r) == 0; // CHECK
+            return bel.sampled_.bit(r) == 0;
         }
     }
     virtual float min_absolute_cost() const { return 1; }
@@ -639,16 +647,16 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         POMDP::observation_t obs = OBS_NOT_GOOD; // default sensing
         if( is_sense_action(a) ) {
             int r = sensed_rock(a);
-            assert(bel.sampled_.bit(r) == 0); // CHECK
+            assert(bel.sampled_.bit(r) == 0);
             const loc_t &rloc = rock_locations_[r];
             float d = rloc.euclidean_distance(bel.loc_);
             float efficiency = expf(-d * alpha_);
             assert((efficiency > 0) && (efficiency <= 1));
             float probability_correct_reading = efficiency + (1 - efficiency) * 0.5;
             if( Random::uniform() < probability_correct_reading )
-                obs = bel.hidden_.bit(r) ? OBS_GOOD : OBS_NOT_GOOD;
+                obs = bel.hidden_.bit(r) == 1 ? OBS_GOOD : OBS_NOT_GOOD;
             else
-                obs = bel.hidden_.bit(r) ? OBS_NOT_GOOD : OBS_GOOD;
+                obs = bel.hidden_.bit(r) == 1 ? OBS_NOT_GOOD : OBS_GOOD;
         }
         return obs;
     }
