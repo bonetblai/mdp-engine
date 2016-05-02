@@ -9,7 +9,7 @@
 #define OBS_GOOD            1
 
 //#define DEBUG_CTOR_DTOR
-//#define DEBUG
+#define DEBUG
 
 struct loc_t {
     int r_, c_;
@@ -247,14 +247,15 @@ class belief_state_t {
     }
 
     int value(int vid) const {
-        assert((vid >= 0) && (vid < int(beams_.size())));
         if( vid == 0 ) {
             return loc_.as_integer(xdim(), ydim());
         } else if( vid <= number_rocks() ) {
             int r = vid - 1;
+            assert((r >= 0) && (r < number_rocks()));
             return sampled_.bit(r);
         } else {
             int r = vid - 1 - number_rocks();
+            assert((r >= 0) && (r < int(beams_.size())));
             if( beams_[r].dist_[0] == 1 )
                 return 0;
             else if( beams_[r].dist_[0] == 0 )
@@ -264,30 +265,32 @@ class belief_state_t {
         }
     }
     void fill_values_for_variable(int vid, std::vector<float> &probabilities) const {
-        assert((vid >= 0) && (vid < int(beams_.size())));
         if( vid == 0 ) {
             probabilities = std::vector<float>(xdim() * ydim(), 0);
             probabilities[loc_.as_integer(xdim(), ydim())] = 1;
         } else if( vid <= number_rocks() ) {
             int r = vid - 1;
+            assert((r >= 0) && (r < number_rocks()));
             probabilities = std::vector<float>(2, 0);
             probabilities[sampled_.bit(r)] = 1;
         } else {
             int r = vid - 1 - number_rocks();
+            assert((r >= 0) && (r < int(beams_.size())));
             probabilities = std::vector<float>(2, 0);
             probabilities[0] = beams_[r].dist_[0];
             probabilities[1] = beams_[r].dist_[1];
         }
     }
     void fill_values_for_variable(int vid, std::vector<std::pair<int, float> > &values) const {
-        assert((vid >= 0) && (vid < int(beams_.size())));
         if( vid == 0 ) {
             values.push_back(std::make_pair(loc_.as_integer(xdim(), ydim()), 1));
         } else if( vid <= number_rocks() ) {
             int r = vid - 1;
+            assert((r >= 0) && (r < number_rocks()));
             values.push_back(std::make_pair(sampled_.bit(r), 1));
         } else {
             int r = vid - 1 - number_rocks();
+            assert((r >= 0) && (r < int(beams_.size())));
             if( beams_[r].dist_[0] != 0 )
                 values.push_back(std::make_pair(0, beams_[r].dist_[0]));
             if( beams_[r].dist_[1] != 0 )
@@ -512,6 +515,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual float max_absolute_cost() const { return 10; }
     virtual float cost(const belief_state_t &bel, Problem::action_t a) const {
         if( a == Sample ) {
+            assert(rock_locations_map_.find(bel.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
             int r = rock_locations_map_.at(bel.loc_.as_integer(xdim_, ydim_));
             return bel.sampled_.bit(r) ? 10 : (bel.beams_[r].dist_[0] * 10 + bel.beams_[r].dist_[1] * -10);
         } else {
@@ -531,6 +535,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
 #ifdef DEBUG
         std::cout << "next: bel=" << bel << ", action=" << action_name(a) << std::endl;
 #endif
+
         if( !is_sense_action(a) ) {
             outcomes.push_back(std::make_pair(belief_state_t(bel), 1.0));
             if( a == GoNorth ) {
@@ -542,6 +547,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             } else if( a == GoWest ) {
                 outcomes.back().first.loc_.move_west(xdim_, ydim_);
             } else if( a == Sample ) {
+                assert(rock_locations_map_.find(bel.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
                 int r = rock_locations_map_.at(bel.loc_.as_integer(xdim_, ydim_));
                 outcomes.back().first.sample(r);
             } else {
@@ -612,6 +618,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             } else if( a == GoWest ) {
                 bel_a.loc_.move_west(xdim_, ydim_);
             } else if( a == Sample ) {
+                assert(rock_locations_map_.find(bel_a.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
                 int r = rock_locations_map_.at(bel_a.loc_.as_integer(xdim_, ydim_));
                 bel_a.sample(r);
             } else {
