@@ -128,9 +128,8 @@ int main(int argc, const char **argv) {
 
     if( !solve_results.empty() ) {
         cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among algorithms" << endl;
-        for( int i = 0; i < int(solve_results.size()); ++i ) {
+        for( int i = 0; i < int(solve_results.size()); ++i )
             dispatcher.print_stats(cout, solve_results[i]);
-        }
     }
 
     // evaluate requested policies
@@ -145,9 +144,8 @@ int main(int argc, const char **argv) {
 
     if( !evaluate_results.empty() ) {
         cout << Utils::warning() << "the following stats may aggregate figures when elements are shared among policies" << endl;
-        for( int i = 0; i < int(evaluate_results.size()); ++i ) {
+        for( int i = 0; i < int(evaluate_results.size()); ++i )
             dispatcher.print_stats(cout, evaluate_results[i]);
-        }
     }
 
     cout << "main: total-time=" << Utils::read_time_in_seconds() - start_time << endl;

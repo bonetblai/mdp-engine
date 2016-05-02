@@ -5,7 +5,7 @@
 #include <string>
 
 #include <dispatcher.h>
-#include "rocksample.h"
+#include "rocksample_original.h"
 
 namespace Algorithm {
   unsigned g_seed = 0;
@@ -24,20 +24,18 @@ int Bitmap::bitmap_t::dim_in_words_ = 0;
 int Bitmap::bitmap_t::bits_in_last_word_ = 0;
 unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
 
-const pomdp_t *arc_consistency_t::pomdp_ = 0;
 const pomdp_t *belief_state_t::pomdp_ = 0;
 
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: rocksample [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <xdim> <ydim> <nrocks> <max-antenna-height" << endl;
+    os << "usage: rocksample [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <xdim> <ydim> <nrocks>" << endl;
 }
 
 int main(int argc, const char **argv) {
     int xdim = 0;
     int ydim = 0;
     int number_rocks = 0;
-    int max_antenna_height = 0;
 
     unsigned num_trials = 1;
     vector<string> requests;
@@ -71,11 +69,10 @@ int main(int argc, const char **argv) {
     //requests.push_back("policy=iw-bel2(determinization=most-likely,dp=5,stop-criterion=reward,max-expansions=30,random-ties=true,prune-threshold=2)");
 
     // read parameters
-    if( argc == 4 ) {
+    if( argc == 3 ) {
         xdim = strtoul(argv[0], 0, 0);
         ydim = strtoul(argv[1], 0, 0);
         number_rocks = strtoul(argv[2], 0, 0);
-        max_antenna_height = strtoul(argv[3], 0, 0);
     } else {
         usage(cout);
         exit(-1);
@@ -85,8 +82,7 @@ int main(int argc, const char **argv) {
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
     Bitmap::bitmap_t::set_dimension(number_rocks);
-    pomdp_t pomdp(xdim, ydim, number_rocks, max_antenna_height, true);
-    arc_consistency_t::set_static_members(&pomdp);
+    pomdp_t pomdp(xdim, ydim, number_rocks, 1, true); // CHECK: alpha=1
     belief_state_t::set_static_members(&pomdp);
 
     // build requests

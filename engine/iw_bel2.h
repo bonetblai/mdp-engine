@@ -379,9 +379,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #if 0
     // hash table (dynamic memory that must be cleared after action selection)
     mutable node_hash_t<T> node_table_;
-#endif
 
-#if 0
     struct min_priority_t {
         bool operator()(const node_t<T> *n1, const node_t<T> *n2) const {
             return n1->g_ > n2->g_;
