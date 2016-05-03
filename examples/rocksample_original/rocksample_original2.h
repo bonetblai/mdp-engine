@@ -58,109 +58,6 @@ inline std::ostream& operator<<(std::ostream &os, const loc_t &loc) {
     return os;
 }
 
-
-#if 0
-struct beam_t {
-    const loc_t loc_;
-    float dist_[2];
-
-    struct const_iterator {
-        int i_;
-        const float *dist_;
-
-        const_iterator(int i, const float *dist) : i_(i), dist_(dist) { }
-
-        bool operator==(const const_iterator &it) const {
-            return (i_ == it.i_) && (dist_ == it.dist_);
-        }
-        bool operator!=(const const_iterator &it) const {
-            return !(*this == it);
-        }
-        const const_iterator& operator++() {
-            ++i_;
-            return *this;
-        }
-        float operator*() const {
-            return dist_[i_];
-        }
-
-        int index() const {
-            return i_;
-        }
-        float value() const {
-            return dist_[i_];
-        }
-    }; // const_iterator
-
-    beam_t(loc_t loc) : loc_(loc) {
-#ifdef DEBUG_CTOR_DTOR
-        std::cout << "beam_t: ctor called" << std::endl;
-#endif
-        dist_[0] = 0.5;
-        dist_[1] = 0.5;
-    }
-    beam_t(const beam_t &beam)
-      : loc_(beam.loc_) {
-#ifdef DEBUG_CTOR_DTOR
-        std::cout << "beam_t: copy ctor called" << std::endl;
-#endif
-        dist_[0] = beam.dist_[0];
-        dist_[1] = beam.dist_[1] ;
-    }
-    beam_t(beam_t &&beam)
-      : loc_(beam.loc_) {
-#ifdef DEBUG_CTOR_DTOR
-        std::cout << "beam_t: move ctor called" << std::endl;
-#endif
-        dist_[0] = beam.dist_[0];
-        dist_[1] = beam.dist_[1] ;
-    }
-    virtual ~beam_t() {
-#ifdef DEBUG_CTOR_DTOR
-        std::cout << "beam_t: dtor called" << std::endl;
-#endif
-    }
-
-    const beam_t& operator=(const beam_t &beam) {
-        assert(loc_ == beam.loc_);
-        dist_[0] = beam.dist_[0];
-        dist_[1] = beam.dist_[1];
-        return *this;
-    }
-    bool operator==(const beam_t &beam) const {
-        return (loc_ == beam.loc_) && (dist_[0] == beam.dist_[0]) && (dist_[1] == beam.dist_[1]);
-    }
-    bool operator!=(const beam_t &beam) const {
-        return !(*this == beam);
-    }
-    bool operator<(const beam_t &beam) const {
-        return (loc_ < beam.loc_) ||
-          ((loc_ == beam.loc_) && (dist_[0] < beam.dist_[0])) ||
-          ((loc_ == beam.loc_) && (dist_[0] == beam.dist_[0]) && (dist_[1] < beam.dist_[1]));
-    }
-
-    unsigned hash() const {
-        assert(0); // CHECK
-    }
-
-    virtual const_iterator begin() const {
-        return const_iterator(0, dist_);
-    }
-    virtual const_iterator end() const {
-        return const_iterator(2, dist_);
-    }
-
-    void print(std::ostream &os) const {
-        os << "[loc=" << loc_ << ",dist={" << dist_[0] << "," << dist_[1] << "}]" << std::flush;
-    }
-};
-
-inline std::ostream& operator<<(std::ostream &os, const beam_t &beam) {
-    beam.print(os);
-    return os;
-}
-#endif
-
 class pomdp_t; // forward reference
 
 // known vars: loc, antenna-height, sampled rocks, skipped rocks
@@ -175,30 +72,51 @@ class belief_state_t {
     static const pomdp_t *pomdp_;
 
   public:
-    belief_state_t(int loc = 0);                              // defined below
-    belief_state_t(int loc, const Bitmap::bitmap_t &hidden);  // defined below
+    belief_state_t(int loc = 0)
+      : loc_(loc, xdim(), ydim()),
+        sampled_(0),
+        hidden_(0) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: ctor called" << std::endl;
+#endif
+        beams_ = new float[number_rocks()];
+        set_initial_beams();
+    }
+    belief_state_t(int loc, const Bitmap::bitmap_t &hidden)
+      : loc_(loc, xdim(), ydim()),
+        sampled_(0),
+        hidden_(hidden) {
+#ifdef DEBUG_CTOR_DTOR
+        std::cout << "belief_state_t: ctor w/ hidden called" << std::endl;
+#endif
+        beams_ = new float[number_rocks()];
+        set_initial_beams();
+    }
     belief_state_t(const belief_state_t &bel)
       : loc_(bel.loc_),
-        beams_(bel.beams_),
         sampled_(bel.sampled_),
         hidden_(bel.hidden_) {
 #ifdef DEBUG_CTOR_DTOR
         std::cout << "belief_state_t: copy ctor called" << std::endl;
 #endif
+        beams_ = new float[number_rocks()];
+        copy_beams(bel);
     }
     belief_state_t(belief_state_t &&bel)
       : loc_(bel.loc_),
-        beams_(std::move(bel.beams_)),
+        beams_(bel.beams_),
         sampled_(std::move(bel.sampled_)),
         hidden_(std::move(bel.hidden_)) {
 #ifdef DEBUG_CTOR_DTOR
         std::cout << "belief_state_t: move ctor called" << std::endl;
 #endif
+        bel.beams_ = 0;
     }
     virtual ~belief_state_t() {
 #ifdef DEBUG_CTOR_DTOR
         std::cout << "belief_state_t: dtor called" << std::endl;
 #endif
+        delete[] beams_;
     }
 
     static void set_static_members(const pomdp_t *pomdp) {
@@ -217,35 +135,44 @@ class belief_state_t {
         //return Utils::jenkins_one_at_a_time_hash(beams_);
     }
 
+    void copy_beams(const belief_state_t &bel) {
+        assert((beams_ != 0) && (bel.beams_ != 0));
+        for( int r = 0; r < number_rocks(); ++r )
+            beams_[r] = bel.beams_[r];
+    }
+    void set_initial_beams() {
+        assert(beams_ != 0);
+        for( int r = 0; r < number_rocks(); ++r )
+            beams_[r] = 0.5;
+    }
+    int compare_beams(const belief_state_t &bel) const {
+        assert((beams_ != 0) && (bel.beams_ != 0));
+        for( int r = 0; r < number_rocks(); ++r ) {
+            if( beams_[r] < bel.beams_[r] )
+                return -1;
+            else if( beams_[r] > bel.beams_[r] )
+                return 1;
+        }
+        return 0;
+    }
+
     const belief_state_t& operator=(const belief_state_t &bel) {
         loc_ = bel.loc_;
-        beams_ = bel.beams_;
+        copy_beams(bel);
         sampled_ = bel.sampled_;
         hidden_ = bel.hidden_;
         return *this;
     }
     bool operator==(const belief_state_t &bel) const {
-        return (loc_ == bel.loc_) && (beams_ == bel.beams_) && (sampled_ == bel.sampled_) && (hidden_ == bel.hidden_);
+        return (loc_ == bel.loc_) && (compare_beams(bel) == 0) && (sampled_ == bel.sampled_) && (hidden_ == bel.hidden_);
     }
     bool operator!=(const belief_state_t &bel) const {
         return !(*this == bel);
     }
     bool operator<(const belief_state_t &bel) const {
-        if( loc_ < bel.loc_ ) {
-            return true;
-        } else if( (loc_ == bel.loc_) && (sampled_ < bel.sampled_) ) {
-            return true;
-        } else if( (loc_ == bel.loc_) && (sampled_ == bel.sampled_) && (beams_.size() == bel.beams_.size()) ) {
-            for( int i = 0; i < int(beams_.size()); ++i ) {
-                if( beams_[i] < bel.beams_[i] )
-                    return true;
-                else if( beams_[i] != bel.beams_[i] )
-                    return false;
-            }
-            return false;
-        } else {
-            return false;
-        }
+        return (loc_ < bel.loc_) ||
+          ((loc_ == bel.loc_) && (sampled_ < bel.sampled_)) ||
+          ((loc_ == bel.loc_) && (sampled_ == bel.sampled_) && (compare_beams(bel) < 0));
     }
 
     int value(int vid) const {
@@ -257,11 +184,11 @@ class belief_state_t {
             return sampled_.bit(r);
         } else {
             int r = vid - 1 - number_rocks();
-            assert((r >= 0) && (r < int(beams_.size())));
-            if( beams_[r].dist_[0] == 1 )
-                return 0;
-            else if( beams_[r].dist_[0] == 0 )
+            assert((r >= 0) && (r < number_rocks()));
+            if( beams_[r] == 1 )
                 return 1;
+            else if( beams_[r] == 0 )
+                return 0;
             else
                 return -1;
         }
@@ -277,10 +204,10 @@ class belief_state_t {
             probabilities[sampled_.bit(r)] = 1;
         } else {
             int r = vid - 1 - number_rocks();
-            assert((r >= 0) && (r < int(beams_.size())));
+            assert((r >= 0) && (r < number_rocks()));
             probabilities = std::vector<float>(2, 0);
-            probabilities[0] = beams_[r].dist_[0];
-            probabilities[1] = beams_[r].dist_[1];
+            probabilities[0] = 1 - beams_[r];
+            probabilities[1] = beams_[r];
         }
     }
     void fill_values_for_variable(int vid, std::vector<std::pair<int, float> > &values) const {
@@ -292,25 +219,16 @@ class belief_state_t {
             values.push_back(std::make_pair(sampled_.bit(r), 1));
         } else {
             int r = vid - 1 - number_rocks();
-            assert((r >= 0) && (r < int(beams_.size())));
-            if( beams_[r].dist_[0] != 0 )
-                values.push_back(std::make_pair(0, beams_[r].dist_[0]));
-            if( beams_[r].dist_[1] != 0 )
-                values.push_back(std::make_pair(1, beams_[r].dist_[1]));
+            assert((r >= 0) && (r < number_rocks()));
+            if( beams_[r] != 1 )
+                values.push_back(std::make_pair(0, 1 - beams_[r]));
+            if( beams_[r] != 0 )
+                values.push_back(std::make_pair(1, beams_[r]));
         }
     }
 
     const loc_t& loc() const {
         return loc_;
-    }
-
-    beam_t& get_beam(int bid) {
-        assert((bid >= 0) && (bid < beams_.size()));
-        return beams_[bid];
-    }
-    const beam_t& get_beam(int bid) const {
-        assert((bid >= 0) && (bid < beams_.size()));
-        return beams_[bid];
     }
 
     void sample(int r) {
@@ -319,32 +237,30 @@ class belief_state_t {
     }
 
     void apply_sense(int obs, int r, float alpha) {
-        assert((r >= 0) && (r < int(beams_.size())));
+        assert((r >= 0) && (r < number_rocks()));
         assert(sampled_.bit(r) == 0);
         const loc_t &rloc = rock_location(r);
         float d = rloc.euclidean_distance(loc_);
         float efficiency = expf(-d * alpha);
         assert((efficiency > 0) && (efficiency <= 1));
-        //std::cout << "beams: " << beams_[r].dist_[0] << " " << beams_[r].dist_[1] << " " << beams_[r].dist_[0] + beams_[r].dist_[1] << std::endl;
-        assert(fabs(1 - beams_[r].dist_[0] - beams_[r].dist_[1]) < 1e-6);
         float probability_correct_reading = efficiency + (1 - efficiency) * 0.5;
 
+        float p_good = beams_[r];
+        float p_not_good = 1 - beams_[r];
         if( obs == OBS_GOOD ) {
-            beams_[r].dist_[0] *= (1 - probability_correct_reading);
-            beams_[r].dist_[1] *= probability_correct_reading;
+            p_not_good *= (1 - probability_correct_reading);
+            p_good *= probability_correct_reading;
         } else {
-            beams_[r].dist_[0] *= probability_correct_reading;
-            beams_[r].dist_[1] *= (1 - probability_correct_reading);
+            p_not_good *= probability_correct_reading;
+            p_good *= (1 - probability_correct_reading);
         }
 
         // normalize
-        float m = beams_[r].dist_[0] + beams_[r].dist_[1];
-        beams_[r].dist_[0] /= m;
-        beams_[r].dist_[1] /= m;
+        beams_[r] = p_good / (p_good + p_not_good);
     }
 
     std::pair<float, float> probability_sense(int r, float alpha) const { // pair is (P(good), P(!good))
-        assert((r >= 0) && (r < int(beams_.size())));
+        assert((r >= 0) && (r < number_rocks()));
         assert(sampled_.bit(r) == 0);
         std::pair<float, float> p(0, 0);
         if( sampled_.bit(r) ) {
@@ -354,17 +270,15 @@ class belief_state_t {
             float d = rloc.euclidean_distance(loc_);
             float efficiency = expf(-d * alpha);
             assert((efficiency > 0) && (efficiency <= 1));
-            //std::cout << "beams: " << beams_[r].dist_[0] << " " << beams_[r].dist_[1] << " " << beams_[r].dist_[0] + beams_[r].dist_[1] << std::endl;
-            assert(fabs(1 - beams_[r].dist_[0] - beams_[r].dist_[1]) < 1e-6);
             float probability_correct_reading = efficiency + (1 - efficiency) * 0.5;
 
             // obs = good
-            p.first = beams_[r].dist_[1] * probability_correct_reading;
-            p.first += beams_[r].dist_[0] * (1 - probability_correct_reading);
+            p.first = beams_[r] * probability_correct_reading;
+            p.first += (1 - beams_[r]) * (1 - probability_correct_reading);
 
             // obs = not good
-            p.second = beams_[r].dist_[1] * (1 - probability_correct_reading);
-            p.second = beams_[r].dist_[0] * probability_correct_reading;
+            p.second = beams_[r] * (1 - probability_correct_reading);
+            p.second += (1 - beams_[r]) * probability_correct_reading;
 
             // normalize
             float m = p.first + p.second;
@@ -378,10 +292,12 @@ class belief_state_t {
     void print(std::ostream &os) const {
         os << "[loc=" << loc_
            << ",beams=[";
-        for( int i = 0; i < int(beams_.size()); ++i ) {
-            const beam_t &beam = get_beam(i);
-            os << beam;
-            if( 1 + i < int(beams_.size()) ) os << ",";
+        for( int r = 0; r < number_rocks(); ++r ) {
+            os << "{r=" << r
+               << ",dist={" << std::setprecision(2) << 1 - beams_[r]
+               << "," << std::setprecision(2) << beams_[r]
+               << "}}";
+            if( 1 + r < number_rocks() ) os << ",";
         }
         os << "],sampled=" << sampled_ << ",hidden=" << hidden_ << "]" << std::flush;
     }
@@ -496,7 +412,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual bool terminal(const belief_state_t &bel) const {
         bool is_terminal = true;
         for( int r = 0; is_terminal && (r < number_rocks_); ++r ) {
-            if( (bel.sampled_.bit(r) == 0) && (bel.beams_[r].dist_[1] > 0) )
+            if( (bel.sampled_.bit(r) == 0) && (bel.beams_[r] > 0) )
                 is_terminal = false;
         }
         return is_terminal;
@@ -527,7 +443,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         if( a == Sample ) {
             assert(rock_locations_map_.find(bel.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
             int r = rock_locations_map_.at(bel.loc_.as_integer(xdim_, ydim_));
-            return bel.sampled_.bit(r) ? 10 : (bel.beams_[r].dist_[0] * 10 + bel.beams_[r].dist_[1] * -10);
+            return bel.sampled_.bit(r) ? 10 : 10 * (1 - bel.beams_[r] - bel.beams_[r]);
         } else {
             return 1;
         }
@@ -693,28 +609,6 @@ inline std::ostream& operator<<(std::ostream &os, const pomdp_t &p) {
     return os;
 }
 
-inline belief_state_t::belief_state_t(int loc)
-  : loc_(loc, xdim(), ydim()),
-    sampled_(0),
-    hidden_(0) {
-#ifdef DEBUG_CTOR_DTOR
-    std::cout << "belief_state_t: ctor called" << std::endl;
-#endif
-    for( int loc = 0; loc < xdim() * ydim(); ++loc )
-        beams_.push_back(beam_t(loc_t(loc, xdim(), ydim())));
-}
-
-inline belief_state_t::belief_state_t(int loc, const Bitmap::bitmap_t &hidden)
-  : loc_(loc, xdim(), ydim()),
-    sampled_(0),
-    hidden_(hidden) {
-#ifdef DEBUG_CTOR_DTOR
-    std::cout << "belief_state_t: ctor w/ hidden called" << std::endl;
-#endif
-    for( int loc = 0; loc < xdim() * ydim(); ++loc )
-        beams_.push_back(beam_t(loc_t(loc, xdim(), ydim())));
-}
- 
 inline int belief_state_t::xdim() {
     assert(pomdp_ != 0);
     return pomdp_->xdim_;
