@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef IW_BEL2_H
-#define IW_BEL2_H
+#ifndef IW_BEL3_H
+#define IW_BEL3_H
 
 #include <iostream>
 #include <sstream>
@@ -39,7 +39,7 @@ namespace Online {
 
 namespace Policy {
 
-namespace IWBel2 {
+namespace IWBel3 {
 
 ////////////////////////////////////////////////
 //
@@ -185,7 +185,8 @@ template<typename T> struct node_t {
     ~node_t() { }
 
     void print(std::ostream &os) const {
-        os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",novelty=" << novelty_ << ",tie-breaker=[" << tie_breaker_[0] << "],pa=" << parent_ << "]";
+        if( tie_breaker_ == 0 )
+            os << "[bel=" << belief_ << ",a=" << a_ << ",g=" << g_ << ",novelty=" << novelty_ << ",pa=" << parent_ << "]";
     }
 };
 
@@ -206,18 +207,6 @@ template<typename T> inline node_t<T>* get_node(T &&belief, const node_t<T> *par
     return new node_t<T>(std::move(belief), parent, a, cost);
 }
 
-// taken from stackoverflow.com
-// wrapper to access underlying container of priority_queue
-// THIS IS NON PORTABLE AS IT DEPENDS ON INTERNAL IMPLEMENTATION
-template <typename T, typename S, typename C>
-inline const S& Container(const std::priority_queue<T, S, C> &q) {
-    struct HackedQueue : private std::priority_queue<T, S, C> {
-        static const S& Container(const std::priority_queue<T, S, C> &q) {
-            return q.*&HackedQueue::c;
-        }
-    };
-    return HackedQueue::Container(q);
-}
 
 ////////////////////////////////////////////////
 //
@@ -252,32 +241,11 @@ class tuple_hash_t : public Hash::generic_hash_set_t<const int*, tuple_hash_func
 // Policy
 //
 
-template<typename T> class iw_bel2_t : public policy_t<T> {
+template<typename T> class iw_bel3_t : public policy_t<T> {
   public:
     typedef enum { MOST_LIKELY, SAMPLE } determinization_t;
     typedef enum { REWARD, TARGET } stop_criterion_t;
-    typedef enum { TOTAL, KL, KL_SYM, JS, UNKNOWN } divergence_t;
-    typedef enum { MAX, ADD } score_aggregation_t;
 
-    static divergence_t divergence_from_name(const std::string &ds) {
-        for( int d = TOTAL; d < UNKNOWN; ++d ) {
-            if( ds == divergence_name(static_cast<divergence_t>(d)) )
-                return static_cast<divergence_t>(d);
-        }
-        return UNKNOWN;
-    }
-    static std::string divergence_name(divergence_t d) {
-        if( d == TOTAL )
-            return "total";
-        else if( d == KL )
-            return "kl";
-        else if( d == KL_SYM )
-            return "kl-sym";
-        else if( d == JS )
-            return "js";
-        else
-            return "unknown";
-    }
   protected:
     struct node_priority_t {
         const std::map<int, int> &non_determined_variables_map_;
@@ -287,12 +255,14 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
         bool tie_break(const node_t<T> *n1, const node_t<T> *n2) const {
             bool n1_dominates_n2 = true;
+#if 0 // CHECK: not using tie-breaker in this version
             for( int i = 0; i < int(non_determined_variables_map_.size()); ++i ) {
                 if( n1->tie_breaker_[i] > n2->tie_breaker_[i] ) {
                     n1_dominates_n2 = false;
                     break;
                 }
             }
+#endif
             return n1_dominates_n2;
         }
 
@@ -313,9 +283,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     int discretization_parameter_;
     determinization_t determinization_;
     stop_criterion_t stop_criterion_;
-    divergence_t divergence_;
     unsigned max_expansions_;
-    score_aggregation_t score_aggregation_;
     bool random_ties_;
 
     // tuples
@@ -336,15 +304,13 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         }
     };
 
-    iw_bel2_t(const POMDP::pomdp_t<T> &pomdp,
+    iw_bel3_t(const POMDP::pomdp_t<T> &pomdp,
              unsigned width,
              int prune_threshold,
              int discretization_parameter,
              determinization_t determinization,
              stop_criterion_t stop_criterion,
-             divergence_t divergence,
              unsigned max_expansions,
-             score_aggregation_t score_aggregation,
              bool random_ties)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
@@ -353,16 +319,14 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         discretization_parameter_(discretization_parameter),
         determinization_(determinization),
         stop_criterion_(stop_criterion),
-        divergence_(divergence),
         max_expansions_(max_expansions),
-        score_aggregation_(score_aggregation),
         random_ties_(random_ties) {
         set_map_for_non_determined_variables();
         allocate_open_lists_and_hashes();
     }
 
   public:
-    iw_bel2_t(const POMDP::pomdp_t<T> &pomdp)
+    iw_bel3_t(const POMDP::pomdp_t<T> &pomdp)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(0),
@@ -370,16 +334,14 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         discretization_parameter_(1),
         determinization_(MOST_LIKELY),
         stop_criterion_(TARGET),
-        divergence_(TOTAL),
         max_expansions_(std::numeric_limits<unsigned>::max()),
-        score_aggregation_(MAX),
         random_ties_(true) {
         set_map_for_non_determined_variables();
         allocate_open_lists_and_hashes();
     }
-    virtual ~iw_bel2_t() { }
+    virtual ~iw_bel3_t() { }
     virtual policy_t<T>* clone() const {
-        return new iw_bel2_t(pomdp_);
+        return new iw_bel3_t(pomdp_);
     }
     virtual std::string name() const {
         return std::string("iw-bel2(") +
@@ -388,9 +350,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
           std::string(",discretization-parameter=") + std::to_string(discretization_parameter_) +
           std::string(",determinization=") + (determinization_ == MOST_LIKELY ? "most-likely" : "sample") +
           std::string(",stop-criterion=") + (stop_criterion_ == TARGET ? "target" : "reward") +
-          std::string(",divergence=") + divergence_name(divergence_) +
           std::string(",max-expansions=") + std::to_string(max_expansions_) +
-          std::string(",score-aggregation=") + (score_aggregation_ == MAX ? "max" : "add") +
           std::string(",random_ties=") + (random_ties_ ? "true" : "false") +
           std::string(")");
     }
@@ -418,7 +378,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
         root->novelty_ = 1;
-        const node_t<T> *node = breadth_first_search(root);
+        const node_t<T> *node = uniform_cost_search(root);
 
 #ifdef EASY//def DEBUG
         print_stats(std::cout);
@@ -492,12 +452,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         if( it != parameters.end() ) determinization_ = it->second == "sample" ? SAMPLE : MOST_LIKELY;
         it = parameters.find("stop-criterion");
         if( it != parameters.end() ) stop_criterion_ = it->second == "reward" ? REWARD : TARGET;
-        it = parameters.find("divergence");
-        if( it != parameters.end() ) divergence_ = divergence_from_name(it->second);
         it = parameters.find("max-expansions");
         if( it != parameters.end() ) max_expansions_ = strtol(it->second.c_str(), 0, 0);
-        it = parameters.find("score-aggregation");
-        if( it != parameters.end() ) score_aggregation_ = it->second == "max" ? MAX : ADD;
         it = parameters.find("random-ties");
         if( it != parameters.end() ) random_ties_ = it->second == "true";
         policy_t<T>::setup_time_ = 0;
@@ -508,9 +464,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                   << " discretization-parameter=" << discretization_parameter_
                   << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
                   << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")
-                  << " divergence=" << divergence_name(divergence_)
                   << " max-expansions=" << max_expansions_
-                  << " score-aggregation=" << (score_aggregation_ == MAX ? "max" : "add")
                   << " random-ties=" << (random_ties_ ? "true" : "false")
                   << std::endl;
 #endif
@@ -526,106 +480,82 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         } else {
             node.tuples_ = new std::vector<const int*>();
         }
+        assert(node.tie_breaker_ == 0); // CHECK: not using tie-breaker in this version
+#if 0 // CHECK: not using tie-breaker in this version
         if( node.tie_breaker_ == 0 ) {
             node.tie_breaker_ = new float[non_determined_variables_map_.size()];
         }
+#endif
         std::vector<const int *> tuples;
         fill_tuples(node.belief_, tuples, const_cast<float*>(node.tie_breaker_));
         *const_cast<std::vector<const int*>*>(node.tuples_) = std::move(tuples);
     }
     void fill_tuples(const T &belief, std::vector<const int*> &tuples, float *tie_breaker) const {
-        // tuples of novelty 0: (a) tuples (X,dp) that means belief satisfies
-        // p = max_x P(X=x) and discret(p) = dp for *non-determined* variables X,
-        // and (b) tuples (X,x) for the unique value x of *determined* variables X
-
-        // tuples of novelty 1: tuples (X,x,dp) that means belief satisfies
+        // tuples of size 1: (a) tuples (X,x,dp) that means belief satisfies
         // p = P(X=x) and discret(p) = dp for all *non-determined* variables X
-        for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
-            int code = -1;
-            if( pomdp_.determined(vid) ) {
-                // CHECK: comment is wrong as this tuple is for novelty 1
-                // code for tuple of novelty 0 of type (a)
-                int value = belief.value(vid);
-                assert(value != -1);
-                code = value * pomdp_.number_variables() + vid;
-                //continue; // CHECK: it is better for rocksample. why?
+        // and values x of X, and (b) tuples (X,x) that means belief satisfies
+        // X=x for all *determined* variables X with value x
+        if( prune_threshold_ > 0 ) {
+            for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
+                if( pomdp_.determined(vid) ) {
+                    // calculate code for atom 1(b) (X,x)
+                    int value = belief.value(vid);
+                    assert(value != -1);
+                    int code = value * pomdp_.number_variables() + vid;
 
-                // fill tuple of novelty 1 and insert
-                int *tuple = tuple_factory_.get_tuple(2);
-                assert(tuple[0] == 2);
-                tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
-                tuple[2] = code;
-                tuples.push_back(tuple);
-            } else {
-                float max_p = 0;
-                std::vector<float> probabilities(pomdp_.domain_size(vid), 0);
-                pomdp_.fill_values_for_variable(belief, vid, probabilities);
-                for( int value = 0; value < int(probabilities.size()); ++value ) {
-                    float p = probabilities[value];
-                    max_p = p > max_p ? p : max_p;
-                    if( prune_threshold_ > 0 ) {
-                        // code for tuple of novelty 1
+                    // fill tuple and insert
+                    int *tuple = tuple_factory_.get_tuple(1);
+                    assert(tuple[0] == 1);
+                    tuple[1] = code;
+                    tuples.push_back(tuple);
+                } else {
+                    std::vector<float> probabilities(pomdp_.domain_size(vid), 0);
+                    pomdp_.fill_values_for_variable(belief, vid, probabilities);
+                    for( int value = 0; value < int(probabilities.size()); ++value ) {
+                        // calculate code for atom 1(b) (X,x,dp)
+                        float p = probabilities[value];
                         int dp = ceilf(p * discretization_parameter_);
                         assert(dp <= discretization_parameter_);
                         int code = (value * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + vid;
 
-                        // fill tuple of novelty 1 and insert
-                        int *tuple = tuple_factory_.get_tuple(2);
-                        assert(tuple[0] == 2);
-                        tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
-                        tuple[2] = code;
+                        // fill tuple and insert
+                        int *tuple = tuple_factory_.get_tuple(1);
+                        assert(tuple[0] == 1);
+                        tuple[1] = code;
                         tuples.push_back(tuple);
                     }
                 }
-
-                int index = non_determined_variables_map_.at(vid);
-                tie_breaker[index] = max_p;
-
-#if 1 // THIS IS GOOD FOR ROCKSAMPLE
-                // code for tuple of novelty 0 of type (b)
-                int dp = ceilf(max_p * discretization_parameter_);
-                assert(dp <= discretization_parameter_);
-                //float entropy = Random::entropy(probabilities);
-                //int dp = ceilf(entropy * discretization_parameter_);
-                code = dp * pomdp_.number_variables() + vid;
-
-                // fill tuple of novelty 0 and insert
-                int *tuple = tuple_factory_.get_tuple(1);
-                assert(tuple[0] == 1);
-                tuple[1] = code;
-                tuples.push_back(tuple);
-#endif
             }
         }
 
         // tuples of novelty 2: pairs <(X,x),(Y,y,dp)> that means belief satisfies
         // X=x, p = P(Y=y), p > 0, and discret(p) = dp for *determined* variables X
         // and *non-determined* variables Y
-        if( prune_threshold_ < 2 ) return;
-        for( int xvid = 0; xvid < pomdp_.number_variables(); ++xvid ) {
-            if( pomdp_.determined(xvid) ) {
-                // xcode for tuple of novelty 2
-                int xvalue = belief.value(xvid);
-                assert(xvalue != -1);
-                int xcode = xvalue * pomdp_.number_variables() + xvid;
-                for( int yvid = 0; yvid < pomdp_.number_variables(); ++yvid ) {
-                    if( !pomdp_.determined(yvid) ) {
-                        std::vector<float> probabilities(pomdp_.domain_size(yvid), 0);
-                        pomdp_.fill_values_for_variable(belief, yvid, probabilities);
-                        for( int yvalue = 0; yvalue < int(probabilities.size()); ++yvalue ) {
-                            // ycode for tuple of novelty 2
-                            float p = probabilities[yvalue];
-                            int dp = ceilf(p * discretization_parameter_);
-                            assert(dp <= discretization_parameter_);
-                            int ycode = (yvalue * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + yvid;
+        if( prune_threshold_ > 1 ) {
+            for( int xvid = 0; xvid < pomdp_.number_variables(); ++xvid ) {
+                if( pomdp_.determined(xvid) ) {
+                    // calculate code for atom (X,x)
+                    int xvalue = belief.value(xvid);
+                    assert(xvalue != -1);
+                    int xcode = xvalue * pomdp_.number_variables() + xvid;
+                    for( int yvid = 0; yvid < pomdp_.number_variables(); ++yvid ) {
+                        if( !pomdp_.determined(yvid) ) {
+                            std::vector<float> probabilities(pomdp_.domain_size(yvid), 0);
+                            pomdp_.fill_values_for_variable(belief, yvid, probabilities);
+                            for( int yvalue = 0; yvalue < int(probabilities.size()); ++yvalue ) {
+                                // calculate code for atom (Y,y,dp)
+                                float p = probabilities[yvalue];
+                                int dp = ceilf(p * discretization_parameter_);
+                                assert(dp <= discretization_parameter_);
+                                int ycode = (yvalue * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + yvid;
 
-                            // fill tuple of novelty 2 and insert
-                            int *tuple = tuple_factory_.get_tuple(3);
-                            assert(tuple[0] == 3);
-                            tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
-                            tuple[2] = xcode;
-                            tuple[3] = ycode;
-                            tuples.push_back(tuple);
+                                // fill tuple and insert
+                                int *tuple = tuple_factory_.get_tuple(2);
+                                assert(tuple[0] == 2);
+                                tuple[1] = xcode;
+                                tuple[2] = ycode;
+                                tuples.push_back(tuple);
+                            }
                         }
                     }
                 }
@@ -649,39 +579,22 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         os << "}";
     }
     void print_tuple(std::ostream &os, const int *tuple) const {
-        if( tuple[0] == 1 ) {
-            // this is a novelty 0 tuple
-            int code = tuple[1];
+        os << tuple[0] << "=<";
+        for( int i = 1; i <= tuple[0]; ++i ) {
+            int code = tuple[i];
             int vid = code % pomdp_.number_variables();
             if( pomdp_.determined(vid) ) {
-                int dp = code / pomdp_.number_variables();
-                os << "0=(X" << vid << ",dp-max-p=" << dp << ")" << std::flush;
-            } else {
                 int value = code / pomdp_.number_variables();
-                os << "0=(X" << vid << "," << value << ")" << std::flush;
+                os << "(X" << vid << "," << value << ")";
+            } else {
+                code = code / pomdp_.number_variables();
+                int dp = code % (1 + discretization_parameter_);
+                int value = code / (1 + discretization_parameter_);
+                os << "(X" << vid << "," << value << ",dp=" << dp << ")";
             }
-        } else if( tuple[0] == 2 ) {
-            // this is a novelty 1 tuple
-            assert(tuple[1] == MAGIC_NUMBER);
-            int code = tuple[2];
-            int vid = code % pomdp_.number_variables();
-            code = code / pomdp_.number_variables();
-            int dp = code % (1 + discretization_parameter_);
-            int value = code / (1 + discretization_parameter_);
-            os << "1=(X" << vid << "," << value << "," << dp << ")" << std::flush;
-        } else if( tuple[0] == 3 ) {
-            // this is a novelty 2 tuple
-            assert(tuple[1] == MAGIC_NUMBER);
-            int xcode = tuple[2];
-            int xvid = xcode % pomdp_.number_variables();
-            int xvalue = xcode / pomdp_.number_variables();
-            int ycode = tuple[3];
-            int yvid = ycode % pomdp_.number_variables();
-            ycode = ycode / pomdp_.number_variables();
-            int dp = ycode % (1 + discretization_parameter_);
-            int yvalue = ycode / (1 + discretization_parameter_);
-            os << "2=<(X" << xvid << "," << xvalue << "),(Y" << yvid << "," << yvalue << "," << dp << ")>" << std::flush;
+            if( 1 + i <= tuple[0] ) os << ",";
         }
+        os << ">";
     }
 
     void print_stats(std::ostream &os) const {
@@ -727,7 +640,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
  
     // breadth-first search
-    const node_t<T>* breadth_first_search(const node_t<T> *root) const {
+    const node_t<T>* uniform_cost_search(const node_t<T> *root) const {
         std::vector<std::pair<T, float> > outcomes;
 
         push_node(root);
@@ -972,7 +885,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     void push_node(const node_t<T> *node) const {
         assert(node->novelty_ >= 0);
         assert(node->novelty_ < int(open_lists_.size()));
-        open_lists_[node->novelty_].push(node);
+        //open_lists_[node->novelty_].push(node); // CHECK: using only one open list
+        open_lists_[0].push(node); // CHECK: using only one open list
     }
     const node_t<T>* select_node_for_expansion() const {
 #ifdef EASY
@@ -987,62 +901,9 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         }
         return 0;
     }
-
-    float score(const node_t<T> &n1, const node_t<T> &n2) const {
-#if 0
-        assert(n1.feature_ != 0);
-        assert(n2.feature_ != 0);
-
-        float score_on_marginals = 0;
-        assert(n1.feature_->number_marginals_ == n2.feature_->number_marginals_);
-        for( int i = 0; i < n1.feature_->number_marginals_; ++i ) {
-            float s = score(n1.feature_->marginals_[i], n2.feature_->marginals_[i]);
-            score_on_marginals = s > score_on_marginals ? s : score_on_marginals;
-        }
-
-        float score_on_fixed_tuples = 0;
-        assert(n1.feature_->number_fixed_tuples_ == n2.feature_->number_fixed_tuples_);
-        for( int i = 0; i < n1.feature_->number_fixed_tuples_; ++i ) {
-            float s = score(n1.feature_->fixed_tuples_[i], n2.feature_->fixed_tuples_[i]);
-            score_on_fixed_tuples = s > score_on_fixed_tuples ? s : score_on_fixed_tuples;
-        }
-
-        //std::cout << "score-ft=" << score_on_fixed_tuples << std::endl;
-        return score_on_marginals + score_on_fixed_tuples;
-#endif
-    }
-    float score(const std::vector<float> &d1, const std::vector<float> &d2) const {
-        if( divergence_ == TOTAL )
-            return score_total(d1, d2);
-        else if( divergence_ == KL )
-            return score_kl(d1, d2, false);
-        else if( divergence_ == KL_SYM )
-            return score_kl(d1, d2, true);
-        else if( divergence_ == JS )
-            return score_js(d1, d2);
-        else
-            return 0;
-    }
-    float score_total(const std::vector<float> &p, const std::vector<float> &q) const {
-        return Random::total_divergence(p, q);
-    }
-    float score_kl(const std::vector<float> &p, const std::vector<float> &q, bool symmetric) const {
-        return Random::kl_divergence(p, q, symmetric);
-    }
-    float score_js(const std::vector<float> &p, const std::vector<float> &q) const {
-        return Random::js_divergence(p, q);
-    }
-
-    float score(const std::vector<int> &t1, const std::vector<int> &t2) const {
-        assert(t1.size() == t2.size());
-        int s = 0;
-        for( int i = 0, isz = int(t1.size()); i < isz; ++i )
-            s += t1[i] != t2[i] ? 1 : 0;
-        return float(s) / float(t1.size());
-    }
 };
 
-}; // namespace IWBel2
+}; // namespace IWBel3
 
 }; // namespace Policy
 

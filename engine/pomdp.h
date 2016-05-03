@@ -40,7 +40,7 @@ namespace POMDP {
 typedef int observation_t;
 #endif
 
-#if 0 // CHECK
+#if 0 // CHECK: not using features
 template<typename T> struct feature_t {
     int number_marginals_;
     int number_fixed_tuples_;
@@ -72,7 +72,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     using Problem::problem_t<T>::next;
     typedef std::vector<int> varset_t;
 
-#if 0 // CHECK
+#if 0 // CHECK: not using derived beams
     struct beam_t {
         struct const_iterator {
             virtual bool operator==(const const_iterator &it) const = 0;
@@ -112,7 +112,7 @@ template<typename T> class pomdp_t : public Problem::problem_t<T> {
     virtual void fill_values_for_variable(const T &bel, int vid, std::vector<float> &probabilities) const = 0;
     virtual void fill_values_for_variable(const T &bel, int vid, std::vector<std::pair<int, float> > &values) const = 0;
 
-#if 0 // CHECK
+#if 0 // CHECK: not using features/beams
     //virtual const varset_t& varset(int bid) const = 0;
     //virtual const beam_t& beam(const T &bel, int bid) const = 0;
 
