@@ -10,6 +10,8 @@ TARGET	=	rocksample
 TARGET2	=	rocksample2
 OBJS2	=	main2.o
 
+all:	rocksample rocksample2
+
 $(TARGET):	$(OBJS)
 		$(CXX) $(CCFLAGS) $(EXTRA) -o $(TARGET) $(OBJS)
 
@@ -37,6 +39,7 @@ $(OBJS):	$(ENGINE)/heuristic.h
 $(OBJS):	$(ENGINE)/improved_lao.h
 $(OBJS):	$(ENGINE)/iw_bel.h
 $(OBJS):	$(ENGINE)/iw_bel2.h
+$(OBJS):	$(ENGINE)/iw_bel3.h
 $(OBJS):	$(ENGINE)/ldfs.h
 $(OBJS):	$(ENGINE)/lrtdp.h
 $(OBJS):	$(ENGINE)/makefile
@@ -67,6 +70,7 @@ $(OBJS2):	$(ENGINE)/heuristic.h
 $(OBJS2):	$(ENGINE)/improved_lao.h
 $(OBJS2):	$(ENGINE)/iw_bel.h
 $(OBJS2):	$(ENGINE)/iw_bel2.h
+$(OBJS2):	$(ENGINE)/iw_bel3.h
 $(OBJS2):	$(ENGINE)/ldfs.h
 $(OBJS2):	$(ENGINE)/lrtdp.h
 $(OBJS2):	$(ENGINE)/makefile
