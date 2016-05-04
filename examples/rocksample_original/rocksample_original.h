@@ -309,8 +309,7 @@ class belief_state_t {
         return loc_;
     }
 
-    void sample(int r) {
-        // need to set rock at current location as bad
+    void sample_rock(int r) {
         sampled_.set_bit(r, 1);
     }
 
@@ -536,7 +535,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
 #ifdef DEBUG
         std::cout << "next: bel=" << bel << ", action=" << action_name(a) << std::endl;
 #endif
-
         if( !is_sense_action(a) ) {
             outcomes.push_back(std::make_pair(belief_state_t(bel), 1.0));
             if( a == GoNorth ) {
@@ -550,7 +548,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             } else if( a == Sample ) {
                 assert(rock_locations_map_.find(bel.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
                 int r = rock_locations_map_.at(bel.loc_.as_integer(xdim_, ydim_));
-                outcomes.back().first.sample(r);
+                outcomes.back().first.sample_rock(r);
             } else {
                 std::cout << Utils::error() << "unknown action a=" << a << std::endl;
                 exit(-1);
@@ -621,7 +619,7 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
             } else if( a == Sample ) {
                 assert(rock_locations_map_.find(bel_a.loc_.as_integer(xdim_, ydim_)) != rock_locations_map_.end());
                 int r = rock_locations_map_.at(bel_a.loc_.as_integer(xdim_, ydim_));
-                bel_a.sample(r);
+                bel_a.sample_rock(r);
             } else {
                 std::cout << Utils::error() << "unknown action a=" << a << std::endl;
                 exit(-1);

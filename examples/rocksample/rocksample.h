@@ -60,7 +60,6 @@ inline std::ostream& operator<<(std::ostream &os, const loc_t &loc) {
     return os;
 }
 
-
 struct beam_t {
     const loc_t loc_;
     const int range_;
@@ -328,8 +327,36 @@ class belief_state_t {
     static const pomdp_t *pomdp_;
 
   public:
-    belief_state_t(int loc = 0, int antenna_height = 0);                          // defined below
-    belief_state_t(int loc, int antenna_height, const Bitmap::bitmap_t &hidden);  // defined below
+    belief_state_t(int loc = 0, int antenna_height = 0)
+      : loc_(loc, xdim(), ydim()),
+        antenna_height_(antenna_height),
+        sampled_(0),
+        skipped_(0),
+        csp_(constraint_digraph()) {
+    }
+    belief_state_t(int loc, int antenna_height, const Bitmap::bitmap_t &hidden)
+      : loc_(loc, xdim(), ydim()),
+        antenna_height_(antenna_height),
+        sampled_(0),
+        skipped_(0),
+        hidden_(hidden),
+        csp_(constraint_digraph()) {
+        assert(csp_.nvars() == xdim() * ydim());
+        for( int l = 0; l < xdim() * ydim(); ++l ) {
+            loc_t bloc(l, xdim(), ydim());
+            int d = max_antenna_height();
+            beam_t *beam = new beam_t(bloc, d);
+            csp_.set_domain(l, beam);
+            for( int r = 0; r < number_rocks(); ++r ) {
+                if( bloc.euclidean_distance(rock_location(r)) <= d )
+                    beam->push_rock(r);
+            }
+            beam->set_initial_values();
+#ifdef DEBUG
+            std::cout << "beam(loc=" << bloc << ",d=" << d << ")=" << *beam << std::endl;
+#endif
+        }
+    }
     belief_state_t(const belief_state_t &bel)
       : loc_(bel.loc_),
         antenna_height_(bel.antenna_height_),
@@ -369,6 +396,7 @@ class belief_state_t {
     static int number_rocks();                 // defined below
     static int max_antenna_height();           // defined below
     static const loc_t& rock_location(int r);  // defined below
+    static const CSP::constraint_digraph_t& constraint_digraph();  // defined below
 
     size_t hash() const {
         std::cout << "warning: hash value is zero!" << std::endl;
@@ -448,6 +476,7 @@ class belief_state_t {
         } else {
             probabilities = std::vector<float>(2, 0);
             int r = vid - 2 - 2 * number_rocks();
+            assert((r >= 0) && (r < number_rocks()));
             int beam_index = rock_location(r).as_integer(xdim(), ydim());;
             const beam_t &beam = get_beam(beam_index);
             assert(beam.loc_ == rock_location(r));
@@ -469,38 +498,6 @@ class belief_state_t {
             if( probabilities[i] != 0 )
                 values.push_back(std::make_pair(i, probabilities[i]));
         }
-#if 0 // CHECK
-        assert((vid >= 0) && (vid < number_variables()));
-        if( vid == 0 ) {
-            values.push_back(std::make_pair(loc_.as_integer(xdim(), ydim()), 1));
-        } else if( vid == 1 ) {
-            values.push_back(std::make_pair(antenna_height_, 1));
-        } else if( vid - 2 < number_rocks() ) {
-            int r = vid - 2;
-            values.push_back(std::make_pair(sampled_.bit(r), 1));
-        } else if( vid - 2 - number_rocks() < number_rocks() ) {
-            int r = vid - 2 - number_rocks();
-            values.push_back(std::make_pair(skipped_.bit(r), 1));
-        } else {
-            int r = vid - 2 - 2 * number_rocks();
-            int beam_index = rock_location(r).as_integer(xdim(), ydim());;
-            const beam_t &beam = get_beam(beam_index);
-            assert(beam.loc_ == rock_location(r));
-            int rock_index = beam.rocks_.at(r);
-            int rock_values[] = { 0, 0 };
-            for( int i = 0; i < beam.values_.size(); ++i ) {
-                int rvalue = beam_t::rock_value(rock_index, beam.values_[i]);
-                assert((rvalue == 0) || (rvalue == 1));
-                ++rock_values[rvalue];
-            }
-            if( rock_values[0] != 0 )
-                values.push_back(std::make_pair(0, float(rock_values[0]) / float(beam.values_.size())));
-            if( rock_values[1] != 0 )
-                values.push_back(std::make_pair(1, float(rock_values[1]) / float(beam.values_.size())));
-            //std::cout << "fill-values: rock=" << r << ", beam-index=" << beam_index << ", rock-index=" << rock_index << ", beam.sz=" << beam.values_.size() << ", sz=" << values.size() << ", values={(" << values[0].first << "," << values[0].second << ")";
-            //if( values.size() > 1 ) std::cout << ",(" << values[1].first << "," << values[1].second << ")}" << std::endl;
-        }
-#endif
     }
 
     const loc_t& loc() const { return loc_; }
@@ -540,6 +537,7 @@ class belief_state_t {
         //std::cout << "apply_sense: obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
         int index = loc_.as_integer(xdim(), ydim());
         beam_t &beam = get_beam(index);
+        assert(loc_ == beam.loc_);
 
         // if beam has no rocks, obs must be OBS_NOT_GOOD and there is nothing to do
         if( beam.rocks_.empty() ) {
@@ -551,7 +549,7 @@ class belief_state_t {
         // calculate rocks within sensor range
         std::vector<int> indices_for_rocks_within_sensor_range;
         for( std::map<int, int>::const_iterator it = beam.rocks_.begin(); it != beam.rocks_.end(); ++it ) {
-            if( beam.loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
+            if( loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
                 indices_for_rocks_within_sensor_range.push_back(it->second);
         }
 
@@ -581,26 +579,21 @@ class belief_state_t {
             }
         }
 
+        // erase indices
         bool something_removed = !indices_to_erase.empty();
-        for( int i = indices_to_erase.size() - 1; i >= 0; --i ) {
-            beam.values_[indices_to_erase[i]] = beam.values_.back();
-            beam.values_.pop_back();
-        }
+        beam.erase_ordered_indices(indices_to_erase);
 
         // restore consistency across beams
-        if( something_removed ) {
-            restore_consistency(index);
-            //std::cout << "apply_sense(EXIT1): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
-            return true;
-        } else {
-            //std::cout << "apply_sense(EXIT2): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
-            return false;
-        }
+        if( something_removed ) restore_consistency(index);
+
+        //std::cout << "apply_sense(EXIT): obs=" << obs << ", bel="; print(std::cout); std::cout << std::endl;
+        return something_removed;
     }
 
     std::pair<float, float> probability_sense(const std::vector<loc_t> &rock_locations) const { // pair is (P(good), P(!good))
         int index = loc_.as_integer(xdim(), ydim());
         const beam_t &beam = get_beam(index);
+        assert(loc_ == beam.loc_);
 
         float p_good = 0;
         if( beam.values_.empty() ) {
@@ -609,11 +602,11 @@ class belief_state_t {
             // calculate rocks within sensor range
             std::vector<int> indices_for_rocks_within_sensor_range;
             for( std::map<int, int>::const_iterator it = beam.rocks_.begin(); it != beam.rocks_.end(); ++it ) {
-                if( beam.loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
+                if( loc_.euclidean_distance(rock_location(it->first)) <= antenna_height_ )
                     indices_for_rocks_within_sensor_range.push_back(it->second);
             }
 
-            // calculate # valuations that contain rocks within sensor rage that are good
+            // calculate # valuations that contain rocks within sensor range that are good
             int number_valuations_with_good_rocks_within_sensor_range = 0;
             for( int i = 0; i < beam.values_.size(); ++i ) {
                 int value = beam.values_[i];
@@ -662,96 +655,12 @@ class belief_state_t {
     }
 
     friend class pomdp_t;
-#if 0 // RESTORE // CHECK
-    friend struct feature_t;
-#endif
 };
 
 inline std::ostream& operator<<(std::ostream &os, const belief_state_t &bel) {
     bel.print(os);
     return os;
 }
-
-#if 0 // RESTORE // CHECK
-struct feature_t : public POMDP::feature_t<belief_state_t> {
-    feature_t(const belief_state_t &bel) {
-        number_marginals_ = belief_state_t::number_rocks();
-        std::vector<float> *marginals = new std::vector<float>[belief_state_t::number_rocks()];
-        for( int r = 0; r < belief_state_t::number_rocks(); ++r ) {
-            assert(bel.beam(r).value_ != simple_beam_t::empty);
-            marginals[r] = std::vector<float>(2, 0);
-            if( bel.beam(r).value_ == simple_beam_t::bad ) {
-                marginals[r][simple_beam_t::bad] = 1;
-            } else if( bel.beam(r).value_ == simple_beam_t::good ) {
-                marginals[r][simple_beam_t::good] = 1;
-            } else if( bel.beam(r).value_ == simple_beam_t::both ) {
-                marginals[r][simple_beam_t::bad] = 0.5;
-                marginals[r][simple_beam_t::good] = 0.5;
-            }
-        }
-        marginals_ = marginals;
-
-        number_fixed_tuples_ = 2;
-        std::vector<int> *fixed_tuples = new std::vector<int>[2];
-        fixed_tuples[0].reserve(belief_state_t::number_rocks());
-        for( int r = 0; r < belief_state_t::number_rocks(); ++r )
-            fixed_tuples[0].push_back(bel.sampled_.bit(r));
-        fixed_tuples[1].reserve(belief_state_t::number_rocks());
-        for( int r = 0; r < belief_state_t::number_rocks(); ++r )
-            fixed_tuples[1].push_back(bel.skipped_.bit(r));
-        fixed_tuples_ = fixed_tuples;
-    }
-    virtual ~feature_t() {
-        assert(number_marginals_ == belief_state_t::number_rocks());
-        assert(number_fixed_tuples_ == 2);
-        assert(number_other_tuples_ == 0);
-        delete[] fixed_tuples_;
-        delete[] marginals_;
-    }
-
-    virtual size_t hash() const {
-        return 0; // CHECK
-    }
-
-    virtual bool operator==(const POMDP::feature_t<belief_state_t> &feature) const {
-        if( number_marginals_ != feature.number_marginals_ ) return false;
-        for( int i = 0; i < number_marginals_; ++i ) {
-            if( marginals_[i] != feature.marginals_[i] )
-                return false;
-        }
-        if( number_fixed_tuples_ != feature.number_fixed_tuples_ ) return false;
-        for( int i = 0; i < number_fixed_tuples_; ++i ) {
-            if( fixed_tuples_[i] != feature.fixed_tuples_[i] )
-                return false;
-        }
-        return true;
-    }
-
-    virtual void print(std::ostream &os) const {
-        os << "[marginals=" << number_marginals_;
-        for( int i = 0; i < number_marginals_; ++i ) {
-            const std::vector<float> &marginal = marginals_[i];
-            os << ":[";
-            for( int j = 0; j < int(marginal.size()); ++j ) {
-                os << marginal[j];
-                if( j + 1 < int(marginal.size()) ) os << ",";
-            }
-            os << "]";
-        }
-        os << ",fixed-tuples=" << number_fixed_tuples_;
-        for( int i = 0; i < number_fixed_tuples_; ++i ) {
-            const std::vector<int> &tuple = fixed_tuples_[i];
-            os << ":[";
-            for( int j = 0; j < int(tuple.size()); ++j ) {
-                os << tuple[j];
-                if( j + 1 < int(tuple.size()) ) os << ",";
-            }
-            os << "]";
-        }
-        os << "]" << std::flush;
-    }
-};
-#endif
 
 class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
   protected:
@@ -948,8 +857,14 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
         return false;
     }
     virtual bool applicable(const belief_state_t &bel, ::Problem::action_t a) const {
-        if( (a >= GoNorth) && (a <= GoWest) ) {
-            return bel.antenna_height_ == 0;
+        if( a == GoNorth ) {
+            return (bel.antenna_height_ == 0) && (1 + bel.loc_.r_ < ydim_);
+        } else if( a == GoEast ) {
+            return (bel.antenna_height_ == 0) && (1 + bel.loc_.c_ < xdim_);
+        } else if( a == GoSouth ) {
+            return (bel.antenna_height_ == 0) && (bel.loc_.r_ > 0);
+        } else if( a == GoWest ) {
+            return (bel.antenna_height_ == 0) && (bel.loc_.c_ > 0);
         } else if( a == RaiseAntenna ) {
             return bel.antenna_height_ < max_antenna_height_;
         } else if( a == LowerAntenna ) {
@@ -980,12 +895,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual float cost(const belief_state_t &bel, Problem::action_t a) const {
         if( is_sample_action(a) || is_skip_action(a) )
             return -10;
-        else if( a == Sense )
-            return 5;
-#if 0 // CHECK
-        else if( (a == RaiseAntenna) || (a == LowerAntenna) )
-            return .05;
-#endif
         else
             return 1;
     }
@@ -1018,20 +927,22 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
                 outcomes.back().first.lower_antenna();
             } else if( is_sample_action(a) ) {
                 int r = sampled_rock(a);
+                assert((r >= 0) && (r < number_rocks_));
                 outcomes.back().first.sample_rock(r);
             } else if( is_skip_action(a) ) {
                 int r = skipped_rock(a);
+                assert((r >= 0) && (r < number_rocks_));
                 outcomes.back().first.skip_rock(r);
             } else {
                 std::cout << Utils::error() << "unknown action a=" << a << std::endl;
                 exit(-1);
             }
-#if 0//def DEBUG
+#ifdef DEBUG
             std::cout << "    " << outcomes.size() << ". next-bel=" << outcomes.back().first << std::endl;
 #endif
         } else {
             outcomes.reserve(2);
-            //std::cout << "PROBABILITY-SENSE.0" << std::endl;
+            //std::cout << "PROBABILITY-SENSE.0: loc=" << bel.loc_ << ", antenna-height=" << bel.antenna_height_ << ", a=" << a << std::endl;
             std::pair<float, float> p = bel.probability_sense(rock_locations_); // pair is (P(good), P(!good))
             //std::cout << "PROBABILITY-SENSE.1: p: " << p.first << " " << p.second << std::endl;
             if( p.first > 0 ) {
@@ -1083,19 +994,6 @@ class pomdp_t : public POMDP::pomdp_t<belief_state_t> {
     virtual void fill_values_for_variable(const belief_state_t &belief, int vid, std::vector<std::pair<int, float> > &values) const {
         belief.fill_values_for_variable(vid, values);
     }
-
-#if 0 // CHECK
-    virtual POMDP::feature_t<belief_state_t> *get_feature(const belief_state_t &bel) const {
-        POMDP::feature_t<belief_state_t> *feature = 0;
-#if 0 // RESTORE // CHECK
-I       feature = new feature_t(bel);
-#endif
-        return feature;
-    }
-    virtual void remove_feature(const POMDP::feature_t<belief_state_t> *feature) const {
-        delete feature;
-    }
-#endif
 
     virtual void apply_action(belief_state_t &bel_a, Problem::action_t a) const {
         if( a != Sense ) {
@@ -1182,38 +1080,6 @@ inline void arc_consistency_t::arc_reduce_preprocessing_0(int var_x, int var_y) 
     common_rocks_ = &pomdp_->common_rocks(var_x, var_y);
 }
 
-inline belief_state_t::belief_state_t(int loc, int antenna_height)
-  : loc_(loc, xdim(), ydim()),
-    antenna_height_(antenna_height),
-    sampled_(0),
-    skipped_(0),
-    csp_(pomdp_->constraint_digraph_) {
-}
-
-inline belief_state_t::belief_state_t(int loc, int antenna_height, const Bitmap::bitmap_t &hidden)
-  : loc_(loc, xdim(), ydim()),
-    antenna_height_(antenna_height),
-    sampled_(0),
-    skipped_(0),
-    hidden_(hidden),
-    csp_(pomdp_->constraint_digraph_) {
-    assert(csp_.nvars() == xdim() * ydim());
-    for( int l = 0; l < xdim() * ydim(); ++l ) {
-        loc_t bloc(l, xdim(), ydim());
-        int d = max_antenna_height();
-        beam_t *beam = new beam_t(bloc, d);
-        csp_.set_domain(l, beam);
-        for( int r = 0; r < number_rocks(); ++r ) {
-            if( bloc.euclidean_distance(rock_location(r)) <= d )
-                beam->push_rock(r);
-        }
-        beam->set_initial_values();
-#ifdef DEBUG
-        std::cout << "beam(loc=" << bloc << ",d=" << d << ")=" << *beam << std::endl;
-#endif
-    }
-}
- 
 inline int belief_state_t::xdim() {
     assert(pomdp_ != 0);
     return pomdp_->xdim_;
@@ -1243,6 +1109,11 @@ inline const loc_t& belief_state_t::rock_location(int r) {
     assert(pomdp_ != 0);
     assert(r < int(pomdp_->rock_locations_.size()));
     return pomdp_->rock_locations_[r];
+}
+
+inline const CSP::constraint_digraph_t& belief_state_t::constraint_digraph() {
+    assert(pomdp_ != 0);
+    return pomdp_->constraint_digraph_;
 }
 
 #undef DEBUG
