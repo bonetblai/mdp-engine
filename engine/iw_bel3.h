@@ -359,7 +359,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         assert(open_lists_are_empty());
         assert(tuple_hash_is_empty());
         assert(closed_list_.empty());
-#if 1//def EASY//def DEBUG
+#if 0//def EASY//def DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
                   << "root=" << bel << std::endl
@@ -420,7 +420,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
             action = n->a_;
         }
         free_resources();
-#if 1//def EASY//def DEBUG
+#if 0//def EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "BEST ACTION=" << pomdp_.action_name(action) << std::endl;
 #endif
@@ -460,7 +460,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
 #ifdef DEBUG
         std::cout << "debug: iw-bel2(): params:"
                   << " width=" << width_
-                  << " prune-threshold=" << prune-threshold_
+                  << " prune-threshold=" << prune_threshold_
                   << " discretization-parameter=" << discretization_parameter_
                   << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
                   << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")

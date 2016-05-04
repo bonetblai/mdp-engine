@@ -504,7 +504,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #ifdef DEBUG
         std::cout << "debug: iw-bel2(): params:"
                   << " width=" << width_
-                  << " prune-threshold=" << prune-threshold_
+                  << " prune-threshold=" << prune_threshold_
                   << " discretization-parameter=" << discretization_parameter_
                   << " determinization=" << (determinization_ == MOST_LIKELY ? "most-likely" : "sample")
                   << " stop-criterion=" << (stop_criterion_ == TARGET ? "target" : "reward")
@@ -777,7 +777,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
                         // compute tuples and novelty for this outcome
                         std::vector<const int*> *tuples = new std::vector<const int*>();
-                        float *tie_breaker = 0; //new float[non_determined_variables_map_.size()]; // CHECK: not using tie-breaker in this version
+                        float *tie_breaker = new float[non_determined_variables_map_.size()];
                         fill_tuples(outcomes[i].first, *tuples, tie_breaker);
                         int novelty = compute_novelty(*tuples);
 #ifdef EASY
