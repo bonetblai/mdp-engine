@@ -419,7 +419,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         fill_tuples(*root);
         root->novelty_ = compute_novelty(*root->tuples_);
         if( root->novelty_ > prune_threshold_ ) {
-#if 1//def EASY
+#ifdef EASY
             std::cout << "ROOT PRUNED: NOVELTY > threshold (" << root->novelty_ << " > " << prune_threshold_ << ")" << std::endl;
 #endif
             tuple_factory_.free_tuples(*root->tuples_);
@@ -445,15 +445,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         Problem::action_t action = Problem::noop;
         if( node == 0 ) {
             // goal node wasn't found, return random action
-            //action = Online::Policy::random_t<T>(policy_t<T>::problem_)(bel);
-            std::vector<Problem::action_t> applicable_actions;
-            applicable_actions.reserve(pomdp_.number_actions(bel));
-            for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
-                if( pomdp_.applicable(bel, a) )
-                    applicable_actions.push_back(a);
-            }
-            if( !applicable_actions.empty() )
-                action = applicable_actions[!random_ties_ ? 0 : Random::random(applicable_actions.size())];
+            action = Online::Policy::random_t<T>(policy_t<T>::problem_)(bel);
         } else {
             // return first action in path
             const node_t<T> *n = node;
