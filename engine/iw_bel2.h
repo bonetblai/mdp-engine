@@ -399,7 +399,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         assert(open_lists_are_empty());
         assert(tuple_hash_is_empty());
         assert(closed_list_.empty());
-#if 1//def EASY//def DEBUG
+#if 0//def EASY//def DEBUG
         std::cout << std::endl
                   << "**** REQUEST FOR ACTION ****" << std::endl
                   << "root=" << bel << std::endl
@@ -417,7 +417,19 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
-        root->novelty_ = 1;
+        root->novelty_ = compute_novelty(*root->tuples_);
+        if( root->novelty_ > prune_threshold_ ) {
+#if 1//def EASY
+            std::cout << "ROOT PRUNED: NOVELTY > threshold (" << root->novelty_ << " > " << prune_threshold_ << ")" << std::endl;
+#endif
+            tuple_factory_.free_tuples(*root->tuples_);
+            delete[] root->tie_breaker_;
+            delete root->tuples_;
+            delete root;
+            return Online::Policy::random_t<T>(policy_t<T>::problem_)(bel);
+        }
+
+        // perform search
         const node_t<T> *node = breadth_first_search(root);
 
 #ifdef EASY//def DEBUG
@@ -433,6 +445,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         Problem::action_t action = Problem::noop;
         if( node == 0 ) {
             // goal node wasn't found, return random action
+            //action = Online::Policy::random_t<T>(policy_t<T>::problem_)(bel);
             std::vector<Problem::action_t> applicable_actions;
             applicable_actions.reserve(pomdp_.number_actions(bel));
             for( Problem::action_t a = 0; a < pomdp_.number_actions(bel); ++a ) {
@@ -460,7 +473,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             action = n->a_;
         }
         free_resources();
-#if 1//def EASY//def DEBUG
+#if 0//def EASY//def DEBUG
         print_stats(std::cout);
         std::cout << "BEST ACTION=" << pomdp_.action_name(action) << std::endl;
 #endif
@@ -534,98 +547,104 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         *const_cast<std::vector<const int*>*>(node.tuples_) = std::move(tuples);
     }
     void fill_tuples(const T &belief, std::vector<const int*> &tuples, float *tie_breaker) const {
-        // tuples of novelty 0: (a) tuples (X,dp) that means belief satisfies
-        // p = max_x P(X=x) and discret(p) = dp for *non-determined* variables X,
-        // and (b) tuples (X,x) for the unique value x of *determined* variables X
+        if( prune_threshold_ > 0 ) {
+            // tuples of size 1: (a) tuples (X,dp) that means belief satisfies
+            // p = max_x P(X=x) and discret(p) = dp for *non-determined* variables X,
+            // and (b) tuples (X,x) for the unique value x of *determined* variables X
+            for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
+                if( !pomdp_.determined(vid) ) {
+                    float max_p = 0;
+                    std::vector<float> probabilities(pomdp_.domain_size(vid), 0);
+                    pomdp_.fill_values_for_variable(belief, vid, probabilities);
+                    for( int value = 0; value < int(probabilities.size()); ++value ) {
+                        float p = probabilities[value];
+                        max_p = p > max_p ? p : max_p;
+                    }
 
-        // tuples of novelty 1: tuples (X,x,dp) that means belief satisfies
-        // p = P(X=x) and discret(p) = dp for all *non-determined* variables X
-        for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
-            int code = -1;
-            if( pomdp_.determined(vid) ) {
-                // CHECK: comment is wrong as this tuple is for novelty 1
-                // code for tuple of novelty 0 of type (a)
-                int value = belief.value(vid);
-                assert(value != -1);
-                code = value * pomdp_.number_variables() + vid;
-                //continue; // CHECK: it is better for rocksample. why?
+                    // fill tie breaker
+                    if( tie_breaker != 0 ) {
+                        int index = non_determined_variables_map_.at(vid);
+                        tie_breaker[index] = max_p;
+                    }
 
-                // fill tuple of novelty 1 and insert
-                int *tuple = tuple_factory_.get_tuple(2);
-                assert(tuple[0] == 2);
-                tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
-                tuple[2] = code;
-                tuples.push_back(tuple);
-            } else {
-                float max_p = 0;
-                std::vector<float> probabilities(pomdp_.domain_size(vid), 0);
-                pomdp_.fill_values_for_variable(belief, vid, probabilities);
-                for( int value = 0; value < int(probabilities.size()); ++value ) {
-                    float p = probabilities[value];
-                    max_p = p > max_p ? p : max_p;
-                    if( prune_threshold_ > 0 ) {
-                        // code for tuple of novelty 1
+                    // code for tuple of size 1 (type b)
+                    int dmax_p = ceilf(max_p * discretization_parameter_);
+                    assert(dmax_p <= discretization_parameter_);
+                    int code = dmax_p * pomdp_.number_variables() + vid;
+
+                    // fill tuple and insert
+                    int *tuple = tuple_factory_.get_tuple(1);
+                    assert(tuple[0] == 1);
+                    tuple[1] = code;
+                    tuples.push_back(tuple);
+                }
+            }
+        }
+
+        if( prune_threshold_ > 1 ) {
+            // tuples of size 2: tuples (X,x,dp) that means belief satisfies
+            // p = P(X=x) and discret(p) = dp for all *non-determined* variables X
+            // **first element** in tuple is magic number
+            for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
+                if( pomdp_.determined(vid) ) {
+                    int value = belief.value(vid);
+                    assert(value != -1);
+                    int code = value * pomdp_.number_variables() + vid;
+
+                    // fill tuple and insert
+                    int *tuple = tuple_factory_.get_tuple(2);
+                    assert(tuple[0] == 2);
+                    tuple[1] = MAGIC_NUMBER; // pad tuples to simplify code
+                    tuple[2] = code;
+                    tuples.push_back(tuple);
+                } else {
+                    std::vector<float> probabilities(pomdp_.domain_size(vid), 0);
+                    pomdp_.fill_values_for_variable(belief, vid, probabilities);
+                    for( int value = 0; value < int(probabilities.size()); ++value ) {
+                        float p = probabilities[value];
                         int dp = ceilf(p * discretization_parameter_);
                         assert(dp <= discretization_parameter_);
                         int code = (value * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + vid;
 
-                        // fill tuple of novelty 1 and insert
+                        // fill tuple and insert
                         int *tuple = tuple_factory_.get_tuple(2);
                         assert(tuple[0] == 2);
-                        tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
+                        tuple[1] = MAGIC_NUMBER; // pad tuples to simplify code
                         tuple[2] = code;
                         tuples.push_back(tuple);
                     }
                 }
-
-                int index = non_determined_variables_map_.at(vid);
-                tie_breaker[index] = max_p;
-
-#if 1 // THIS IS GOOD FOR ROCKSAMPLE
-                // code for tuple of novelty 0 of type (b)
-                int dp = ceilf(max_p * discretization_parameter_);
-                assert(dp <= discretization_parameter_);
-                //float entropy = Random::entropy(probabilities);
-                //int dp = ceilf(entropy * discretization_parameter_);
-                code = dp * pomdp_.number_variables() + vid;
-
-                // fill tuple of novelty 0 and insert
-                int *tuple = tuple_factory_.get_tuple(1);
-                assert(tuple[0] == 1);
-                tuple[1] = code;
-                tuples.push_back(tuple);
-#endif
             }
         }
 
-        // tuples of novelty 2: pairs <(X,x),(Y,y,dp)> that means belief satisfies
-        // X=x, p = P(Y=y), p > 0, and discret(p) = dp for *determined* variables X
-        // and *non-determined* variables Y
-        if( prune_threshold_ < 2 ) return;
-        for( int xvid = 0; xvid < pomdp_.number_variables(); ++xvid ) {
-            if( pomdp_.determined(xvid) ) {
-                // xcode for tuple of novelty 2
-                int xvalue = belief.value(xvid);
-                assert(xvalue != -1);
-                int xcode = xvalue * pomdp_.number_variables() + xvid;
-                for( int yvid = 0; yvid < pomdp_.number_variables(); ++yvid ) {
-                    if( !pomdp_.determined(yvid) ) {
-                        std::vector<float> probabilities(pomdp_.domain_size(yvid), 0);
-                        pomdp_.fill_values_for_variable(belief, yvid, probabilities);
-                        for( int yvalue = 0; yvalue < int(probabilities.size()); ++yvalue ) {
-                            // ycode for tuple of novelty 2
-                            float p = probabilities[yvalue];
-                            int dp = ceilf(p * discretization_parameter_);
-                            assert(dp <= discretization_parameter_);
-                            int ycode = (yvalue * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + yvid;
+        if( prune_threshold_ > 2 ) {
+            // tuples of size 3: pairs <(X,x),(Y,y,dp)> that means belief satisfies
+            // X=x, p = P(Y=y), p > 0, and discret(p) = dp for *determined* variables X
+            // and *non-determined* variables Y
+            // **first element** in tuple is magic number
+            for( int xvid = 0; xvid < pomdp_.number_variables(); ++xvid ) {
+                if( pomdp_.determined(xvid) ) {
+                    int xvalue = belief.value(xvid);
+                    assert(xvalue != -1);
+                    int xcode = xvalue * pomdp_.number_variables() + xvid;
+                    for( int yvid = 0; yvid < pomdp_.number_variables(); ++yvid ) {
+                        if( !pomdp_.determined(yvid) ) {
+                            std::vector<float> probabilities(pomdp_.domain_size(yvid), 0);
+                            pomdp_.fill_values_for_variable(belief, yvid, probabilities);
+                            for( int yvalue = 0; yvalue < int(probabilities.size()); ++yvalue ) {
+                                float p = probabilities[yvalue];
+                                int dp = ceilf(p * discretization_parameter_);
+                                assert(dp <= discretization_parameter_);
+                                int ycode = (yvalue * (1 + discretization_parameter_) + dp) * pomdp_.number_variables() + yvid;
 
-                            // fill tuple of novelty 2 and insert
-                            int *tuple = tuple_factory_.get_tuple(3);
-                            assert(tuple[0] == 3);
-                            tuple[1] = MAGIC_NUMBER; // pad tuples of novelty > 0 to simplify code
-                            tuple[2] = xcode;
-                            tuple[3] = ycode;
-                            tuples.push_back(tuple);
+                                // fill tuple of novelty 2 and insert
+                                int *tuple = tuple_factory_.get_tuple(3);
+                                assert(tuple[0] == 3);
+                                tuple[1] = MAGIC_NUMBER; // pad tuples to simplify code
+                                tuple[2] = xcode;
+                                tuple[3] = ycode;
+                                tuples.push_back(tuple);
+                            }
                         }
                     }
                 }
@@ -650,18 +669,16 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
     void print_tuple(std::ostream &os, const int *tuple) const {
         if( tuple[0] == 1 ) {
-            // this is a novelty 0 tuple
             int code = tuple[1];
             int vid = code % pomdp_.number_variables();
             if( pomdp_.determined(vid) ) {
-                int dp = code / pomdp_.number_variables();
-                os << "0=(X" << vid << ",dp-max-p=" << dp << ")" << std::flush;
-            } else {
                 int value = code / pomdp_.number_variables();
                 os << "0=(X" << vid << "," << value << ")" << std::flush;
+            } else {
+                int dp = code / pomdp_.number_variables();
+                os << "0=(X" << vid << ",dp-max-p=" << dp << ")" << std::flush;
             }
         } else if( tuple[0] == 2 ) {
-            // this is a novelty 1 tuple
             assert(tuple[1] == MAGIC_NUMBER);
             int code = tuple[2];
             int vid = code % pomdp_.number_variables();
@@ -670,7 +687,6 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
             int value = code / (1 + discretization_parameter_);
             os << "1=(X" << vid << "," << value << "," << dp << ")" << std::flush;
         } else if( tuple[0] == 3 ) {
-            // this is a novelty 2 tuple
             assert(tuple[1] == MAGIC_NUMBER);
             int xcode = tuple[2];
             int xvid = xcode % pomdp_.number_variables();
@@ -800,7 +816,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                             std::cout << " --> SAVED" << std::endl;
                             candidates.push_back(candidate_t(i, novelty, tuples, tie_breaker));
                         } else {
-                            // check if this outcome is most probable (best candidate) // CHECK: IDEA: keep most probable modulo discretization and sample below
+                            // check if this outcome is most probable (best candidate)
+                            // CHECK: IDEA: keep most probable modulo discretization and sample below
                             if( candidates.empty() || (outcomes[i].second >= outcomes[candidates.back().index_].second) ) {
                                 if( !candidates.empty() && (outcomes[i].second > outcomes[candidates.back().index_].second) )
                                     clear_candidate_list(candidates);
@@ -859,7 +876,6 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         //
         // Return a best node in open/closed if stop-criterion is REWARD
         if( stop_criterion_ == REWARD ) {
-#if 0 // CHECK
             std::vector<const node_t<T>*> best;
             for( int i = 0; i < int(open_lists_.size()); ++i ) {
                 const priority_queue_t &open_list = open_lists_[i];
@@ -873,7 +889,6 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                     }
                 }
             }
-#endif
 
 #if 0 // CHECK
             // search closed list when all open-lists are empty
@@ -889,8 +904,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
                 }
             }
 #endif
-            if( open_lists_[0].empty() ) std::cout << "**** BEST IS EMPTY" << std::endl;
-            return open_lists_[0].empty() ? 0 : open_lists_[0].top(); // CHECK
+            //if( best.empty() ) std::cout << "**** BEST IS EMPTY" << std::endl;
+            return best.empty() ? 0 : best[Random::random(best.size())];
         }
         return 0;
     }
