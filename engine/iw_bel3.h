@@ -344,7 +344,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         return new iw_bel3_t(pomdp_);
     }
     virtual std::string name() const {
-        return std::string("iw-bel2(") +
+        return std::string("iw-bel3(") +
           std::string("width=") + std::to_string(width_) +
           std::string(",prune-threshold=") + std::to_string(prune_threshold_) +
           std::string(",discretization-parameter=") + std::to_string(discretization_parameter_) +
@@ -463,7 +463,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         if( it != parameters.end() ) random_ties_ = it->second == "true";
         policy_t<T>::setup_time_ = 0;
 #ifdef DEBUG
-        std::cout << "debug: iw-bel2(): params:"
+        std::cout << "debug: iw-bel3(): params:"
                   << " width=" << width_
                   << " prune-threshold=" << prune_threshold_
                   << " discretization-parameter=" << discretization_parameter_
