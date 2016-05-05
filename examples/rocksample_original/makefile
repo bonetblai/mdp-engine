@@ -19,7 +19,7 @@ $(TARGET2):	$(OBJS2)
 		$(CXX) $(CCFLAGS) $(EXTRA) -o $(TARGET2) $(OBJS2)
 
 clean:
-		rm -f $(OBJS) $(TARGET) *~ core
+		rm -f $(OBJS) $(TARGET) $(OBJS2) $(TARGET2) *~ core
 
 .cc.o:
 		$(CXX) $(CCFLAGS) $(EXTRA) -c $<
