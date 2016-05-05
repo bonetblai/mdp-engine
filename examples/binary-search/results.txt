@@ -7,6 +7,8 @@ the following stats may aggregate figures when elements are shared among policie
 stats: type=eval name=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=1) seed=2906 problem.expansions=31266 policy.decisions=380 eval.value.avg=38.0 eval.value.stdev=8.3 eval.steps.avg=38.0 eval.steps.stdev=8.3 time.raw=0.1 time.setup=0.0 time.policy=0.1
   other-stats: name=iw-bel2(width=0,prune-threshold=1,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,divergence=total,max-expansions=250,score-aggregation=max,random_ties=true) decisions=380
 main: total-time=0.1
+
+
 main: seed=20653
 bitmap_t: dim=80, dim_in_words=3, bits_in_last_word=16, last_word_mask=00000000000000001111111111111111
 dispatcher: create-request: creating: type=policy, request=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2)
@@ -16,6 +18,8 @@ the following stats may aggregate figures when elements are shared among policie
 stats: type=eval name=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2) seed=20653 problem.expansions=16524 policy.decisions=66 eval.value.avg=6.6 eval.value.stdev=0.2 eval.steps.avg=6.6 eval.steps.stdev=0.2 time.raw=0.3 time.setup=0.0 time.policy=0.3
   other-stats: name=iw-bel2(width=0,prune-threshold=2,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,divergence=total,max-expansions=250,score-aggregation=max,random_ties=true) decisions=66
 main: total-time=0.3
+
+
 main: seed=22470
 bitmap_t: dim=80, dim_in_words=3, bits_in_last_word=16, last_word_mask=00000000000000001111111111111111
 dispatcher: create-request: creating: type=policy, request=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=3)
@@ -25,6 +29,8 @@ the following stats may aggregate figures when elements are shared among policie
 stats: type=eval name=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=3) seed=22470 problem.expansions=16605 policy.decisions=63 eval.value.avg=6.3 eval.value.stdev=0.3 eval.steps.avg=6.3 eval.steps.stdev=0.3 time.raw=0.3 time.setup=0.0 time.policy=0.3
   other-stats: name=iw-bel2(width=0,prune-threshold=3,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,divergence=total,max-expansions=250,score-aggregation=max,random_ties=true) decisions=63
 main: total-time=0.3
+
+
 main: seed=7449
 bitmap_t: dim=80, dim_in_words=3, bits_in_last_word=16, last_word_mask=00000000000000001111111111111111
 dispatcher: create-request: creating: type=policy, request=iw-bel3(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=1)
@@ -34,6 +40,8 @@ the following stats may aggregate figures when elements are shared among policie
 stats: type=eval name=iw-bel3(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=1) seed=7449 problem.expansions=1241568 policy.decisions=285 eval.value.avg=28.5 eval.value.stdev=3.7 eval.steps.avg=28.5 eval.steps.stdev=3.7 time.raw=25.0 time.setup=0.0 time.policy=25.0
   other-stats: name=iw-bel3(width=0,prune-threshold=1,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,max-expansions=250,random_ties=true) decisions=285
 main: total-time=25.0
+
+
 main: seed=20170
 bitmap_t: dim=80, dim_in_words=3, bits_in_last_word=16, last_word_mask=00000000000000001111111111111111
 dispatcher: create-request: creating: type=policy, request=iw-bel3(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2)
