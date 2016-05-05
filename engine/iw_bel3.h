@@ -378,7 +378,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
         root->novelty_ = compute_novelty(*root->tuples_);
-        if( root->novelty_ > prune_threshold_ ) {
+        if( root->novelty_ >= prune_threshold_ ) {
 #ifdef EASY
             std::cout << "ROOT PRUNED: NOVELTY > threshold (" << root->novelty_ << " > " << prune_threshold_ << ")" << std::endl;
 #endif
@@ -703,7 +703,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
 #endif
 
                         // prune node if all its tuples already seen
-                        if( novelty > prune_threshold_ ) {
+                        if( novelty >= prune_threshold_ ) {
                             tuple_factory_.free_tuples(*tuples);
                             delete[] tie_breaker;
                             delete tuples;

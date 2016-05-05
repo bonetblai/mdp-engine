@@ -418,7 +418,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         node_t<T> *root = get_root_node(bel);
         fill_tuples(*root);
         root->novelty_ = compute_novelty(*root->tuples_);
-        if( root->novelty_ > prune_threshold_ ) {
+        if( root->novelty_ >= prune_threshold_ ) {
 #ifdef EASY
             std::cout << "ROOT PRUNED: NOVELTY > threshold (" << root->novelty_ << " > " << prune_threshold_ << ")" << std::endl;
 #endif
@@ -540,9 +540,8 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
     }
     void fill_tuples(const T &belief, std::vector<const int*> &tuples, float *tie_breaker) const {
         if( prune_threshold_ > 0 ) {
-            // tuples of size 1: (a) tuples (X,dp) that means belief satisfies
-            // p = max_x P(X=x) and discret(p) = dp for *non-determined* variables X,
-            // and (b) tuples (X,x) for the unique value x of *determined* variables X
+            // tuples of size 1: tuples (X,dp) that means belief satisfies p = max_x P(X=x)
+            // and discret(p) = dp for *non-determined* variables X.
             for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
                 if( !pomdp_.determined(vid) ) {
                     float max_p = 0;
@@ -574,9 +573,11 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
         }
 
         if( prune_threshold_ > 1 ) {
-            // tuples of size 2: tuples (X,x,dp) that means belief satisfies
-            // p = P(X=x) and discret(p) = dp for all *non-determined* variables X
-            // **first element** in tuple is magic number
+            // tuples of size 2: (a) tuples <dummy,(X,x)> for the unique value x
+            // of *determined* variables X. **First element* is magic number, and 
+            // (b) tuples (X,x,dp) that means belief satisfies p = P(X=x) and
+            // discret(p) = dp for all *non-determined* variables X. ** First
+            // element** is magic number.
             for( int vid = 0; vid < pomdp_.number_variables(); ++vid ) {
                 if( pomdp_.determined(vid) ) {
                     int value = belief.value(vid);
@@ -793,7 +794,7 @@ template<typename T> class iw_bel2_t : public policy_t<T> {
 #endif
 
                         // prune node if all its tuples already seen
-                        if( novelty > prune_threshold_ ) {
+                        if( novelty >= prune_threshold_ ) {
                             tuple_factory_.free_tuples(*tuples);
                             delete[] tie_breaker;
                             delete tuples;
