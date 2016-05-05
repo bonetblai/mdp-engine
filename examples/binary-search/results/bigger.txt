@@ -1,0 +1,18 @@
+main: seed=4220
+bitmap_t: dim=550, dim_in_words=18, bits_in_last_word=6, last_word_mask=00000000000000000000000000111111
+dispatcher: create-request: creating: type=policy, request=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2)
+dispatcher: evaluate: iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2)
+#trials=10: 0 (9 9.0 9.0) 1 (9 9.0 9.0) 2 (10 10.0 9.3) 3 (9 9.0 9.2) 4 (9 9.0 9.2) 5 (10 10.0 9.3) 6 (9 9.0 9.3) 7 (9 9.0 9.2) 8 (9 9.0 9.2) 9 (9 9.0 9.2)
+the following stats may aggregate figures when elements are shared among policies
+stats: type=eval name=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=2) seed=4220 problem.expansions=144362 policy.decisions=92 eval.value.avg=9.2 eval.value.stdev=0.1 eval.steps.avg=9.2 eval.steps.stdev=0.1 time.raw=13.7 time.setup=0.0 time.policy=13.7
+  other-stats: name=iw-bel2(width=0,prune-threshold=2,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,divergence=total,max-expansions=250,score-aggregation=max,random_ties=true) decisions=92
+main: total-time=13.7
+main: seed=28327
+bitmap_t: dim=550, dim_in_words=18, bits_in_last_word=6, last_word_mask=00000000000000000000000000111111
+dispatcher: create-request: creating: type=policy, request=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=3)
+dispatcher: evaluate: iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=3)
+#trials=10: 0 (9 9.0 9.0) 1 (9 9.0 9.0) 2 (9 9.0 9.0) 3 (9 9.0 9.0) 4 (10 10.0 9.2) 5 (10 10.0 9.3) 6 (9 9.0 9.3) 7 (9 9.0 9.2) 8 (10 10.0 9.3) 9 (9 9.0 9.3)
+the following stats may aggregate figures when elements are shared among policies
+stats: type=eval name=iw-bel2(determinization=most-likely,stop-criterion=reward,dp=5,max-expansions=250,random-ties=true,prune-threshold=3) seed=28327 problem.expansions=148219 policy.decisions=93 eval.value.avg=9.3 eval.value.stdev=0.2 eval.steps.avg=9.3 eval.steps.stdev=0.2 time.raw=14.0 time.setup=0.0 time.policy=14.0
+  other-stats: name=iw-bel2(width=0,prune-threshold=3,discretization-parameter=5,determinization=most-likely,stop-criterion=reward,divergence=total,max-expansions=250,score-aggregation=max,random_ties=true) decisions=93
+main: total-time=14.0
