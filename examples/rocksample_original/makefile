@@ -37,9 +37,9 @@ $(OBJS):	$(ENGINE)/hash.h
 $(OBJS):	$(ENGINE)/hdp.h
 $(OBJS):	$(ENGINE)/heuristic.h
 $(OBJS):	$(ENGINE)/improved_lao.h
+$(OBJS):	$(ENGINE)/iw_base.h
 $(OBJS):	$(ENGINE)/iw_bel.h
 $(OBJS):	$(ENGINE)/iw_bel2.h
-$(OBJS):	$(ENGINE)/iw_bel3.h
 $(OBJS):	$(ENGINE)/ldfs.h
 $(OBJS):	$(ENGINE)/lrtdp.h
 $(OBJS):	$(ENGINE)/makefile
@@ -68,9 +68,9 @@ $(OBJS2):	$(ENGINE)/hash.h
 $(OBJS2):	$(ENGINE)/hdp.h
 $(OBJS2):	$(ENGINE)/heuristic.h
 $(OBJS2):	$(ENGINE)/improved_lao.h
+$(OBJS2):	$(ENGINE)/iw_base.h
 $(OBJS2):	$(ENGINE)/iw_bel.h
 $(OBJS2):	$(ENGINE)/iw_bel2.h
-$(OBJS2):	$(ENGINE)/iw_bel3.h
 $(OBJS2):	$(ENGINE)/ldfs.h
 $(OBJS2):	$(ENGINE)/lrtdp.h
 $(OBJS2):	$(ENGINE)/makefile

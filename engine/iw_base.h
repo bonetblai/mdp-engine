@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef IW_BEL3_H
-#define IW_BEL3_H
+#ifndef IW_BASE_H
+#define IW_BASE_H
 
 #include <iostream>
 #include <sstream>
@@ -39,7 +39,7 @@ namespace Online {
 
 namespace Policy {
 
-namespace IWBel3 {
+namespace IWBase {
 
 ////////////////////////////////////////////////
 //
@@ -241,7 +241,7 @@ class tuple_hash_t : public Hash::generic_hash_set_t<const int*, tuple_hash_func
 // Policy
 //
 
-template<typename T> class iw_bel3_t : public policy_t<T> {
+template<typename T> class iw_base_t : public policy_t<T> {
   public:
     typedef enum { MOST_LIKELY, SAMPLE } determinization_t;
     typedef enum { REWARD, TARGET } stop_criterion_t;
@@ -304,14 +304,14 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         }
     };
 
-    iw_bel3_t(const POMDP::pomdp_t<T> &pomdp,
-             unsigned width,
-             int prune_threshold,
-             int discretization_parameter,
-             determinization_t determinization,
-             stop_criterion_t stop_criterion,
-             unsigned max_expansions,
-             bool random_ties)
+    iw_base_t(const POMDP::pomdp_t<T> &pomdp,
+              unsigned width,
+              int prune_threshold,
+              int discretization_parameter,
+              determinization_t determinization,
+              stop_criterion_t stop_criterion,
+              unsigned max_expansions,
+              bool random_ties)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(width),
@@ -326,7 +326,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
     }
 
   public:
-    iw_bel3_t(const POMDP::pomdp_t<T> &pomdp)
+    iw_base_t(const POMDP::pomdp_t<T> &pomdp)
       : policy_t<T>(pomdp),
         pomdp_(pomdp),
         width_(0),
@@ -339,12 +339,12 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         set_map_for_non_determined_variables();
         allocate_open_lists_and_hashes();
     }
-    virtual ~iw_bel3_t() { }
+    virtual ~iw_base_t() { }
     virtual policy_t<T>* clone() const {
-        return new iw_bel3_t(pomdp_);
+        return new iw_base_t(pomdp_);
     }
     virtual std::string name() const {
-        return std::string("iw-bel3(") +
+        return std::string("iw-base(") +
           std::string("width=") + std::to_string(width_) +
           std::string(",prune-threshold=") + std::to_string(prune_threshold_) +
           std::string(",discretization-parameter=") + std::to_string(discretization_parameter_) +
@@ -463,7 +463,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
         if( it != parameters.end() ) random_ties_ = it->second == "true";
         policy_t<T>::setup_time_ = 0;
 #ifdef DEBUG
-        std::cout << "debug: iw-bel3(): params:"
+        std::cout << "debug: iw-base(): params:"
                   << " width=" << width_
                   << " prune-threshold=" << prune_threshold_
                   << " discretization-parameter=" << discretization_parameter_
@@ -908,7 +908,7 @@ template<typename T> class iw_bel3_t : public policy_t<T> {
     }
 };
 
-}; // namespace IWBel3
+}; // namespace IWBase
 
 }; // namespace Policy
 
