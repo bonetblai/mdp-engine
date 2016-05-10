@@ -32,6 +32,7 @@ $(OBJS):	$(ENGINE)/heuristic.h
 $(OBJS):	$(ENGINE)/improved_lao.h
 $(OBJS):	$(ENGINE)/iw_bel.h
 $(OBJS):	$(ENGINE)/iw_bel2.h
+$(OBJS):	$(ENGINE)/iw_bel3.h
 $(OBJS):	$(ENGINE)/ldfs.h
 $(OBJS):	$(ENGINE)/lrtdp.h
 $(OBJS):	$(ENGINE)/makefile
