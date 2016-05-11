@@ -15,14 +15,30 @@
 struct maze_t; // forward reference
 
 struct loc_t {
-    int row_;
     int col_;
+    int row_;
 
-    loc_t(int row = 0, int col = 0) : row_(row), col_(col) {
-        assert((row_>= 0) && (row_ < NUM_ROWS));
-        assert((col_>= 0) && (col_ < NUM_COLS));
+    loc_t(int cell = 0)
+      : col_(cell % NUM_COLS),
+        row_(cell / NUM_COLS) {
     }
-    loc_t(const loc_t &loc) : row_(loc.row_), col_(loc.col_) {
+    loc_t(int col, int row)
+      : col_(col),
+        row_(row) {
+        assert((col_>= 0) && (col_ < NUM_COLS));
+        assert((row_>= 0) && (row_ < NUM_ROWS));
+    }
+    loc_t(const loc_t &loc)
+      : col_(loc.col_),
+        row_(loc.row_) {
+    }
+    loc_t(loc_t &&loc) = default;
+    ~loc_t() { }
+
+    const loc_t& operator=(const loc_t &loc) {
+        col_ = loc.col_;
+        row_ = loc.row_;
+        return *this;
     }
 
     int as_integer() const {
@@ -47,7 +63,7 @@ inline std::ostream& operator<<(std::ostream &os, const loc_t &loc) {
 struct maze_t {
     int num_food_;
     int num_pills_;
-    unsigned char cells_[NUM_CELLS];
+    unsigned char *cells_;
     enum { FREE = 0, FOOD = 1, WALL = 2, PILL = 3 };
 
     maze_t() {
@@ -72,13 +88,14 @@ struct maze_t {
                           3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,   // row 17
                           0, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 0,   // row 18
                           0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 }; // row 19
+        cells_ = new unsigned char[NUM_CELLS];
         memcpy(cells_, walls, NUM_CELLS);
         num_pills_ = 4;
 
         // position food pellets
         num_food_ = 0;
         for( int i = 0; i < NUM_CELLS; ++i ) {
-            if( cells_[i] == FREE )
+            if( (cells_[i] == FREE) && (i != loc_t(8, 8).as_integer()) )
                 cells_[i] = Random::random(2) == 0 ? FREE : FOOD;
             num_food_ += cells_[i] == FOOD ? 1 : 0;
         }
@@ -86,7 +103,17 @@ struct maze_t {
     maze_t(const maze_t &maze)
       : num_food_(maze.num_food_),
         num_pills_(maze.num_pills_) {
+        cells_ = new unsigned char[NUM_CELLS];
         memcpy(cells_, maze.cells_, NUM_CELLS);
+    }
+    maze_t(maze_t &&maze)
+      : num_food_(maze.num_food_),
+        num_pills_(maze.num_pills_),
+        cells_(maze.cells_) {
+        maze.cells_ = 0;
+    }
+    virtual ~maze_t() {
+        delete[] cells_;
     }
 
     bool valid(const loc_t &loc) const {
@@ -107,7 +134,6 @@ struct maze_t {
     }
 
     void print(std::ostream &os) const {
-        os << "(food=" << num_food_ << ", pills=" << num_pills_ << ")" << std::endl;
         os << "+-----------------+" << std::endl;
         for( int row = NUM_ROWS - 1; row >= 0; --row ) {
             os << (row == 10 ? ' ' : '|');
@@ -168,8 +194,42 @@ inline void loc_t::move_west(const maze_t &maze) {
 struct state_t {
     loc_t pacman_;
     loc_t ghosts_[4];
-    maze_t maze;
+    maze_t maze_;
+
+    state_t()
+      : pacman_(9, 9) {
+        for( int i = 0; i < 4; ++i )
+            ghosts_[i] = loc_t(8, 10);
+    }
+    state_t(const state_t &state)
+      : pacman_(state.pacman_),
+        maze_(state.maze_) {
+        for( int i = 0; i < 4; ++i )
+            ghosts_[i] = state.ghosts_[i];
+    }
+    state_t(state_t &&state) = default;
+    virtual ~state_t() {
+    }
+
+    void print(std::ostream &os) const {
+        os << "(pacman=" << pacman_
+           << ", ghosts={"
+           << ghosts_[0] << ","
+           << ghosts_[1] << ","
+           << ghosts_[2] << ","
+           << ghosts_[3] << "}"
+           << ", food=" << maze_.num_food_
+           << ", pills=" << maze_.num_pills_
+           << ")"
+           << std::endl;
+        os << maze_;
+    }
 };
+
+inline std::ostream& operator<<(std::ostream &os, const state_t &state) {
+    state.print(os);
+    return os;
+}
 
 
 

@@ -99,8 +99,8 @@ int main(int argc, const char **argv) {
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
 
-    maze_t maze;
-    cout << maze << endl;
+    state_t state;
+    cout << state << endl;
 
 #if 0
     Bitmap::bitmap_t::set_dimension(number_rocks);
