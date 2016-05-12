@@ -21,6 +21,7 @@ struct loc_t {
     loc_t(int cell = 0)
       : col_(cell % NUM_COLS),
         row_(cell / NUM_COLS) {
+        assert(cell >= 0);
     }
     loc_t(int col, int row)
       : col_(col),
@@ -45,13 +46,29 @@ struct loc_t {
         return row_ * NUM_COLS + col_;
     }
 
+    enum { NORTH = 0, EAST = 1, SOUTH = 2, WEST = 3 };
     void move_north(const maze_t &maze);
     void move_east(const maze_t &maze);
     void move_south(const maze_t &maze);
     void move_west(const maze_t &maze);
+    void move(const maze_t &maze, int dir) {
+        if( dir == NORTH )
+            move_north(maze);
+        else if( dir == EAST )
+            move_east(maze);
+        else if( dir == SOUTH )
+            move_south(maze);
+        else
+            move_west(maze);
+    }
+    loc_t move(const maze_t &maze, int dir) const {
+        loc_t loc(*this);
+        loc.move(maze, dir);
+        return loc;
+    }
 
     void print(std::ostream &os) const {
-        os << "(" << col_ << "," << row_ << ")";
+        os << "(" << 1 + col_ << "," << 1 + row_ << ")";
     }
 };
 
@@ -96,7 +113,7 @@ struct maze_t {
         num_food_ = 0;
         for( int i = 0; i < NUM_CELLS; ++i ) {
             if( (cells_[i] == FREE) && (i != loc_t(8, 8).as_integer()) )
-                cells_[i] = Random::random(2) == 0 ? FREE : FOOD;
+                cells_[i] = FOOD; //Random::random(2) == 0 ? FREE : FOOD;
             num_food_ += cells_[i] == FOOD ? 1 : 0;
         }
     }
@@ -120,15 +137,56 @@ struct maze_t {
         int status = cells_[loc.as_integer()];
         return status != WALL;
     }
+    bool can_move_north(const loc_t &loc) const {
+        return (1 + loc.row_ < NUM_ROWS) && valid(loc_t(loc.col_, 1 + loc.row_));
+    }
+    bool can_move_east(const loc_t &loc) const {
+        return (1 + loc.col_ < NUM_COLS) && valid(loc_t(1 + loc.col_, loc.row_));
+    }
+    bool can_move_south(const loc_t &loc) const {
+        return (loc.row_ > 0) && valid(loc_t(loc.col_, loc.row_ - 1));
+    }
+    bool can_move_west(const loc_t &loc) const {
+        return (loc.col_ > 0) && valid(loc_t(loc.col_ - 1, loc.row_));
+    }
+    bool can_move(const loc_t &loc, int dir) const {
+        if( dir == loc_t::NORTH )
+            return can_move_north(loc);
+        else if( dir == loc_t::EAST )
+            return can_move_east(loc);
+        else if( dir == loc_t::SOUTH )
+            return can_move_south(loc);
+        else
+            return can_move_west(loc);
+    }
+    int food_in_line_of_sight(const loc_t &loc, int dir) const {
+        int food = 0;
+        int row = loc.row_;
+        int col = loc.col_;
+        while( (row >= 0) && (row < NUM_ROWS) && (col >= 0) && (col < NUM_COLS) ) {
+            food += cells_[row * NUM_COLS + col] == FOOD ? 1 : 0;
+            if( (dir == loc_t::NORTH) || (dir == loc_t::SOUTH) )
+                row += dir == loc_t::NORTH ? 1 : -1;
+            else
+                col += dir == loc_t::EAST ? 1 : -1;
+        }
+        return food;
+    }
+
+    bool food_at(const loc_t &loc) const {
+        return cells_[loc.as_integer()] == FOOD;
+    }
+    bool pill_at(const loc_t &loc) const {
+        return cells_[loc.as_integer()] == PILL;
+    }
+
     void eat_food(const loc_t &loc) {
-        assert(num_food_ > 0);
-        assert(cells_[loc.as_integer()] == FOOD);
+        assert(food_at(loc));
         cells_[loc.as_integer()] = FREE;
         --num_food_;
     }
     void eat_pill(const loc_t &loc) {
-        assert(num_pills_ > 0);
-        assert(cells_[loc.as_integer()] == PILL);
+        assert(pill_at(loc));
         cells_[loc.as_integer()] = FREE;
         --num_pills_;
     }
@@ -160,65 +218,174 @@ inline std::ostream& operator<<(std::ostream &os, const maze_t &maze) {
 }
 
 inline void loc_t::move_north(const maze_t &maze) {
-    if( 1 + row_ < NUM_ROWS ) {
-        loc_t target(1 + row_, col_);
-        if( maze.valid(target) )
-            row_ = 1 + row_;
-    }
+    assert(maze.can_move_north(*this));
+    ++row_;
 }
 
 inline void loc_t::move_east(const maze_t &maze) {
-    if( 1 + col_ < NUM_COLS ) {
-        loc_t target(row_, 1 + col_);
-        if( maze.valid(target) )
-            col_ = 1 + col_;
-    }
+    assert(maze.can_move_east(*this));
+    ++col_;
 }
 
 inline void loc_t::move_south(const maze_t &maze) {
-    if( row_ > 0 ) {
-        loc_t target(row_ - 1, col_);
-        if( maze.valid(target) )
-            row_ = row_ - 1;
-    }
+    assert(maze.can_move_south(*this));
+    --row_;
 }
 
 inline void loc_t::move_west(const maze_t &maze) {
-    if( col_ > 0 ) {
-        loc_t target(row_, col_ - 1);
-        if( maze.valid(target) )
-            col_ = col_ - 1;
-    }
+    assert(maze.can_move_west(*this));
+    --col_;
 }
 
 struct state_t {
+    int ghosts_loc_;
+    int ghosts_last_dir_;
     loc_t pacman_;
-    loc_t ghosts_[4];
     maze_t maze_;
 
     state_t()
-      : pacman_(9, 9) {
+      : ghosts_loc_(0),
+        ghosts_last_dir_(0),
+        pacman_(8, 8) {
+        std::pair<int, int> ghost_loc_and_dir[4];
         for( int i = 0; i < 4; ++i )
-            ghosts_[i] = loc_t(8, 10);
+            ghost_loc_and_dir[i] = std::make_pair(loc_t(8, 11).as_integer(), 4); // dummy initial dir = 4 (regular values are 0 ... 3)
+        std::pair<int, int> p = encode_ghost_loc_and_dir(ghost_loc_and_dir);
+        assert((p.first >= 0) && (p.second >= 0));
+        ghosts_loc_ = p.first;
+        ghosts_last_dir_ = p.second;
     }
     state_t(const state_t &state)
-      : pacman_(state.pacman_),
+      : ghosts_loc_(state.ghosts_loc_),
+        ghosts_last_dir_(state.ghosts_last_dir_),
+        pacman_(state.pacman_),
         maze_(state.maze_) {
-        for( int i = 0; i < 4; ++i )
-            ghosts_[i] = state.ghosts_[i];
     }
     state_t(state_t &&state) = default;
     virtual ~state_t() {
     }
 
+    void decode_ghost_loc_and_dir(std::pair<int, int> *ghost_loc_and_dir) const {
+        int loc = ghosts_loc_;
+        int dir = ghosts_last_dir_;
+        for( int i = 0; i < 4; ++i ) {
+            ghost_loc_and_dir[3 - i].first = loc % NUM_CELLS;
+            loc /= NUM_CELLS;
+            ghost_loc_and_dir[3 - i].second = dir % 5;
+            dir /= 5;
+        }
+    }
+    std::pair<int, int> encode_ghost_loc_and_dir(const std::pair<int, int> *ghost_loc_and_dir) const {
+        std::pair<int, int> p(0, 0);
+        for( int i = 0; i < 4; ++i ) {
+            assert((ghost_loc_and_dir[i].first >= 0) && (ghost_loc_and_dir[i].first < NUM_CELLS));
+            p.first = p.first * NUM_CELLS + ghost_loc_and_dir[i].first;
+            assert((ghost_loc_and_dir[i].second >= 0) && (ghost_loc_and_dir[i].second < 5));
+            p.second = p.second * 5 + ghost_loc_and_dir[i].second;
+        }
+        assert((p.first >= 0) && (p.second >= 0));
+        return p;
+    }
+
+    void combine_ghost_movements(const std::vector<std::vector<std::pair<std::pair<int, int>, float> > > &ghost_outcomes, std::vector<std::pair<std::pair<int, int>, float> > &outcomes) const {
+        assert(ghost_outcomes.size() == 4);
+        int n = 1;
+        for( int i = 0; i < 4; ++i )
+            n *= ghost_outcomes[i].size();
+        assert((n > 0) && (n <= 81));
+        std::cout << "n=" << n << std::endl;
+
+        outcomes.clear();
+        outcomes.reserve(n);
+        for( int i = 0; i < n; ++i ) {
+            int g_indices[4];
+            int index = i;
+            for( int j = 3; j > 0; --j ) {
+                g_indices[j] = index % ghost_outcomes[j].size();
+                index /= ghost_outcomes[j].size();
+            }
+            g_indices[0] = index;
+
+            float probability = 1;
+            std::pair<int, int> ghost_loc_and_dir[4];
+            for( int j = 0; j < 4; ++j ) {
+                ghost_loc_and_dir[j] = ghost_outcomes[j][g_indices[j]].first;
+                probability *= ghost_outcomes[j][g_indices[j]].second;
+            }
+            outcomes.push_back(std::make_pair(encode_ghost_loc_and_dir(ghost_loc_and_dir), probability));
+        }
+    }
+
+    void move_ghosts(std::vector<std::pair<std::pair<int, int>, float> > &outcomes) const {
+        std::pair<int, int> ghost_loc_and_dir[4];
+        decode_ghost_loc_and_dir(ghost_loc_and_dir);
+
+        std::vector<std::vector<std::pair<std::pair<int, int>, float> > > ghost_outcomes(4);
+        for( int i = 0; i < 4; ++i ) {
+            const loc_t loc(ghost_loc_and_dir[i].first);
+            int forbidden_dir = (ghost_loc_and_dir[i].second + 2) % 4;
+           
+            int num_targets = 0;
+            float total_mass = 0;
+            float target_prob[4];
+            std::pair<int, int> target[4];
+            for( int dir = 0; dir < 4; ++dir ) {
+                if( (forbidden_dir != dir) && maze_.can_move(loc, dir) ) {
+                    target[num_targets] = std::make_pair(loc.move(maze_, dir).as_integer(), dir);
+                    target_prob[num_targets] = maze_.food_in_line_of_sight(loc, dir);
+                    total_mass += target_prob[num_targets];
+                    ++num_targets;
+                }
+            }
+            assert(num_targets > 0);
+
+            if( total_mass == 0 ) {
+                for( int j = 0; j < num_targets; ++j )
+                    target_prob[j] = 1 / float(num_targets);
+            } else {
+                for( int j = 0; j < num_targets; ++j ) {
+                    while( target_prob[j] == 0 ) {
+                        target[j] = target[num_targets - 1];
+                        target_prob[j] = target_prob[num_targets - 1];
+                        --num_targets;
+                    }
+                }
+                for( int j = 0; j < num_targets; ++j ) {
+                    assert(target_prob[j] != 0);
+                    target_prob[j] /= total_mass;
+                }
+            }
+            assert(num_targets > 0);
+
+            ghost_outcomes[i].reserve(num_targets);
+            for( int j = 0; j < num_targets; ++j )
+                ghost_outcomes[i].push_back(std::make_pair(target[j], target_prob[j]));
+        }
+
+        combine_ghost_movements(ghost_outcomes, outcomes);
+    }
+
+    void move_ghosts() { // non-deterministically move ghosts
+        std::vector<std::pair<std::pair<int, int>, float> > outcomes;
+        move_ghosts(outcomes);
+        std::vector<float> cdf(outcomes.size(), 0);
+        cdf[0] = outcomes[0].second;
+        for( int i = 1; i < outcomes.size(); ++i )
+            cdf[i] = cdf[i - 1] + outcomes[i].second;
+        int sampled_index = Random::sample_from_distribution(cdf.size(), &cdf[0]);
+        ghosts_loc_ = outcomes[sampled_index].first.first;
+        ghosts_last_dir_ = outcomes[sampled_index].first.second;
+    }
+
     void print(std::ostream &os) const {
-        os << "(pacman=" << pacman_
-           << ", ghosts={"
-           << ghosts_[0] << ","
-           << ghosts_[1] << ","
-           << ghosts_[2] << ","
-           << ghosts_[3] << "}"
-           << ", food=" << maze_.num_food_
+        os << "(pacman=" << pacman_ << ", ghosts={";
+        std::pair<int, int> ghost_loc_and_dir[4];
+        decode_ghost_loc_and_dir(ghost_loc_and_dir);
+        for( int i = 0; i < 4; ++i ) {
+            os << loc_t(ghost_loc_and_dir[i].first) << ":" << ghost_loc_and_dir[i].second;
+            if( i + 1 < 4 ) os << ",";
+        }
+        os << "}, food=" << maze_.num_food_
            << ", pills=" << maze_.num_pills_
            << ")"
            << std::endl;

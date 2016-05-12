@@ -101,6 +101,10 @@ int main(int argc, const char **argv) {
 
     state_t state;
     cout << state << endl;
+    state.move_ghosts();
+    cout << state << endl;
+    state.move_ghosts();
+    cout << state << endl;
 
 #if 0
     Bitmap::bitmap_t::set_dimension(number_rocks);
