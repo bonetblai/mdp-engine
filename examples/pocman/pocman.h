@@ -157,7 +157,6 @@ struct maze_t {
         int cell = loc_t(8, 11).as_integer();
         cell_map_[cell] = num_valid_cells_;
         inv_cell_map_[num_valid_cells_] = cell;
-        ++num_valid_cells_;
 
         std::cout << "maze_t: #cells=" << NUM_CELLS << ", #valid-cells=" << num_valid_cells_ << std::endl;
     }
@@ -170,13 +169,13 @@ struct maze_t {
         return (1 + loc.row_ < NUM_ROWS) && valid(loc_t(loc.col_, 1 + loc.row_));
     }
     bool can_move_east(const loc_t &loc) const {
-        return (1 + loc.col_ < NUM_COLS) && valid(loc_t(1 + loc.col_, loc.row_));
+        return ((1 + loc.col_ < NUM_COLS) && valid(loc_t(1 + loc.col_, loc.row_))) || ((loc.col_ == 16) && (loc.row_ == 10));
     }
     bool can_move_south(const loc_t &loc) const {
         return (loc.row_ > 0) && valid(loc_t(loc.col_, loc.row_ - 1));
     }
     bool can_move_west(const loc_t &loc) const {
-        return (loc.col_ > 0) && valid(loc_t(loc.col_ - 1, loc.row_));
+        return ((loc.col_ > 0) && valid(loc_t(loc.col_ - 1, loc.row_))) || ((loc.col_ == 0) && (loc.row_ == 10));
     }
     bool can_move(const loc_t &loc, int dir) const {
         if( dir == loc_t::NORTH )
@@ -192,7 +191,12 @@ struct maze_t {
         int food = 0;
         int row = loc.row_;
         int col = loc.col_;
-        while( (row >= 0) && (row < NUM_ROWS) && (col >= 0) && (col < NUM_COLS) ) {
+        if( (dir == loc_t::NORTH) || (dir == loc_t::SOUTH) )
+            row += dir == loc_t::NORTH ? 1 : -1;
+        else
+            col += dir == loc_t::EAST ? 1 : -1;
+
+        while( (row >= 0) && (row < NUM_ROWS) && (col >= 0) && (col < NUM_COLS) && (cells_[row * NUM_COLS + col] != WALL) ) {
             food += cells_[row * NUM_COLS + col] == FOOD ? 1 : 0;
             if( (dir == loc_t::NORTH) || (dir == loc_t::SOUTH) )
                 row += dir == loc_t::NORTH ? 1 : -1;
@@ -221,9 +225,11 @@ struct maze_t {
     }
 
     void print(std::ostream &os) const {
-        os << "+-----------------+" << std::endl;
+        os << "+----+-----------------+----+" << std::endl;
+        os << "|    |12345678901234567|    |" << std::endl;
+        os << "+----+-----------------+----+" << std::endl;
         for( int row = NUM_ROWS - 1; row >= 0; --row ) {
-            os << (row == 10 ? ' ' : '|');
+            os << "| " << std::setw(2) << 1 + row << " " << (row == 10 ? ' ' : '|');
             for( int col = 0; col < NUM_COLS; ++col ) {
                 int status = cells_[row * NUM_COLS + col];
                 if( status == FOOD )
@@ -235,9 +241,11 @@ struct maze_t {
                 else
                     os << ' ';
             }
-            os << (row == 10 ? ' ' : '|') << std::endl;
+            os << (row == 10 ? ' ' : '|') << ' ' << 1 + row << (row < 9 ? "  |" : " |") << std::endl;
         }
-        os << "+-----------------+" << std::endl;
+        os << "+----+-----------------+----+" << std::endl;
+        os << "|    |12345678901234567|    |" << std::endl;
+        os << "+----+-----------------+----+" << std::endl;
     }
 };
 
@@ -253,7 +261,10 @@ inline void loc_t::move_north(const maze_t &maze) {
 
 inline void loc_t::move_east(const maze_t &maze) {
     assert(maze.can_move_east(*this));
-    ++col_;
+    if( col_ == 16 )
+        col_ = 0;
+    else
+        ++col_;
 }
 
 inline void loc_t::move_south(const maze_t &maze) {
@@ -263,7 +274,10 @@ inline void loc_t::move_south(const maze_t &maze) {
 
 inline void loc_t::move_west(const maze_t &maze) {
     assert(maze.can_move_west(*this));
-    --col_;
+    if( col_ == 0 )
+        col_ = 16;
+    else
+        --col_;
 }
 
 struct state_t {
@@ -282,6 +296,12 @@ struct state_t {
         std::pair<int, int> p = encode_ghost_loc_and_dir(ghost_loc_and_dir);
         ghosts_loc_ = p.first;
         ghosts_last_dir_ = p.second;
+        std::pair<int, int> tmp[4];
+        decode_ghost_loc_and_dir(tmp);
+        assert(tmp[0] == ghost_loc_and_dir[0]);
+        assert(tmp[1] == ghost_loc_and_dir[1]);
+        assert(tmp[2] == ghost_loc_and_dir[2]);
+        assert(tmp[3] == ghost_loc_and_dir[3]);
     }
     state_t(const state_t &state)
       : ghosts_loc_(state.ghosts_loc_),
@@ -311,9 +331,9 @@ struct state_t {
         int ghost_loc = ghosts_loc_;
         int ghost_dir = ghosts_last_dir_;
         for( int i = 0; i < 4; ++i ) {
-            int loc = ghost_loc % maze_t::num_valid_cells_;
+            int loc = ghost_loc % (1 + maze_t::num_valid_cells_);
             int dir = ghost_dir % 5;
-            ghost_loc /= maze_t::num_valid_cells_;;
+            ghost_loc /= 1 + maze_t::num_valid_cells_;;
             ghost_dir /= 5;
             assert(maze_t::inv_cell_map_[loc] != -1);
             ghost_loc_and_dir[3 - i].first = maze_t::inv_cell_map_[loc];
@@ -327,7 +347,7 @@ struct state_t {
         for( int i = 0; i < 4; ++i )
             n *= ghost_outcomes[i].size();
         assert((n > 0) && (n <= 81));
-        std::cout << "n=" << n << std::endl;
+        //std::cout << "n=" << n << std::endl;
 
         outcomes.clear();
         outcomes.reserve(n);
@@ -358,6 +378,7 @@ struct state_t {
         for( int i = 0; i < 4; ++i ) {
             const loc_t loc(ghost_loc_and_dir[i].first);
             int forbidden_dir = (ghost_loc_and_dir[i].second + 2) % 4;
+            //std::cout << "ghost[i=" << i << "]: loc=" << loc << ", dir=" << ghost_loc_and_dir[i].second << ", forbidden=" << forbidden_dir << std::endl;
            
             int num_targets = 0;
             float total_mass = 0;
@@ -367,18 +388,20 @@ struct state_t {
                 if( (forbidden_dir != dir) && maze_.can_move(loc, dir) ) {
                     target[num_targets] = std::make_pair(loc.move(maze_, dir).as_integer(), dir);
                     target_prob[num_targets] = maze_.food_in_line_of_sight(loc, dir);
+                    //std::cout << "dir=" << dir << ", can-move=" << maze_.can_move(loc, dir) << ", loc=" << loc_t(target[num_targets].first) << ", food=" << target_prob[num_targets] << std::endl;
                     total_mass += target_prob[num_targets];
                     ++num_targets;
                 }
             }
             assert(num_targets > 0);
+            //std::cout << "num-targets=" << num_targets << ", mass=" << total_mass << std::endl;
 
             if( total_mass == 0 ) {
                 for( int j = 0; j < num_targets; ++j )
                     target_prob[j] = 1 / float(num_targets);
             } else {
                 for( int j = 0; j < num_targets; ++j ) {
-                    while( target_prob[j] == 0 ) {
+                    while( (target_prob[j] == 0) && (j < num_targets) ) {
                         target[j] = target[num_targets - 1];
                         target_prob[j] = target_prob[num_targets - 1];
                         --num_targets;

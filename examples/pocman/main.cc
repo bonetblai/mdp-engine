@@ -29,7 +29,6 @@ int Bitmap::bitmap_t::dim_ = 0;
 int Bitmap::bitmap_t::dim_in_words_ = 0;
 int Bitmap::bitmap_t::bits_in_last_word_ = 0;
 unsigned Bitmap::bitmap_t::last_word_mask_ = 0;
-
 const pomdp_t *arc_consistency_t::pomdp_ = 0;
 const pomdp_t *belief_state_t::pomdp_ = 0;
 #endif
@@ -37,17 +36,10 @@ const pomdp_t *belief_state_t::pomdp_ = 0;
 using namespace std;
 
 void usage(ostream &os) {
-    os << "usage: pocman [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>] <PARAMETERS>" << endl;
+    os << "usage: pocman [--no-colors] [{-r | --request} <request>]* [{-s | --seed} <default-seed>] [{-t | --trials} <num-trials>]" << endl;
 }
 
 int main(int argc, const char **argv) {
-#if 0
-    int xdim = 0;
-    int ydim = 0;
-    int number_rocks = 0;
-    int max_antenna_height = 0;
-#endif
-
     unsigned num_trials = 1;
     unsigned max_steps = 100;
     vector<string> requests;
@@ -88,14 +80,7 @@ int main(int argc, const char **argv) {
     //requests.push_back("policy=iw-bel2(determinization=most-likely,dp=5,stop-criterion=reward,max-expansions=30,random-ties=true,prune-threshold=2)");
 
     // read parameters
-    if( argc == 0 ) {
-#if 0
-        xdim = strtoul(argv[0], 0, 0);
-        ydim = strtoul(argv[1], 0, 0);
-        number_rocks = strtoul(argv[2], 0, 0);
-        max_antenna_height = strtoul(argv[3], 0, 0);
-#endif
-    } else {
+    if( argc != 0 ) {
         usage(cout);
         exit(-1);
     }
@@ -106,11 +91,11 @@ int main(int argc, const char **argv) {
     maze_t::set_static_members();
 
     state_t state;
-    cout << state << endl;
-    state.move_ghosts();
-    cout << state << endl;
-    state.move_ghosts();
-    cout << state << endl;
+    for( int i = 0; i < 3; ++i ) {
+        cout << state << "STEP " << i << endl;
+        state.move_ghosts();
+    }
+    cout << state;
 
 #if 0
     Bitmap::bitmap_t::set_dimension(number_rocks);
