@@ -19,6 +19,11 @@ namespace Utils {
   bool g_use_colors = true;
 };
 
+int maze_t::num_valid_cells_ = 0;
+unsigned char maze_t::walls_[NUM_CELLS];
+int maze_t::cell_map_[NUM_CELLS];
+int maze_t::inv_cell_map_[NUM_CELLS];
+
 #if 0
 int Bitmap::bitmap_t::dim_ = 0;
 int Bitmap::bitmap_t::dim_in_words_ = 0;
@@ -98,6 +103,7 @@ int main(int argc, const char **argv) {
     // build instance
     cout << "main: seed=" << Algorithm::g_seed << endl;
     Random::set_seed(Algorithm::g_seed);
+    maze_t::set_static_members();
 
     state_t state;
     cout << state << endl;

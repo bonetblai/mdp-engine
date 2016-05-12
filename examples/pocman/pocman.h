@@ -83,37 +83,22 @@ struct maze_t {
     unsigned char *cells_;
     enum { FREE = 0, FOOD = 1, WALL = 2, PILL = 3 };
 
+    static int num_valid_cells_;
+    static unsigned char walls_[NUM_CELLS];
+    static int cell_map_[NUM_CELLS];
+    static int inv_cell_map_[NUM_CELLS];
+
     maze_t() {
-        // position walls (fixed)
-        char walls[] = // 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 (this map grows downward (i.e. it looks inverted but it isn't))
-                        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // row  1
-                          0, 2, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 2, 0,   // row  2
-                          0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0,   // row  3
-                          2, 0, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 0, 2,   // row  4
-                          3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 3,   // row  5
-                          0, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 0,   // row  6
-                          0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0,   // row  7
-                          2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row  8
-                          2, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 2, 2,   // row  9
-                          2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row 10
-                          0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0,   // row 11
-                          2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row 12
-                          2, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 2, 2,   // row 13
-                          2, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 2,   // row 14
-                          0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0,   // row 15
-                          0, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 0,   // row 16
-                          3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,   // row 17
-                          0, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 0,   // row 18
-                          0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 }; // row 19
+        // construct maze from template
         cells_ = new unsigned char[NUM_CELLS];
-        memcpy(cells_, walls, NUM_CELLS);
+        memcpy(cells_, walls_, NUM_CELLS);
         num_pills_ = 4;
 
-        // position food pellets
+        // randomly place food pellets
         num_food_ = 0;
         for( int i = 0; i < NUM_CELLS; ++i ) {
             if( (cells_[i] == FREE) && (i != loc_t(8, 8).as_integer()) )
-                cells_[i] = FOOD; //Random::random(2) == 0 ? FREE : FOOD;
+                cells_[i] = Random::random(2) == 0 ? FREE : FOOD;
             num_food_ += cells_[i] == FOOD ? 1 : 0;
         }
     }
@@ -131,6 +116,50 @@ struct maze_t {
     }
     virtual ~maze_t() {
         delete[] cells_;
+    }
+
+    static void set_static_members() {
+        unsigned char walls[] = // 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 (this map grows downward (i.e. it looks inverted but it isn't))
+                                 { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // row  1
+                                   0, 2, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 2, 0,   // row  2
+                                   0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0,   // row  3
+                                   2, 0, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 0, 2,   // row  4
+                                   3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 3,   // row  5
+                                   0, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 0,   // row  6
+                                   0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0,   // row  7
+                                   2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row  8
+                                   2, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 2, 2,   // row  9
+                                   2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row 10
+                                   0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0,   // row 11
+                                   2, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 2,   // row 12
+                                   2, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 2, 2,   // row 13
+                                   2, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 2,   // row 14
+                                   0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0,   // row 15
+                                   0, 2, 2, 0, 2, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 2, 0,   // row 16
+                                   3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,   // row 17
+                                   0, 2, 2, 0, 2, 2, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 0,   // row 18
+                                   0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 }; // row 19
+        memcpy(walls_, walls, NUM_CELLS);
+
+        // set cell maps
+        num_valid_cells_ = 0;
+        for( int cell = 0; cell < NUM_CELLS; ++cell ) {
+            cell_map_[cell] = -1;
+            inv_cell_map_[cell] = -1;
+            if( walls_[cell] != WALL ) {
+                cell_map_[cell] = num_valid_cells_;
+                inv_cell_map_[num_valid_cells_] = cell;
+                ++num_valid_cells_;
+            }
+        }
+
+        // set cell map for initial position for ghosts (special case as this is a wall position)
+        int cell = loc_t(8, 11).as_integer();
+        cell_map_[cell] = num_valid_cells_;
+        inv_cell_map_[num_valid_cells_] = cell;
+        ++num_valid_cells_;
+
+        std::cout << "maze_t: #cells=" << NUM_CELLS << ", #valid-cells=" << num_valid_cells_ << std::endl;
     }
 
     bool valid(const loc_t &loc) const {
@@ -251,7 +280,6 @@ struct state_t {
         for( int i = 0; i < 4; ++i )
             ghost_loc_and_dir[i] = std::make_pair(loc_t(8, 11).as_integer(), 4); // dummy initial dir = 4 (regular values are 0 ... 3)
         std::pair<int, int> p = encode_ghost_loc_and_dir(ghost_loc_and_dir);
-        assert((p.first >= 0) && (p.second >= 0));
         ghosts_loc_ = p.first;
         ghosts_last_dir_ = p.second;
     }
@@ -265,26 +293,32 @@ struct state_t {
     virtual ~state_t() {
     }
 
-    void decode_ghost_loc_and_dir(std::pair<int, int> *ghost_loc_and_dir) const {
-        int loc = ghosts_loc_;
-        int dir = ghosts_last_dir_;
-        for( int i = 0; i < 4; ++i ) {
-            ghost_loc_and_dir[3 - i].first = loc % NUM_CELLS;
-            loc /= NUM_CELLS;
-            ghost_loc_and_dir[3 - i].second = dir % 5;
-            dir /= 5;
-        }
-    }
     std::pair<int, int> encode_ghost_loc_and_dir(const std::pair<int, int> *ghost_loc_and_dir) const {
         std::pair<int, int> p(0, 0);
         for( int i = 0; i < 4; ++i ) {
-            assert((ghost_loc_and_dir[i].first >= 0) && (ghost_loc_and_dir[i].first < NUM_CELLS));
-            p.first = p.first * NUM_CELLS + ghost_loc_and_dir[i].first;
-            assert((ghost_loc_and_dir[i].second >= 0) && (ghost_loc_and_dir[i].second < 5));
-            p.second = p.second * 5 + ghost_loc_and_dir[i].second;
+            int cell = ghost_loc_and_dir[i].first;
+            int dir = ghost_loc_and_dir[i].second;
+            assert((cell >= 0) && (cell < NUM_CELLS));
+            assert((maze_t::cell_map_[cell] >= 0) && (maze_t::cell_map_[cell] <= maze_t::num_valid_cells_));
+            assert((dir >= 0) && (dir < 5));
+            p.first = p.first * (1 + maze_t::num_valid_cells_) + maze_t::cell_map_[cell];
+            p.second = p.second * 5 + dir;
         }
         assert((p.first >= 0) && (p.second >= 0));
         return p;
+    }
+    void decode_ghost_loc_and_dir(std::pair<int, int> *ghost_loc_and_dir) const {
+        int ghost_loc = ghosts_loc_;
+        int ghost_dir = ghosts_last_dir_;
+        for( int i = 0; i < 4; ++i ) {
+            int loc = ghost_loc % maze_t::num_valid_cells_;
+            int dir = ghost_dir % 5;
+            ghost_loc /= maze_t::num_valid_cells_;;
+            ghost_dir /= 5;
+            assert(maze_t::inv_cell_map_[loc] != -1);
+            ghost_loc_and_dir[3 - i].first = maze_t::inv_cell_map_[loc];
+            ghost_loc_and_dir[3 - i].second = dir;
+        }
     }
 
     void combine_ghost_movements(const std::vector<std::vector<std::pair<std::pair<int, int>, float> > > &ghost_outcomes, std::vector<std::pair<std::pair<int, int>, float> > &outcomes) const {
